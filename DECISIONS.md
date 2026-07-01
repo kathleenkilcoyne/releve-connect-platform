@@ -6,6 +6,22 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-01 — Website skeleton + database prep
+
+**Decided:** Scaffolded the Next.js website (Step 2). Confirmed it builds and runs.
+
+**Decided:** Prepared the database groundwork *without* creating any account yet —
+`.env.example` (settings template), `supabase/seed.sql` (starter category lists),
+and `docs/SETUP-SUPABASE.md` (a click-by-click guide).
+**Why:** Creating the Supabase account is tied to Kathleen's email/billing and it
+owns all the data (Guardrail #4), so she does that step. This prep means it's fast
+and painless when she's ready — no product decisions made in the meantime.
+
+**Pending Kathleen's choice:** whether to (a) set up Supabase now, or (b) build the
+screens against sample data first and wire the database after. Asked; awaiting reply.
+
+---
+
 ## 2026-07-01 — Project kickoff & foundation
 
 **Decided:** Start a fresh, founder-owned codebase for the 90-day Profile System build.

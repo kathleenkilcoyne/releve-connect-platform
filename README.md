@@ -69,12 +69,22 @@ Then open http://localhost:3000 in a browser.
 Secrets live in a file called `.env.local` that is **never** committed to git.
 Every variable the project needs will be documented in this table as it's added.
 
+Copy `.env.example` to `.env.local` and fill in the values. You don't need them all
+at once — each is only required when its feature is built.
+
 | Variable | What it's for | Where to get it |
 |---|---|---|
-| _(none yet)_ | Added as features are built | — |
+| `NEXT_PUBLIC_SUPABASE_URL` | Your database address | Supabase → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public database key | Supabase → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Admin database key (secret) | Supabase → Settings → API |
+| `EMAIL_API_KEY` | Sending onboarding emails | Resend/Postmark (vendor TBD) |
+| `EMAIL_FROM_ADDRESS` | The "from" address on emails | Your choice |
+| `STRIPE_SECRET_KEY` | Membership payments | Stripe dashboard (test mode) |
+| `STRIPE_WEBHOOK_SIGNING_SECRET` | Confirming a payment happened | Stripe dashboard |
+| `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
 
-A template file, `.env.example`, will list every required variable with blank values,
-so you always know what needs filling in.
+**To set up the database**, follow the plain-English guide in
+[`docs/SETUP-SUPABASE.md`](docs/SETUP-SUPABASE.md).
 
 ---
 
