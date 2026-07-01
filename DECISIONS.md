@@ -6,6 +6,19 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-01 — Database connection code (Step 3, path A chosen)
+
+**Decided:** Kathleen chose to set up Supabase now (path A). While she runs the
+setup guide, built the code side so the app connects the moment keys are added:
+- Installed `@supabase/supabase-js` and `@supabase/ssr`.
+- Added connection helpers in `src/lib/supabase/` — `client.ts` (browser),
+  `server.ts` (server), `admin.ts` (privileged, server-only for webhooks/admin).
+- Added a `/setup-check` page: a green/red screen to confirm the database is
+  connected and the category lists loaded — so verifying isn't a technical task.
+**Why:** Lets setup and coding happen in parallel; nothing here needs her account.
+
+---
+
 ## 2026-07-01 — Website skeleton + database prep
 
 **Decided:** Scaffolded the Next.js website (Step 2). Confirmed it builds and runs.
