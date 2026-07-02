@@ -6,6 +6,19 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-01 — Database is LIVE ✅ (Step 3 complete)
+
+**Done:** Kathleen created her Supabase project, added keys to `.env.local`, and
+ran `supabase/setup.sql`. Verified live: all 14 tables exist and the category
+lists loaded (15 styles, 5 levels, 11 focus areas, 4 roles, 8 open-to badges).
+The app connects successfully with the publishable key.
+
+**Note:** Table creation (DDL) can't be done with app keys by design, so Kathleen
+ran the SQL in the Supabase dashboard herself — the secure path. Secret key not
+needed yet (only for later webhooks/admin).
+
+---
+
 ## 2026-07-01 — Database connection code (Step 3, path A chosen)
 
 **Decided:** Kathleen chose to set up Supabase now (path A). While she runs the
