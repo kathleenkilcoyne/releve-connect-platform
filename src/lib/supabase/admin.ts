@@ -9,16 +9,18 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Supabase's newer name is "secret key"; older projects call it "service_role key".
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !serviceKey) {
+  if (!url || !secretKey) {
     throw new Error(
       "Supabase admin client not configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
-        "SUPABASE_SERVICE_ROLE_KEY in .env.local (see docs/SETUP-SUPABASE.md).",
+        "SUPABASE_SECRET_KEY in .env.local (see docs/SETUP-SUPABASE.md).",
     );
   }
 
-  return createSupabaseClient(url, serviceKey, {
+  return createSupabaseClient(url, secretKey, {
     auth: {
       // This client acts as the system, not a logged-in user — no session.
       persistSession: false,

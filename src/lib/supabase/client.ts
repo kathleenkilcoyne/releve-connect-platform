@@ -7,16 +7,20 @@ import { createBrowserClient } from "@supabase/ssr";
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Supabase's newer name is "publishable key"; older projects call it "anon key".
+  // Accept either so it works no matter which your project shows.
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // A clear, friendly error if the keys haven't been filled in yet.
-  if (!url || !anonKey) {
+  if (!url || !publishableKey) {
     throw new Error(
       "Supabase is not configured. Copy .env.example to .env.local and fill in " +
-        "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY " +
+        "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY " +
         "(see docs/SETUP-SUPABASE.md).",
     );
   }
 
-  return createBrowserClient(url, anonKey);
+  return createBrowserClient(url, publishableKey);
 }
