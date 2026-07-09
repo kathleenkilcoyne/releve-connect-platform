@@ -428,10 +428,64 @@ create trigger talent_profiles_tsv_trg
   for each row execute function talent_profiles_tsv_refresh();
 
 -- ============================================================================
+-- SECTION 12 — STRIPE CONNECT: THE $499 SIGNATURE EXPERIENCE (Phase-2 seam)
+-- ----------------------------------------------------------------------------
+-- This is the ONE place Relevé uses Stripe Connect + an 80/20 split. Memberships
+-- (Section 8) stay simple one-way charges. See docs/STRIPE-CONNECT-499-LICENSING.md.
+-- Applied via migration 20260708120000_stripe_connect_signature_experience.sql.
+--
+-- talent_profiles gains two columns (shown here for the blueprint):
+--   stripe_account_id text            -- the artist's Express "acct_…" (nullable)
+--   payouts_enabled   boolean         -- true once Stripe confirms they can be paid
+-- memberships gains one column:
+--   source            text            -- e.g. 'signature_experience_bundle'
+-- ============================================================================
+
+-- The sellable catalog piece — a choreographer's $499 licensable work.
+create table signature_works (
+  id                    uuid primary key default gen_random_uuid(),
+  profile_id            uuid not null references talent_profiles(profile_id) on delete cascade,
+  title                 text not null,
+  style                 text,
+  length_label          text,               -- e.g. '2 min'
+  level                 text,
+  built_for             text,
+  price_cents           int  not null default 49900,   -- $499.00
+  vimeo_performance_url text,               -- private / domain-locked (gated)
+  vimeo_breakdown_url   text,               -- private / domain-locked (gated)
+  count_sheet_url       text,
+  music_note            text,
+  artistic_intent       text,
+  status                publish_status not null default 'draft',
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+-- One purchase = one order + the buyer relationship. Written ONLY by the Stripe
+-- webhook (service_role). status: pending → paid → refunded | failed.
+create table experience_purchases (
+  id                         uuid primary key default gen_random_uuid(),
+  signature_work_id          uuid not null references signature_works(id) on delete restrict,
+  buyer_user_id              uuid references users(user_id) on delete set null,
+  buyer_email                text,
+  stripe_checkout_session_id text unique,
+  stripe_payment_intent_id   text,
+  amount_cents               int not null,
+  application_fee_cents      int not null default 0,   -- Relevé's 20% (0 if founder no-split)
+  artist_transfer_cents      int not null default 0,   -- artist's 80%
+  status                     text not null default 'pending'
+                               check (status in ('pending', 'paid', 'refunded', 'failed')),
+  access_granted_at          timestamptz,
+  welcome_booked_at          timestamptz,
+  checkin_booked_at          timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+
+-- ============================================================================
 -- END OF DRAFT SCHEMA
 -- ----------------------------------------------------------------------------
--- Not yet applied to any database. Next step after review: turn this into
--- Supabase migrations, seed the controlled-vocabulary tables with the starter
--- lists from CLAUDE.md 3A, and add Row-Level Security policies so people can
--- only see/edit what they should.
+-- Sections 1–11 are applied (supabase/setup.sql). Section 12 (Stripe Connect)
+-- is applied via supabase/migrations/20260708120000_stripe_connect_signature_experience.sql,
+-- which also adds the new columns to talent_profiles/memberships and the RLS.
 -- ============================================================================

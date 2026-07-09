@@ -121,14 +121,15 @@ Notes: narrative fields enforce minimum word counts; progress auto-saves and ema
 
 ## 3B. Badge system (three distinct classes — build as separate concepts)
 
-**A. Credential / earned badges** — from degrees, certifications, union affiliations, the Certified/verified flag (RC-granted after a ~60-day tenure/observation window — Relevé's own stamp, distinct from peer ratings), and the Choreographer tier (Emerging → Established → Featured → Signature). Store the evidence and render the badge from it.
-Tier policy (ratified): every member enters as Emerging. Tiers are earned by sales (Established after $5k or 10 pieces; Featured after $25k or 30; Signature after $75k or 75) — status is earned, not purchased. The only manual override is "Founder's Discretion," logged with reason + timestamp, an exception not a routine path. (Since Marketplace is out of scope now, at launch everyone is Emerging; Founder's Discretion is the only live elevation lever until ~Q1 2027.)
+**A. Credential / earned badges** — from degrees, certifications, union affiliations, the Certified/verified flag (RC-granted after a ~60-day tenure/observation window — Relevé's own stamp, distinct from peer ratings), and the Choreographer tier — Emerging (60/40), Established (70/30), Signature (80/20), artist share first. Store the evidence and render the badge from it.
+Tier policy (ratified — see Vision Bible §06): every member enters as Emerging. Tiers are earned by sales, peer review, and contribution to the platform, reviewed annually — status is earned, not purchased. Specific numeric thresholds are NOT yet ratified; do not hardcode dollar/piece gates. Exception: the Founding 25 are granted permanent Signature status (80/20) as a founding designation. The only manual override is "Founder's Discretion," logged with reason + timestamp, an exception not a routine path. (Since Marketplace is out of scope now, at launch everyone is Emerging; Founder's Discretion is the only live elevation lever until ~Q1 2027.)
 
 **B. Open-To engagement badges** — self-selected (application Section 12): Teaching new classes · Substituting via The Swing · Choreographing on commission · Licensing pieces · Auditioning via The Beat · Speaking on a panel / Relevé Live · Publicly posting for Relevé on social · Other. Member-editable.
 
 **C. Founder distinction badges** — admin-assigned only:
-- Founding 25 · Signature — the 25 Founding Honorees, hand-chosen. Distinct, premium (gold) mark.
-- First 50 — a similar-but-not-identical sibling badge (silver) for the first 50 approved members. Same motif, lower emphasis.
+- Founding Honoree · Founding 25 — the 25 Founding Honoree choreographers, hand-chosen (permanent Signature tier, 80/20). Distinct, premium (gold) mark. The four cohorts (Senior Spotlight · Competition · Legacy · Vanguard) live in profile metadata, not as separate badges.
+- First 50 Studios — founding studio partners (silver). Founding benefit: 50% off the Accelerator tier ($1,499 → $749.50); Base ($249) and Growth ($499) stay full price.
+- First 100 Artists — founding artist cohort (silver). Founding benefit: a locked founder membership rate for life (locks today's price).
 - Model as an admin-assignable `founder_distinction` enum with room for future cohorts.
 
 Render all three classes on the public profile, visually differentiated.
@@ -151,7 +152,7 @@ F. Onboarding & intake — rebuild the intake to mirror the 13-section role-bran
 
 G. Membership activation via payment (in scope — simple, one-way). Lifecycle: applied → in-review → approved → payment due → paid/active → profile publishable.
 - Simple one-way subscription charge — Kathleen creates the Stripe Payment Link herself. No split, no Connect. Stripe processes the card.
-- After admin approves, surface the payment step (link for the tier they applied under — Individuals $99/$149/$199; Studios $249/$499/$1,499 annual).
+- After admin approves, surface the payment step (link for the tier they applied under — Individuals $99/$149/$199 (Access / Professional / Signature Pro); Studios $249/$499/$1,499 annual (Base / Growth / Accelerator)). Note: $99 Access is a JOIN tier (no application, not on the Roster); $149/$199 APPLY and are vetted.
 - Detect payment via a Stripe webhook (checkout.session.completed / subscription events) → flip membership_status to active; record stripe_customer_id, stripe_subscription_id, renewal_date.
 - Gate on paid: a profile publishes / appears in search only when membership is active. Approved-but-unpaid = not discoverable.
 - Handle unhappy paths: pending, failed, lapsed/canceled (→ inactive, unpublished but data retained), renewal.
@@ -195,7 +196,7 @@ Keep secrets in env vars, never in the repo. Document every env var in README.md
 2. RESOLVED: lean in-app intro request (NOT reveal-contact). First contact routes through Relevé, stored as a connection record; talent gets an email notification and can respond; contact details private by default. Do NOT build a full chat inbox now — just the one seam.
 3. Category vocabularies — reuse the strong starter lists in Section 3A; confirm final lists.
 4. RESOLVED: Certified is RC-granted after ~60 days (from membership activation). Relevé's own stamp, distinct from peer ratings.
-5. First 50 badge = first 50 approved applicants (badge attaches at paid activation). Silver sibling of the gold Founding 25 mark.
+5. Founding cohorts (revised 2026-07-08): THREE cohorts — Founding 25 (Signature choreographer honorees, gold), First 50 Studios (50% off the Accelerator, $1,500→$750), First 100 Artists (locked founder rate for life). This replaces the earlier single "first 50 members" badge and supersedes the Bible's "Founding 300." Badges attach at paid activation.
 
 ---
 

@@ -79,8 +79,13 @@ at once — each is only required when its feature is built.
 | `SUPABASE_SERVICE_ROLE_KEY` | Admin database key (secret) | Supabase → Settings → API |
 | `EMAIL_API_KEY` | Sending onboarding emails | Resend/Postmark (vendor TBD) |
 | `EMAIL_FROM_ADDRESS` | The "from" address on emails | Your choice |
-| `STRIPE_SECRET_KEY` | Membership payments | Stripe dashboard (test mode) |
-| `STRIPE_WEBHOOK_SIGNING_SECRET` | Confirming a payment happened | Stripe dashboard |
+| `STRIPE_SECRET_KEY` | Membership + $499 Experience payments (secret key, `sk_test_…`) | Stripe dashboard (test mode) |
+| `STRIPE_WEBHOOK_SIGNING_SECRET` | Confirming a payment happened (`whsec_…`, **not** the secret key) | Stripe dashboard / `stripe listen` |
+| `FOUNDER_PROFILE_ID` | Profile id(s) that sell the $499 work without a Connect split | Your `talent_profiles` row |
+| `FOUNDER_WELCOME_BOOKING_URL` | Founder "Welcome" call link (after purchase) | Google Calendar booking |
+| `DEFAULT_CHECKIN_BOOKING_URL` | Artist "Check-In" link (after purchase) | Your choice |
+| `MAILERLITE_API_KEY` | Add buyers to "The Climb" (optional) | MailerLite |
+| `MAILERLITE_CLIMB_GROUP_ID` | The Climb group id (optional) | MailerLite |
 | `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
 
 **To set up the database**, follow the plain-English guide in

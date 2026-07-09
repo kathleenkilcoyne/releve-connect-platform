@@ -6,6 +6,60 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-08 — Built the $499 Signature Experience (Stripe Connect, Express)
+
+**Done:** Built the licensing flow from `docs/STRIPE-CONNECT-499-LICENSING.md` — the
+backend engine + minimal UI. A buyer purchases a $499 Signature Experience; the money
+runs through **Stripe Connect (Express)** as a **destination charge**: 80% ($399.20) to
+the choreographer's connected account, 20% ($99.80) to Relevé as an application fee. On
+success the buyer gets a free Year-1 Access membership and the gated page (private Vimeo
++ count sheet + booking links) unlocks.
+
+What shipped:
+- **DB** (`supabase/migrations/20260708120000_…sql`): `stripe_account_id` + `payouts_enabled`
+  on `talent_profiles`; new `signature_works` and `experience_purchases` tables; a `source`
+  column on `memberships`; RLS (published works are public-readable, purchases are
+  service-role-write only). `schema.sql` updated to match.
+- **Flow A** — artist Express onboarding: `POST /api/connect/onboard` + `/return` + `/refresh`,
+  and a `/connect/payouts` page. `account.updated` webhook flips `payouts_enabled`.
+- **Flow B** — `POST /api/experiences/[id]/checkout`: destination-charge Checkout Session,
+  plus a **founder no-split path** for works Kathleen sells herself (100% hers).
+- **Flow C** — `POST /api/webhooks/stripe`: verifies the signature, marks the purchase paid,
+  creates/attaches the buyer's Access account, grants access, and fires the notification seams.
+  Also handles `payment_intent.payment_failed` and `charge.refunded` (revokes access).
+- **Gating** — `/experiences/[id]` shows a paywall or the unlocked deliverables.
+
+**Why this is allowed despite CLAUDE.md §6 ("no Stripe Connect in the 90 days"):** the spec
+(dated 2026-07-08, newer than §6) is a deliberate, scoped exception. The 20% is a *marketplace
+take on a product* (a choreography license), which is exactly the revenue CLAUDE.md §1 endorses
+("the marketplace take on choreography") — **not** a cut of anyone's wage, so Guardrail #1
+(no-tax-on-labor) holds. Memberships stay simple one-way charges; only this $499 flow uses Connect.
+
+**Decided — founder no-split path via `FOUNDER_PROFILE_ID`:** rather than infer "Kathleen's own
+work," profile ids listed in that env var sell at 100% (no `transfer_data`/`application_fee`).
+Everyone else must finish Express onboarding first (Guardrail: can't sell until `payouts_enabled`).
+
+**Fixed — `.env.local` key mix-up:** the `sk_test_…` secret key had been pasted into
+`STRIPE_WEBHOOK_SIGNING_SECRET`. Moved it to `STRIPE_SECRET_KEY`; left the webhook secret empty
+(it's a separate `whsec_…` value from the Stripe dashboard).
+
+### Open questions / inputs still needed before this is fully live
+- [ ] **`SUPABASE_SECRET_KEY`** must be set in `.env.local` — the webhook writes as the
+      service role (creates the buyer account + membership). It's currently commented out.
+- [ ] **Email vendor** (Resend vs Postmark) — buyer confirmation (EMAILS.md #9) is a working
+      seam that logs the payload; it won't actually send until this is chosen and wired.
+- [ ] **Booking link URLs** — `FOUNDER_WELCOME_BOOKING_URL` (Kathleen's Google Calendar) and
+      `DEFAULT_CHECKIN_BOOKING_URL`. The unlocked page/email link to them once set.
+- [ ] **MailerLite "The Climb"** — `MAILERLITE_API_KEY` + `MAILERLITE_CLIMB_GROUP_ID` (optional).
+- [ ] **Buyer account type** — a $499 buyer is an individual "Access" member, but the `users`
+      table only has `talent | employer | admin`. Buyers are filed as `talent` for now.
+      Confirm whether a dedicated member/consumer type is wanted.
+- [ ] **Gating vs. auth** — access is currently proven via the Stripe `session_id` on the
+      success page (works with no login). The durable gate (a signed-in buyer with a paid
+      purchase) is coded and waiting on Supabase Auth being wired.
+
+---
+
 ## 2026-07-01 — Database is LIVE ✅ (Step 3 complete)
 
 **Done:** Kathleen created her Supabase project, added keys to `.env.local`, and

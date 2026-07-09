@@ -22,10 +22,17 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 6 | Application declined | **Admin manually** declines | Applicant | v1 (draft) | ⏳ not built yet |
 | 7 | Membership active — you're live | Stripe webhook confirms payment | Member | v1 (draft) | ⏳ not built yet |
 | 8 | New intro request | An employer sends an in-app intro request | Talent | v1 (draft) | ⏳ not built yet |
+| 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase (`checkout.session.completed`) | Buyer | v1 (draft) | 🔌 wired to a seam (vendor TBD) |
 
 > Emails #4, #5, #6 are **manual-only** — they never fire automatically. Email #3's
 > resume link is valid for a 14-day window. Emails #1 and #2 are the only two that fire
 > automatically on sign-up, per the guardrail.
+>
+> Email #9 fires once, transactionally, when a buyer completes a $499 Signature
+> Experience purchase (like #7 for membership). It is currently **wired to a seam**:
+> the trigger and payload are built and logged, but the actual send waits on the
+> email-vendor decision (see `DECISIONS.md`). No email leaves the system until the
+> vendor is chosen and the template is finished — no hidden triggers.
 
 ---
 
