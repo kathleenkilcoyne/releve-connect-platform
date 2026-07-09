@@ -6,6 +6,27 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-08 — Admin console to create + publish Signature Works
+
+**Done:** Built `/admin/signature-works` so the founder can drive the whole Stripe flow
+without hand-writing SQL: quick-add a (test) artist, create a $499 signature_work with all
+its fields, and publish/unpublish it. Each work links straight to its `/experiences/[id]`
+page to run a test purchase.
+
+**Decided — gate the admin writes with a shared secret (`ADMIN_TOKEN`), fail-closed.**
+The app has no login yet, and these routes write with the service-role key (they bypass RLS),
+so leaving them open would be unsafe if ever deployed. Until real admin auth exists, the
+`/api/admin/*` routes require an `x-admin-token` header matching `ADMIN_TOKEN`; if that env var
+isn't set, every admin write is refused. A random `ADMIN_TOKEN` was generated into `.env.local`.
+
+**Note — the "quick-add artist" helper makes an orphan `users` row** (a generated id not tied
+to a Supabase auth login) plus a `talent_profile`. That's fine for a founder/test artist who
+never signs in as that profile (e.g. Kathleen's own no-split works). Real artist profiles will
+come from the approved-application flow with a genuine auth user — this helper is a test
+convenience, not the production path.
+
+---
+
 ## 2026-07-08 — Built the $499 Signature Experience (Stripe Connect, Express)
 
 **Done:** Built the licensing flow from `docs/STRIPE-CONNECT-499-LICENSING.md` — the
