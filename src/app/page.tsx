@@ -18,12 +18,23 @@ export default function Home() {
         dancers, teachers, and choreographers this industry has always run on.
       </p>
 
+      <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <a
+          href="/profile/edit"
+          className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700"
+        >
+          Create your profile
+        </a>
+        <a
+          href="/login"
+          className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          Sign in
+        </a>
+      </div>
+
       <p className="mt-10 text-sm italic text-neutral-500">
         together we rise · nous nous levons · relevé
-      </p>
-
-      <p className="mt-16 rounded-full border border-neutral-200 px-4 py-1.5 text-xs text-neutral-400">
-        🚧 Phase 1 — foundation. The profile system is being built.
       </p>
     </main>
   );
