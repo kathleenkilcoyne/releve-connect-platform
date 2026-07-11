@@ -1,47 +1,58 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated July 9, 2026. **Payment setup is DONE and the $499 flow passed an end-to-end test.** What remains is real content + the other-artist path + notifications + go-live. Nothing is broken.*
+*Updated 2026-07-11. **Step 2 (the vetting-gate spine) is complete and committed.** Next session picks up at **Step 3 — the visual-first Professional profile.***
 
 ---
 
-## 🎉 What's finished (the whole setup + first proof)
+## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-- ✅ **Database migrations applied** (RLS first, then Stripe Connect / $499). Verified: `signature_works` + `experience_purchases` tables exist, `talent_profiles` has `stripe_account_id` + `payouts_enabled`, `memberships` has `source`, RLS on 24 tables.
-- ✅ **`SUPABASE_SECRET_KEY`** set in `.env.local` (server/webhook admin client works).
-- ✅ **Admin console** built & proven — `/admin/signature-works` (add artist → create/publish a $499 work).
-- ✅ **Stripe webhook** working — `stripe listen` forwards to `/api/webhooks/stripe`; signing secret matches.
-- ✅ **`FOUNDER_PROFILE_ID`** set so the founder path sells with **no split** (keeps 100%, no connected account).
-- ✅ **END-TO-END $499 PURCHASE PASSED** — Buy → Stripe Checkout (test card 4242) → back with session. The `experience_purchases` row: `status=paid`, `buyer_email` set, `amount_cents=49900`, `application_fee_cents=0`, `artist_transfer_cents=49900`, `buyer_user_id` set (Access account created), `access_granted_at` populated.
+**Start Step 3 — the Professional (Teacher) profile, visual-first (build spec §6).**
+Do **not** start until re-reading `docs/Releve_Connect_Member_Platform_Build_Spec_2026-07-11.md` §6 + the §17 guardrails.
 
----
+Step 3 is, concretely:
+1. **Gate `/profile/edit` behind an active Professional membership** (§17: "profile gated at Professional $149"). Right now it's open to any signed-in user — that gate is the first task of Step 3. Use `memberships.membership_status = 'active'` on a `professional`/`professional_full` tier (helper belongs in `src/lib/membership/`).
+2. **Visual-first profile** per §6: above-the-fold hero = autoplay-muted **vertical Teaching Reel** + headshot + name/roles/location + earned proof (completed-Swing count + rating); text credentials *below* the hero.
+3. **Native media via Supabase Storage:** headshot (exists), an **8-image photo gallery grid**, résumé/CV PDF upload, Teaching Reel (Vimeo/YouTube) as the highest-value item.
+4. **Shareable public profile URL** `releveconnect.com/[handle]` — public visibility gated to Professional tier.
+5. **Carry the approval decision onto the profile:** transfer `applications.honorifics` + `approved_tier` + the **Verified Member** identity mark onto the talent_profile at creation (they live on the application today).
+6. **Teaching levels = the 5 seeded rungs**, multi-select; **no age-group filter** (age is demographic only).
 
-## ✅ TO-DO — what's still left (in rough priority)
-
-### A. Make it real (before selling for real)
-1. **Create the real Signature Work(s)** with real assets: private/domain-locked **Vimeo** performance + breakdown URLs, count-sheet URL, music note, artistic intent. *(The current test work is a placeholder with no video.)*
-2. **Point `FOUNDER_PROFILE_ID` at Kathleen's REAL founder profile.** Right now it points at the **test** artist id (`b782d686…`). Create her real `talent_profile` and swap the id.
-3. **Fill the booking links** in `.env.local`: `FOUNDER_WELCOME_BOOKING_URL` (Kathleen's Google Calendar) + `DEFAULT_CHECKIN_BOOKING_URL`.
-
-### B. Flow A — the 80/20 split path (so OTHER artists can sell)
-4. **Test artist Express onboarding** (`/api/connect/onboard`) with a Stripe **test Express** account → confirm `payouts_enabled` flips true via the `account.updated` webhook.
-5. **Run a split purchase** under that artist → confirm Stripe shows **80/20** (`application_fee` 9980, transfer 39920) and the artist path grants access the same way.
-
-### C. Notifications (currently safe stubs — they log, they don't send)
-6. **Pick an email vendor** (Resend vs Postmark), set `EMAIL_API_KEY` + `EMAIL_FROM_ADDRESS`, implement the send in `src/lib/notifications.ts`. *(Register the email in `EMAILS.md` first — Guardrail #5.)*
-7. **Wire MailerLite "The Climb"**: `MAILERLITE_API_KEY` + `MAILERLITE_CLIMB_GROUP_ID`.
-
-### D. Edge cases & hardening
-8. **Test refund → access revoked** (`charge.refunded`) and **payment failed** (`payment_intent.payment_failed`).
-9. ~~**Clean up stale `pending` purchases**~~ — ✅ existing abandoned rows deleted (July 9). Only a reusable auto-sweep/expiry remains as an optional nicety.
-10. **Resolve the buyer account-type question** — buyers are currently filed as `account_type='talent'` (flagged in `DECISIONS.md`).
-
-### E. Go live (when ready to take real money)
-11. Switch to **live** Stripe keys; create a **real webhook endpoint** in the Stripe dashboard (permanent `whsec_`, not `stripe listen`); set the live Supabase secret; point `NEXT_PUBLIC_SITE_URL` at the real domain; deploy.
+**Rule for the session:** check in before starting Step 4 (Roster/discovery). Ask on anything TBD — don't guess.
 
 ---
 
-## 📁 Reference
-- **`docs/STRIPE-CONNECT-499-LICENSING.md`** — the full $499 build spec (Flows A/B/C, test plan, guardrails).
-- **`CLAUDE.md`** — master brief (product rules, tiers, out-of-scope).
-- Migrations: **`supabase/migrations/`**. Admin console: **`src/app/admin/signature-works/`**. Webhook: **`src/app/api/webhooks/stripe/route.ts`**.
+## ✅ What's DONE and committed (Step 2 — commit `af16a6f`)
 
-*The hard part — the payment rails — is done and proven. What's left is content, the other-artist path, and wiring the notifications. — together we rise · relevé —*
+The full spine: **Gate → $30 fee → admin review → approve → subscribe → active.**
+- **Docs reconciled** to the two ratified `/docs` specs (tier names, Charter cohorts, scope, $30 fee, marketplace earned-ladder, "Verified Member" rename).
+- **DB:** `consumer` added to `account_type`; `applications` review columns + `application_fee_payments` table. **Both migrations applied to live Supabase + in `supabase/migrations/`.**
+- **`/apply`** — full 13-section role-branched intake (consents + 150-word min).
+- **$30 application fee** — one-way Stripe charge; waived for Founding-25; webhook → `in-review` + emails #1/#2.
+- **`/admin/applications`** — queue + Approve / Approve-at-tier / Honorifics / Request-info / **Decline (auto-refunds the $30)**.
+- **`/subscribe`** — approved-gated, **auto-renewing annual**, **$30 credited** via one-time coupon, **one-click cancel** (billing portal), renewal reminder; webhook activates membership + handles subscription lifecycle.
+- **Stripe test Prices** created for all 6 tiers; IDs in `.env.local`.
+- Emails wired as **Resend seams** (log until the API key is set); registered in `EMAILS.md`.
+
+---
+
+## 🔧 To make Step 2 fully LIVE-testable (Kathleen's to-dos, not blocking Step 3)
+
+- **Stripe dashboard (test mode):** (a) enable the **Customer Portal** (Settings → Billing) so one-click cancel works; (b) set the **`invoice.upcoming`** lead time to **~14 days** so the renewal reminder lands 2 weeks out.
+- **Resend:** set `EMAIL_API_KEY` + `EMAIL_FROM_ADDRESS` + `ADMIN_ALERT_EMAIL` in `.env.local`, then implement the actual sends in `src/lib/notifications.ts` (all TODO seams).
+- **Full spine test recipe** (with `stripe listen` running): sign in → `/apply` → submit → $30 checkout (card `4242…`) → `/admin/applications` → Approve → `/subscribe` → activate Professional (the $30 coupon applies) → active.
+
+---
+
+## ⏳ Assets still owed by Kathleen (for the $499 flow + go-live — see also parallel work)
+- Real **Signature Work Vimeo URLs**, her **real founder `talent_profile` id** (swap `FOUNDER_PROFILE_ID`), booking-link URLs, **Resend API key**.
+
+## 🧭 Known follow-ups / open TBDs (do not guess — ask)
+- **TBD:** the Established marketplace sales threshold; the Legacy/Vanguard co-production splits.
+- **Founding-25 invite mechanism** (how `is_founding_25` gets set → fee waived) — not yet built.
+- **Auto-save + 14-day resume link** on `/apply` — **required before the intake opens to real applicants** (a long essay form with no save loses people).
+- **$499-flow cleanups** (left untouched deliberately): buyers filed as `account_type:'talent'` and free bundle tier `'access'` → should become `'consumer'` / `live_pass` now that those exist.
+- `reviewed_by` is null (token admin has no user id); `forfeited` fee state isn't auto-set (needs a later sweep for approved-but-never-subscribed).
+
+## 🗄️ Backup
+- This repo has **no git remote** — it lives only at `C:\Users\kathl\releve-platform`. Worth pushing to a fresh **private GitHub repo** before long (needs `gh` installed or a manual remote).
+
+*— together we rise · nous nous levons · relevé —*
