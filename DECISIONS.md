@@ -6,6 +6,29 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-11 — Reconciled the repo brief to the ratified 2026-07-11 specs
+
+**Decided:** The two files in `/docs` are the source of truth — `Releve_Connect_Member_Platform_Build_Spec_2026-07-11.md` (what / what-order) and `Releve_Pricing_RATIFIED_2026-06-25_SINGLE_SOURCE_OF_TRUTH.md` (pricing). Where `CLAUDE.md` or this log disagreed, the specs win. Fixed per `docs/RECONCILIATION-NOTE-2026-07-11.md`:
+
+- **Tier names** → ratified: Individuals **Live Pass $99 / Professional $149 / Professional·Full $199**; Studios **Studio Connect $249 / Studio Growth $499 / Studio Accelerator $1,499**. Prices already matched — only names changed. Retired "Access / Signature Pro / Base" ("Signature Pro" collided with the choreographer *Signature* Marketplace status).
+- **Charter cohorts** → replaced the stale "First 50 Studios (Accelerator-only 50% off) / First 100 Artists (rate locked for life)" with **Charter Studios** (first 50; 50% off Year 1 **across all tiers**; Accelerator **capped ~10**; **not** lifetime) and **Charter Faculty** (first 50 teacher/performers; 50% off Year 1 on $149/$199; **not** lifetime). Accelerator is **$1,499** (not $1,500).
+- **Scope** → the Marketplace engine, Stripe Connect / splits, and Swing/Flex are **no longer out of scope**; build spec §2 is the roadmap (Gate → Profile → Roster → Swing → Reviews → Marketplace). Memberships stay a simple one-way charge; only artist payouts / the Marketplace use Connect.
+- **NEW: $30 application fee** (the vetting-gate spine) — vetted performer/teacher tier only (not Live Pass, not studios); **credited 100% to membership if accepted / refunded if not / forfeited only if accepted-then-declines; waived for the Founding 25.** Public copy leads with "credited/refunded," never "pay to apply." Replaces the retired "verification fee." No background check.
+
+**Not changed (working, tested):** the $499 Signature Experience on Stripe Connect (80/20, founder no-split, refund→revoke) stays as-is per the reconciliation note.
+
+**Resolved by Kathleen 2026-07-11 (cleared to build):**
+- **Account type** → add **`consumer`**: `talent | employer | consumer | admin`. What someone *bought* (Live Pass, Growth, Accelerator, Senior Spotlight license, Founding-25) lives in a separate **entitlements/roles** layer (`memberships`, `experience_purchases`, `founder_distinction`) — **never** in `account_type`. The two $499s are **different objects**: **Studio Growth** = recurring subscription (`memberships`, employer) vs. **Senior Spotlight $499** = one-time marketplace product (`experience_purchases`, consumer). Different tables, never one SKU.
+- **Teaching levels** → **keep all five** as seeded (Beginner, Intermediate, Advanced, Pre-Professional, Professional). No collapse, no migration.
+- **Email vendor** → **Resend**.
+- **Founding-25 Honoree terms** → **18 months free, then $99/yr for life**; permanent **Signature** marketplace tier (80/20 on Senior Spotlight + Competition); **$30 application fee waived**.
+- **Marketplace split** → an **earned ladder**, *not* flat 80/20: **Emerging 60/40 → Established 70/30** (admin-assigned, founder-reviewed; sales threshold **TBD, not hardcoded**) **→ Signature 80/20** (Founding 25). **Legacy & Vanguard = Co-Productions**, split per project (**TBD, not hardcoded**). *(My earlier "flat 80/20" flag was wrong — the ladder is intentional.)*
+- **"Certified" mark → renamed "Verified Member"** — an identity/standing mark (real, vetted, active member); keep the ~60-day trigger; drop any wording implying RC vouches for skill.
+
+**Still TBD (do not guess — ask Kathleen):** the **Established** sales threshold, and the **Legacy/Vanguard** co-production splits.
+
+---
+
 ## 2026-07-08 — Admin console to create + publish Signature Works
 
 **Done:** Built `/admin/signature-works` so the founder can drive the whole Stripe flow
@@ -151,16 +174,19 @@ These were settled before the build began. Recorded here so they're not re-litig
    chat inbox now** — just this one seam.
 3. **Category vocabularies** — reuse the starter lists in `CLAUDE.md` Section 3A.
    ⚠️ *Still needs Kathleen's final confirmation of the exact lists before launch.*
-4. **Certified badge = RC-granted after ~60 days** from membership activation. Relevé's
-   own stamp, separate from peer ratings.
-5. **First 50 badge** = the first 50 approved applicants; the badge attaches at paid
-   activation. Silver sibling of the gold "Founding 25" mark.
+4. **Verified Member mark** *(renamed from "Certified" 2026-07-11)* = RC-granted after ~60 days
+   from membership activation. An **identity / standing** mark (real, vetted, active member) —
+   **not** a competence stamp; RC never vouches for skill (no-endorsement).
+5. **Charter cohort badges** (revised 2026-07-11) = **Charter Studios** (first 50 founding
+   studios) and **Charter Faculty** (first 50 founding teacher/performers); each is 50% off
+   Year 1 (**not** lifetime), badge attaches at paid activation. Silver siblings of the gold
+   "Founding 25" mark. *(Supersedes the earlier single "first 50 approved applicants" badge.)*
 
 ---
 
 ## Open questions still needing Kathleen's input
 
-- [ ] Confirm the final category vocabularies (styles, levels, focus areas, regions) —
-      see Open Decision 3 above.
-- [ ] Confirm the email vendor: **Resend** vs **Postmark** (both fine; needed before
-      wiring up onboarding emails).
+- [x] **Teaching levels** (2026-07-11): keep all five as seeded — no change. Styles / focus
+      areas / regions final lists still to confirm before launch.
+- [x] **Email vendor** (2026-07-11): **Resend**.
+- [ ] **Still TBD:** the Established sales threshold, and the Legacy/Vanguard co-production splits.

@@ -17,8 +17,17 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/server";
-import { bookingLinks, sendBuyerExperienceConfirmation, addBuyerToClimb } from "@/lib/notifications";
+import {
+  bookingLinks,
+  sendBuyerExperienceConfirmation,
+  addBuyerToClimb,
+  sendApplicationReceived,
+  sendAdminNewApplicationAlert,
+  sendMembershipActive,
+  sendRenewalReminder,
+} from "@/lib/notifications";
 import { siteUrl } from "@/lib/stripe/config";
+import { getTier, dollars } from "@/lib/membership/tiers";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -57,6 +66,15 @@ export async function POST(req: Request) {
       case "charge.refunded":
         await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
+      case "customer.subscription.deleted":
+        await handleSubscriptionCanceled(event.data.object as Stripe.Subscription);
+        break;
+      case "invoice.payment_failed":
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+      case "invoice.upcoming":
+        await handleInvoiceUpcoming(event.data.object as Stripe.Invoice);
+        break;
       default:
         // Unhandled event types are fine — acknowledge so Stripe stops retrying.
         break;
@@ -77,6 +95,17 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
   // A session can complete before payment settles (async methods). Only grant on
   // a truly paid session.
   if (session.payment_status !== "paid") return;
+
+  // Route by what was bought. The $30 application fee is a separate flow from the
+  // $499 Signature Experience; both arrive as checkout.session.completed.
+  if (session.metadata?.kind === "application_fee") {
+    await handleApplicationFeePaid(session);
+    return;
+  }
+  if (session.metadata?.kind === "membership") {
+    await handleMembershipCheckout(stripe, session);
+    return;
+  }
 
   const db = createAdminClient();
   const purchaseId =
@@ -144,6 +173,196 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
     });
     await addBuyerToClimb(buyerEmail);
   }
+}
+
+// ---------------------------------------------------------------------------
+// checkout.session.completed — the $30 application fee (kind: 'application_fee')
+// ---------------------------------------------------------------------------
+async function handleApplicationFeePaid(session: Stripe.Checkout.Session) {
+  const db = createAdminClient();
+  const feeId =
+    (session.metadata?.application_fee_payment_id as string | undefined) ??
+    (session.client_reference_id ?? undefined);
+
+  const query = db.from("application_fee_payments").select("*").limit(1);
+  const { data: found } = feeId
+    ? await query.eq("id", feeId)
+    : await query.eq("stripe_checkout_session_id", session.id);
+  const fee = found?.[0];
+
+  if (!fee) {
+    console.error("[stripe webhook] no application_fee_payment for session", session.id);
+    return;
+  }
+  if (fee.status === "paid") return; // idempotent: already handled
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  // 1) Mark the fee paid.
+  await db
+    .from("application_fee_payments")
+    .update({
+      status: "paid",
+      stripe_payment_intent_id: paymentIntentId,
+      paid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", fee.id);
+
+  // 2) Move the application into review (only from a pre-review state).
+  const { data: appData } = await db
+    .from("applications")
+    .select("application_id, email, first_name, roles, state")
+    .eq("application_id", fee.application_id)
+    .single();
+  if (appData && ["draft", "submitted"].includes(appData.state as string)) {
+    await db
+      .from("applications")
+      .update({
+        state: "in-review",
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("application_id", fee.application_id);
+  }
+
+  // 3) The two automatic emails (EMAILS.md #1 + #2) — best-effort seams.
+  if (appData) {
+    await sendApplicationReceived({
+      to: appData.email as string,
+      firstName: (appData.first_name as string | null) ?? null,
+      feeWaived: false,
+    });
+    await sendAdminNewApplicationAlert({
+      applicantEmail: appData.email as string,
+      applicantName: (appData.first_name as string | null) ?? null,
+      roles: (appData.roles as string[] | null) ?? [],
+      reviewUrl: `${siteUrl()}/admin/applications`,
+    });
+  }
+}
+
+// Stripe moved `current_period_end` (now on the subscription item) and
+// `invoice.subscription` (now under invoice.parent) in recent API versions.
+// The account's pinned version may be either, so read both shapes defensively.
+function subCurrentPeriodEnd(sub: Stripe.Subscription): number | null {
+  const s = sub as unknown as {
+    current_period_end?: number;
+    items?: { data?: Array<{ current_period_end?: number }> };
+  };
+  return s.current_period_end ?? s.items?.data?.[0]?.current_period_end ?? null;
+}
+function invoiceSubId(invoice: Stripe.Invoice): string | null {
+  const inv = invoice as unknown as {
+    subscription?: string | { id?: string } | null;
+    parent?: { subscription_details?: { subscription?: string | { id?: string } | null } };
+  };
+  const raw = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null;
+  return !raw ? null : typeof raw === "string" ? raw : raw.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// checkout.session.completed — a membership subscription (kind: 'membership')
+// ---------------------------------------------------------------------------
+async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout.Session) {
+  const db = createAdminClient();
+  const membershipId = session.metadata?.membership_id as string | undefined;
+  const creditFeeId = (session.metadata?.credit_fee_id as string | undefined) || null;
+  const subId =
+    typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+  const customerId =
+    typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
+  const now = new Date().toISOString();
+
+  // Renewal date = the subscription's current period end.
+  let renewalIso: string | null = null;
+  if (subId) {
+    const sub = await stripe.subscriptions.retrieve(subId);
+    const periodEnd = subCurrentPeriodEnd(sub);
+    if (periodEnd) renewalIso = new Date(periodEnd * 1000).toISOString();
+  }
+
+  const { data: mData } = membershipId
+    ? await db.from("memberships").select("*").eq("membership_id", membershipId).maybeSingle()
+    : { data: null };
+  const membership = mData as
+    | { membership_id: string; tier: string; membership_status: string; stripe_subscription_id: string | null; price_cents: number | null }
+    | null;
+  if (!membership) {
+    console.error("[stripe webhook] no membership for session", session.id);
+    return;
+  }
+  if (membership.membership_status === "active" && membership.stripe_subscription_id === subId) return; // idempotent
+
+  await db
+    .from("memberships")
+    .update({
+      membership_status: "active",
+      stripe_subscription_id: subId,
+      stripe_customer_id: customerId,
+      renewal_date: renewalIso,
+      updated_at: now,
+    })
+    .eq("membership_id", membership.membership_id);
+
+  // Credit the $30 application fee (accepted AND now subscribed).
+  if (creditFeeId) {
+    await db
+      .from("application_fee_payments")
+      .update({ status: "credited", resolved_at: now, updated_at: now })
+      .eq("id", creditFeeId)
+      .eq("status", "paid");
+  }
+
+  // Email #7 — membership active (with the auto-renew disclosure + manage link).
+  const email = session.customer_details?.email ?? session.customer_email ?? null;
+  if (email) {
+    const tier = getTier(membership.tier);
+    await sendMembershipActive({
+      to: email,
+      tierLabel: tier?.label ?? membership.tier,
+      priceLabel: `${dollars(tier?.priceCents ?? membership.price_cents ?? 0)}/year`,
+      manageUrl: `${siteUrl()}/subscribe`,
+    });
+  }
+}
+
+// customer.subscription.deleted → membership canceled ------------------------
+async function handleSubscriptionCanceled(sub: Stripe.Subscription) {
+  const db = createAdminClient();
+  await db
+    .from("memberships")
+    .update({ membership_status: "canceled", updated_at: new Date().toISOString() })
+    .eq("stripe_subscription_id", sub.id);
+}
+
+// invoice.payment_failed → membership lapsed ---------------------------------
+async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+  const subId = invoiceSubId(invoice);
+  if (!subId) return;
+  const db = createAdminClient();
+  await db
+    .from("memberships")
+    .update({ membership_status: "lapsed", updated_at: new Date().toISOString() })
+    .eq("stripe_subscription_id", subId);
+}
+
+// invoice.upcoming → renewal reminder (~2 weeks out; lead time set in Stripe) -
+async function handleInvoiceUpcoming(invoice: Stripe.Invoice) {
+  const email = invoice.customer_email;
+  if (!email) return;
+  const renewalDate = invoice.next_payment_attempt
+    ? new Date(invoice.next_payment_attempt * 1000).toDateString()
+    : "soon";
+  await sendRenewalReminder({
+    to: email,
+    amountLabel: dollars(invoice.amount_due),
+    renewalDate,
+    manageUrl: `${siteUrl()}/subscribe`,
+  });
 }
 
 /**
@@ -260,4 +479,17 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_payment_intent_id", paymentIntentId);
+
+  // Also cover the $30 application fee (refunded when an applicant is NOT
+  // accepted). Only touch a fee that was actually paid, and don't overwrite a
+  // 'credited' one. Idempotent.
+  await db
+    .from("application_fee_payments")
+    .update({
+      status: "refunded",
+      resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .eq("status", "paid");
 }

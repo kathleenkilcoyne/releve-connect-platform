@@ -103,7 +103,12 @@ create table disciplines (
 -- employers strictly separate (Guardrail #3).
 -- ============================================================================
 
-create type account_type as enum ('talent', 'employer', 'admin');
+-- account_type is IDENTITY only. What someone BOUGHT (Live Pass, Studio Growth,
+-- Accelerator, Senior Spotlight license, Founding-25) lives in the entitlements
+-- layer (memberships / experience_purchases / founder_distinction) — NEVER here.
+-- 'consumer' = an individual who buys but isn't vetted talent or an employer studio
+-- (e.g. Live Pass members, one-time Senior Spotlight $499 buyers). Ratified 2026-07-11.
+create type account_type as enum ('talent', 'employer', 'admin', 'consumer');
 create type account_status as enum ('invited', 'active', 'suspended');
 
 create table users (
@@ -161,8 +166,8 @@ create table talent_profiles (
   status              profile_review     not null default 'pending',
   profile_status      publish_status     not null default 'draft',
   visibility          visibility_status  not null default 'public',
-  verification_flag   boolean            not null default false, -- Certified (admin-granted)
-  certified_eligible_at timestamptz,       -- set ~60 days after activation; admin grants after
+  verification_flag   boolean            not null default false, -- Verified Member: identity/standing mark (admin-granted); NOT a competence stamp
+  certified_eligible_at timestamptz,       -- Verified Member eligibility: set ~60 days after activation; admin grants after (identity mark, not competence)
   choreographer_tier  choreographer_tier not null default 'emerging',
   founder_distinction founder_distinction not null default 'none',
 
@@ -382,8 +387,43 @@ create table applications (
   resume_token    text unique,       -- for the save-and-resume link
   resume_expires_at timestamptz,     -- 14-day window
   submitted_at    timestamptz,
+
+  -- Admin review / decision (added 2026-07-11, vetting-gate migration). The
+  -- lifecycle stays in `state`; these hold the DECISION detail.
+  city            text,              -- promoted for the admin queue's location filter
+  state_province  text,              -- geographic state (NOT the lifecycle `state`)
+  approved_tier   choreographer_tier, -- set when a choreographer is approved at a tier
+  honorifics      text[] not null default '{}', -- editorial marks conferred by admin
+  is_founding_25  boolean not null default false, -- $30 fee waived for invited honorees
+  reviewed_by     uuid references users(user_id),
+  reviewed_at     timestamptz,
+  admin_notes     text,
+
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
+);
+
+-- The $30 application fee ledger — one row per attempt. Written ONLY by the
+-- server (service_role: the fee-checkout route + the Stripe webhook); the
+-- applicant may read their own. Lifecycle mirrors the ratified rule:
+--   pending -> paid -> credited   (accepted AND they subscribe -> $30 off)
+--                    -> refunded  (NOT accepted -> full refund)
+--                    -> forfeited (accepted but they decline to subscribe)
+--   waived  = Founding 25 (invited; never charged)
+-- Applied via migration 20260711010000_vetting_gate_application_fee.sql.
+create table application_fee_payments (
+  id                         uuid primary key default gen_random_uuid(),
+  application_id             uuid not null references applications(application_id) on delete cascade,
+  user_id                    uuid references users(user_id) on delete set null,
+  stripe_checkout_session_id text unique,
+  stripe_payment_intent_id   text,
+  amount_cents               int  not null default 3000,   -- $30.00
+  status                     text not null default 'pending'
+                               check (status in ('pending','paid','refunded','credited','forfeited','waived')),
+  paid_at                    timestamptz,
+  resolved_at                timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
 );
 
 -- ============================================================================

@@ -5,6 +5,8 @@
 
 *Prepared July 1, 2026 · Founder: Kathleen McAree · Relevé Connect LLC (NJ)*
 
+> **⚠️ SUPERSEDED IN PART — reconciled 2026-07-11.** This is the original July-1 *90-day profile-system* brief. The current source of truth is now **`docs/Releve_Connect_Member_Platform_Build_Spec_2026-07-11.md`** (what / what-order) + **`docs/Releve_Pricing_RATIFIED_2026-06-25_SINGLE_SOURCE_OF_TRUTH.md`** (pricing), with the mapping in **`docs/RECONCILIATION-NOTE-2026-07-11.md`**. Where this file disagrees with those two, **they win.** The passages below were corrected on 2026-07-11 for: **tier names**, **Charter cohorts**, **expanded scope** (Marketplace / Stripe Connect / Swing are now IN), and the new **$30 application fee**. Corrected passages are marked inline.
+
 ---
 
 ## 0. How to use this document
@@ -15,7 +17,7 @@ Paste this whole file into Claude Code as the opening prompt (or drop it in the 
 > Build a searchable, scalable, categorized profile system where dance professionals present themselves as the product, and studios (employers) discover, browse, and connect to them.
 
 **Ground rules for you, Claude Code:**
-1. The **profile is the product.** Everything in the 90-day build serves one goal: a professional can create a rich, searchable, shareable profile, and an employer can find them. Build the **simple membership payment** that gates activation (Section 4G) — but do NOT build the choreography Marketplace transaction engine, split payments, or Stripe Connect (see Section 6).
+1. The **profile is the product.** Everything serves one goal: a professional can create a rich, searchable, shareable profile, and an employer can find them. Memberships are a **simple one-way charge** that gates activation (Section 4G). *(Updated 2026-07-11: the Marketplace transaction engine, split payments, and Stripe Connect are **now IN scope** — the $499 Signature Experience already shipped on Connect, and the full roadmap is build spec §2. Only memberships stay one-way; artist payouts / the 80/20 Marketplace use Connect.)*
 2. Build for scale from day one — the schema and search must comfortably grow from a founding cohort to national volume.
 3. Ask before inventing product behavior. If a detail isn't specified, stop and ask — don't guess.
 4. Everything is owned by Relevé Connect LLC. No vendor lock-in that can't be exported. All data portable.
@@ -71,7 +73,7 @@ Design for search and scale. Categorization is not decoration — it is the spin
 - Presentation: `headshot_url` · `bio` / narrative story · `resume` (uploaded file + structured entries: training, companies, credits, education) · `years_experience` · `credentials` · `availability`.
 - Media: `social_links` (website, Instagram, Vimeo, YouTube, LinkedIn) · `video_reels` (teaching / choreography / performance reels — ordered Vimeo/embed URLs with labels) · `resume_url`.
 - Categorization (searchable, controlled vocabulary): `styles` · `levels` · `focus_areas` · `region`. Normalized many-to-many, not free text.
-- Status & standing: `status` (pending / in-review / approved) · `profile_status` (draft / published) · `visibility` (public / unlisted) · `verification_flag` (Certified — admin-granted) · `choreographer_tier` (defaults to Emerging; earned by sales; Founder's-Discretion override only) · `founder_distinction` · `updated_at`.
+- Status & standing: `status` (pending / in-review / approved) · `profile_status` (draft / published) · `visibility` (public / unlisted) · `verification_flag` (**Verified Member** — identity/standing mark, admin-granted after ~60 days; not a competence stamp) · `choreographer_tier` (defaults to Emerging; **admin-assigned / founder-reviewed** earned ladder — no hardcoded threshold) · `founder_distinction` · `updated_at`.
 
 ### Employer Profile (Studio)
 `employer_id` (PK) · `owner_user_id` (FK) · `name` · `location` · `logo_url` · `bio` · `links` · `verified`. Lighter presentation; its real surface is the search/discovery tools.
@@ -121,15 +123,15 @@ Notes: narrative fields enforce minimum word counts; progress auto-saves and ema
 
 ## 3B. Badge system (three distinct classes — build as separate concepts)
 
-**A. Credential / earned badges** — from degrees, certifications, union affiliations, the Certified/verified flag (RC-granted after a ~60-day tenure/observation window — Relevé's own stamp, distinct from peer ratings), and the Choreographer tier — Emerging (60/40), Established (70/30), Signature (80/20), artist share first. Store the evidence and render the badge from it.
-Tier policy (ratified — see Vision Bible §06): every member enters as Emerging. Tiers are earned by sales, peer review, and contribution to the platform, reviewed annually — status is earned, not purchased. Specific numeric thresholds are NOT yet ratified; do not hardcode dollar/piece gates. Exception: the Founding 25 are granted permanent Signature status (80/20) as a founding designation. The only manual override is "Founder's Discretion," logged with reason + timestamp, an exception not a routine path. (Since Marketplace is out of scope now, at launch everyone is Emerging; Founder's Discretion is the only live elevation lever until ~Q1 2027.)
+**A. Credential / earned badges** — from degrees, certifications, union affiliations; the **Verified Member** mark *(renamed from "Certified" 2026-07-11)* — an **identity / standing mark** granted after a ~60-day active-membership window, meaning *real, vetted, active member*, **NOT** a competence or skill endorsement (upholds the no-endorsement guardrail, build spec §13); and the Choreographer **marketplace tier**, an **earned ladder** (artist share first): **Emerging 60/40** (entry) → **Established 70/30** (earned by sales; an **admin-assigned, founder-reviewed** field — do **not** hardcode a sales threshold [TBD]) → **Signature 80/20** (the Founding 25, on Senior Spotlight + Competition catalogs). **Legacy & Vanguard** cohorts are **Co-Productions** — split negotiated per project (**TBD — do not hardcode a rate**). Store the evidence and render the badge from it.
+Tier policy (ratified — see Vision Bible §06): every member enters as Emerging. Tiers are earned by sales, peer review, and contribution to the platform, reviewed annually — status is earned, not purchased. Specific numeric thresholds are NOT yet ratified; do not hardcode dollar/piece gates. Exception: the Founding 25 are granted permanent Signature status (80/20) as a founding designation. The only manual override is "Founder's Discretion," logged with reason + timestamp, an exception not a routine path. *(Updated 2026-07-11: tier is an **admin-assigned, founder-reviewed** field — the Established sales threshold is **TBD, not hardcoded**. Marketplace is on the roadmap at build spec §2, Step 6; until it launches everyone is Emerging and Founder's Discretion is the only live elevation lever.)*
 
 **B. Open-To engagement badges** — self-selected (application Section 12): Teaching new classes · Substituting via The Swing · Choreographing on commission · Licensing pieces · Auditioning via The Beat · Speaking on a panel / Relevé Live · Publicly posting for Relevé on social · Other. Member-editable.
 
 **C. Founder distinction badges** — admin-assigned only:
 - Founding Honoree · Founding 25 — the 25 Founding Honoree choreographers, hand-chosen (permanent Signature tier, 80/20). Distinct, premium (gold) mark. The four cohorts (Senior Spotlight · Competition · Legacy · Vanguard) live in profile metadata, not as separate badges.
-- First 50 Studios — founding studio partners (silver). Founding benefit: 50% off the Accelerator tier ($1,499 → $749.50); Base ($249) and Growth ($499) stay full price.
-- First 100 Artists — founding artist cohort (silver). Founding benefit: a locked founder membership rate for life (locks today's price).
+- Charter Studios — first 50 founding studios (silver). *(Corrected 2026-07-11.)* Founding benefit: **50% off Year 1 across all tiers** — Studio Connect $249 → $124.50 · Studio Growth $499 → $249.50 · Studio Accelerator $1,499 → $749.50 — with **Accelerator capped at ~10 seats**, then standard rate in Year 2. **Not** locked-for-life. *(Supersedes the earlier "50% off the Accelerator only, others full price.")*
+- Charter Faculty — first 50 founding teacher/performers (silver). *(Corrected 2026-07-11.)* Founding benefit: **50% off Year 1** on Professional ($149 → $74.50) and Professional·Full ($199 → $99.50), then standard rate in Year 2. **Not** locked-for-life. *(Supersedes the earlier "First 100 Artists, founder rate locked for life.")*
 - Model as an admin-assignable `founder_distinction` enum with room for future cohorts.
 
 Render all three classes on the public profile, visually differentiated.
@@ -146,17 +148,21 @@ C. Search & discovery (Employer) — THE HEART. Searchable directory of publishe
 
 D. Employer presence + account — studio presence page; dashboard with saved searches, shortlists, recent views.
 
-E. Admin / founder tooling — review applications (approve / request-more-info / decline); grant Certified; assign choreographer tier; confer founder distinction badges; manage taxonomy without a deploy; invite founding cohort.
+E. Admin / founder tooling — review applications (approve / request-more-info / decline); grant the **Verified Member** mark; assign choreographer tier; confer founder distinction badges; manage taxonomy without a deploy; invite founding cohort.
 
 F. Onboarding & intake — rebuild the intake to mirror the 13-section role-branched application (3A), feeding a single DB source of truth. No loose email intake. Preserve: auto-save + resume link (14-day window), progress bar, minimum word counts. On submit: applicant enters DB in pending state; send EXACTLY ONE confirmation to applicant + ONE internal admin alert; do NOT auto-subscribe anyone to a newsletter. Approval emails only on explicit admin action. Every automated email templated, versioned, listed in EMAILS.md with its trigger. No hidden triggers.
 
 G. Membership activation via payment (in scope — simple, one-way). Lifecycle: applied → in-review → approved → payment due → paid/active → profile publishable.
 - Simple one-way subscription charge — Kathleen creates the Stripe Payment Link herself. No split, no Connect. Stripe processes the card.
-- After admin approves, surface the payment step (link for the tier they applied under — Individuals $99/$149/$199 (Access / Professional / Signature Pro); Studios $249/$499/$1,499 annual (Base / Growth / Accelerator)). Note: $99 Access is a JOIN tier (no application, not on the Roster); $149/$199 APPLY and are vetted.
+- After admin approves, surface the payment step (link for the tier they applied under — Individuals $99/$149/$199 (**Live Pass / Professional / Professional·Full**); Studios $249/$499/$1,499 annual (**Studio Connect / Studio Growth / Studio Accelerator**)). *(Names ratified 2026-07-11; prices unchanged. Retired: "Access / Signature Pro / Base.")* Note: $99 **Live Pass** is a JOIN tier (no application, not on the Roster); $149/$199 APPLY and are vetted.
 - Detect payment via a Stripe webhook (checkout.session.completed / subscription events) → flip membership_status to active; record stripe_customer_id, stripe_subscription_id, renewal_date.
 - Gate on paid: a profile publishes / appears in search only when membership is active. Approved-but-unpaid = not discoverable.
 - Handle unhappy paths: pending, failed, lapsed/canceled (→ inactive, unpublished but data retained), renewal.
-Stripe setup notes: one Payment Link per tier (own Price ID each); map Price ID → tier in config; pass member user_id as client_reference_id; one webhook endpoint verifying the signing secret; keys in env vars; start in test mode. Founding Honorees 18 months free → $99/yr after (100%-off coupon or $0 link now).
+Stripe setup notes: one Payment Link per tier (own Price ID each); map Price ID → tier in config; pass member user_id as client_reference_id; one webhook endpoint verifying the signing secret; keys in env vars; start in test mode.
+
+**$30 application fee (NEW — ratified 2026-07-11, build spec §4).** A $30 charge to apply, **vetted performer/teacher tier only** (Professional $149 profile tier) — **not** Live Pass, **not** studios. **Credited 100% toward membership if accepted and they join · fully refunded if not accepted · forfeited only if accepted and they decline to subscribe. Waived for the Founding 25.** It funds the council's vetting labor, so it does **not** violate no-tax-on-labor. **Copy rule:** every public touchpoint leads with "credited toward your membership when accepted, refunded if not accepted" — **never** "pay $30 to apply." Replaces the retired "verification / background-check fee." There is **NO background check**.
+
+**Founding-25 Honoree terms — RATIFIED 2026-07-11.** **18 months free, then $99/year membership dues for life.** **Permanent Signature marketplace tier — 80/20 on Senior Spotlight + Competition catalogs.** **$30 application fee waived.** (Now in the pricing source of truth.)
 
 ---
 
@@ -166,15 +172,14 @@ Stripe setup notes: one Payment Link per tier (own Price ID each); map Price ID 
 - Auth: Supabase Auth (email magic-link + Google), role-based (talent, employer, admin).
 - Media: Supabase Storage (or S3) for headshots/resumes; Vimeo (private) for video reels — never self-host video.
 - Search: Postgres full-text + indexed filters; isolate the query layer to move to Meilisearch/Typesense/Algolia later.
-- Email: Resend or Postmark — single sender, templated/versioned, no tangled automation.
+- Email: **Resend** *(ratified 2026-07-11; Postmark was the alternative)* — single sender, templated/versioned, no tangled automation.
 - Hosting: Vercel (see Open Decision 1 — RESOLVED Vercel).
 Keep secrets in env vars, never in the repo. Document every env var in README.md.
 
 ---
 
 ## 6. Explicitly OUT of scope for the 90 days (design the seams, don't build)
-- Choreography Marketplace transaction engine (licensing, commissions, Audition Library commerce, take-rate/payout, split payments, Stripe Connect). The membership payment in 4G is NOT this.
-- Swing/Flex per-use billing, verification-fee billing, Forum ticketing.
+- ~~Choreography Marketplace transaction engine (licensing, commissions, Audition Library commerce, take-rate/payout, split payments, Stripe Connect).~~ · ~~Swing/Flex per-use billing, verification-fee billing, Forum ticketing.~~ **← NO LONGER OUT OF SCOPE (2026-07-11).** These are now on the roadmap per **build spec §2** (Gate → Profile → Roster → **Swing** → Reviews → **Marketplace**). The $499 Connect build already shipped; the "verification fee" is replaced by the **$30 application fee** (§4G). Memberships (4G) still stay a simple one-way charge — only artist payouts / the 80/20 Marketplace use Connect.
 - Design-for-later: model the connection record as the durable home of a working relationship so threaded messaging, scheduling/booking, sub-coverage, work-history, ratings/rehire, and a facilitated payment rail can layer on WITHOUT re-architecture. Don't build them now; just don't block them.
 - Music-licensing logic: build none. Guidance to choreographers is to use AI/royalty-free music. At most capture a plain note field later.
 - Rainy Day Fund. Not now.
@@ -195,8 +200,8 @@ Keep secrets in env vars, never in the repo. Document every env var in README.md
 1. RESOLVED: Vercel hosting. (Prior contractor build is on Netlify/Next.js from GitHub repo kathleenkilcoyne/releve-platform, which Kathleen owns. Fresh build = new clean repo on Vercel; keep Netlify live until cutover, then re-point releveconnect.com DNS. No code migration.)
 2. RESOLVED: lean in-app intro request (NOT reveal-contact). First contact routes through Relevé, stored as a connection record; talent gets an email notification and can respond; contact details private by default. Do NOT build a full chat inbox now — just the one seam.
 3. Category vocabularies — reuse the strong starter lists in Section 3A; confirm final lists.
-4. RESOLVED: Certified is RC-granted after ~60 days (from membership activation). Relevé's own stamp, distinct from peer ratings.
-5. Founding cohorts (revised 2026-07-08): THREE cohorts — Founding 25 (Signature choreographer honorees, gold), First 50 Studios (50% off the Accelerator, $1,500→$750), First 100 Artists (locked founder rate for life). This replaces the earlier single "first 50 members" badge and supersedes the Bible's "Founding 300." Badges attach at paid activation.
+4. RESOLVED (updated 2026-07-11): the **Verified Member** mark (renamed from "Certified") is RC-granted after ~60 days from membership activation. It is an **identity / standing mark** (real, vetted, active member), **not** a competence stamp — RC never vouches for skill (no-endorsement).
+5. Founding cohorts (revised 2026-07-11): Founding 25 (Signature choreographer honorees, gold) · **Charter Studios** (first 50; 50% off Year 1 across all tiers, Accelerator capped ~10; not lifetime) · **Charter Faculty** (first 50 teacher/performers; 50% off Year 1 on $149/$199; not lifetime). Accelerator is **$1,499** (not $1,500). Supersedes the 2026-07-08 "First 50 Studios (Accelerator-only) / First 100 Artists (locked for life)" and the Bible's "Founding 300." Badges attach at paid activation.
 
 ---
 
