@@ -1,5 +1,5 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated 2026-07-12. **Step 3 (visual-first profile) AND all of Step 4 (the Roster — search & browse + hiring actions) are complete and committed.** Next: **confirm with Kathleen whether Step 5 (The Swing + reviews) or The Beat comes next** — do not start either without checking in.*
+*Updated 2026-07-12. **Steps 3 and 4 are complete and committed. Step 5 (The Swing) is SCOPED but NOT started** — one open decision blocks it (the studio side). Kathleen will return with a focused prompt next session.*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
 >
@@ -9,11 +9,26 @@
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-**Steps 3 and 4 are DONE and committed.** The next pillar is a **founder decision — check in with Kathleen first:**
-- **Step 5 — The Swing + two-way reviews** (spec §10–§11): the opt-in sub-finder toggle, studio-posted slots, matching + dispatch, and the double-blind 7-day-reveal review loop. This is what lights up the profile hero's hidden **earned-proof** slot (Swing count + rating) and the Roster's deferred **availability** filter.
-- **or The Beat** (the pay-to-post casting marketplace) per the **2026-07-12 roadmap note**. Plan in `docs/The_Beat_Build_Plan_2026-07-12.md`.
+**Step 5 — The Swing (spec §10–§11) is SCOPED but NOT started.** Kathleen is coming back with a focused prompt. **Do not build anything until she confirms the open decision below.** Re-read §10–§11 + the §17 guardrails first.
 
-**Do not start either until Kathleen confirms which.** Re-read the relevant spec section + §17 guardrails first; ask on anything TBD.
+### 🚧 THE OPEN DECISION THAT BLOCKS STEP 5 — the studio side
+The Swing is a studio↔teacher loop (studios post slots, pick responders, get reviewed), but **studios don't exist as accounts yet** — `employer_profiles` is an empty table with **no signup/onboarding/creation path** in the code. Every account today is created as talent. So before the loop can exist, we must decide how studios enter it. Three options were put to Kathleen (she confirmed this *is* the real question, and paused to think):
+1. **Build studio accounts first (the real foundation).** Minimal studio sign-up + a light studio profile (§7 essentials: name, address, map-pin/geo, accessibility) so studios post slots themselves — matches the §17 guardrail *"studio posts directly, founder is not the middleman."* Largest, but unblocks the whole loop properly.
+2. **Teacher side only first.** Build just the opt-in **"Available for Swing"** toggle + Swing fields (styles to sub, the 5 levels, home location + travel radius, notes) + the data model this session; tackle studios + dispatch next. Smallest, lowest-risk.
+3. **Admin-posts stopgap.** Build the data model + teacher toggle + matching + review engine now, with Kathleen posting slots on studios' behalf until studio onboarding exists. Faster to the review engine, **but founder-mediated posting conflicts with the §17 "no founder bottleneck" guardrail** — explicitly temporary.
+
+### The proposed Step-5 slicing (once the studio question is settled)
+- **Slice A — Foundation:** Swing data model + the member-controlled "Available for Swing" toggle & fields (§10's consent principle).
+- **Slice B — The dispatch loop:** studio posts a slot → match (Swing-on + style + level + geography + required cert) → notify → teacher claims → **studio picks from responders** → slot locks → auto-completes after the date.
+- **Slice C — The trust engine:** two-way, **double-blind, 7-day-reveal** reviews unlocked on completion, rolled into the profile star rating (this lights up the hero's earned-proof slot + the Roster availability filter).
+
+### Sub-decisions already framed (revisit when building)
+- **Levels = the 5 ratified rungs** (§10's "four rungs" is a stale leftover; §6 confirmed keep all five). No separate vocab.
+- **Swing $20/use billing** (studio-paid; 3 at Connect / included at Growth / unlimited at Accelerator): *recommend defer* — build the matching + review loop first, wire billing as a later slice.
+- **Dispatch alerts:** *recommend in-app + email seam now, SMS later* (no SMS provider set up; sub calls are time-sensitive so SMS matters eventually).
+- **Review model:** the existing `reviews` table is tied to `connection_id`; a completed Swing gig isn't a connection, so the review will be reworked to hang off a completed `swing_claim` (migration needed).
+
+*(Alternative pillar still on the table if Kathleen redirects: **The Beat**, per the 2026-07-12 roadmap note — plan in `docs/The_Beat_Build_Plan_2026-07-12.md`.)*
 
 **Still deferred from Step 4 (revisit when the data exists):** true **map-pin radius** search (needs geocoding lat/lng + the studio map pins from §7); the **availability** filter (needs the Step-5 Swing toggle); **studios in the Roster** (studio profiles §7 aren't built — Roster is talent-only); and a real **messaging rail** beyond the lean intro request (Accept currently signals openness only — no contact is exchanged, per Open Decision 2). "Featured/priority placement" (Accelerator paid benefit) isn't sold yet, so no promotion slots are shown.
 
