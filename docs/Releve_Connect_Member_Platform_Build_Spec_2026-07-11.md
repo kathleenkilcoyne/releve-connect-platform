@@ -177,7 +177,7 @@ Two-way (teacher ↔ studio), tied to completed Swing gigs. This is what makes S
 
 Two clearly distinct classes; never blur them:
 
-1. **One identity/membership mark — "Verified Member"** (RC-granted after the ~60-day tenure window; replaces the old "Certified" naming, ratified 2026-07-11). Applies to Professional-tier members who passed the intake and have been active ~60 days. Means *this is a real, vetted, active member* (identity/standing), **never** a competence or program endorsement. *Renamed from "Established Member" to avoid colliding with the Marketplace "Established" tier.*
+1. **One identity/membership mark — "Verified Member"** (replaces the old "Certified" naming, ratified 2026-07-11). **Granted immediately once vetting is complete — approved (documentation-authenticity check passed) AND paid — with no waiting period** (founder decision 2026-07-12, supersedes the earlier "~60-day tenure window"). Applies to Professional-tier members who passed the intake. Means *this is a real, vetted, active member* (identity/standing), **never** a competence or program endorsement. *Renamed from "Established Member" to avoid colliding with the Marketplace "Established" tier.*
 2. **Honorifics** (Verified Artist, Founding Artist, Master Teacher, Stage Doors Educator, Adaptive Arts Faculty) — **editorial recognition conferred by Kathleen, never self-selected.** Render as curation/recognition, visually separate from the identity mark.
 
 **Hard rules (ratified no-endorsement / no-background-check):** delete the phrase "Verified Credentials." Credential tags are **"self-reported / searchable, not endorsed."** Never put a checkmark on a competence claim. Studios get a **Verified Employer** badge (Growth tier).

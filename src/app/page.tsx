@@ -2,6 +2,8 @@
 // site runs. We'll replace it with the real product (talent profiles, employer
 // search) as we build the vertical slice.
 
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-24 text-center">
@@ -19,18 +21,18 @@ export default function Home() {
       </p>
 
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-        <a
+        <Link
           href="/profile/edit"
           className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700"
         >
           Create your profile
-        </a>
-        <a
+        </Link>
+        <Link
           href="/login"
           className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
         >
           Sign in
-        </a>
+        </Link>
       </div>
 
       <p className="mt-10 text-sm italic text-neutral-500">

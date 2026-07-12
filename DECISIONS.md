@@ -23,7 +23,7 @@ now (or a future engineer) can understand *why* the project is the way it is.
 - **Email vendor** → **Resend**.
 - **Founding-25 Honoree terms** → **18 months free, then $99/yr for life**; permanent **Signature** marketplace tier (80/20 on Senior Spotlight + Competition); **$30 application fee waived**.
 - **Marketplace split** → an **earned ladder**, *not* flat 80/20: **Emerging 60/40 → Established 70/30** (admin-assigned, founder-reviewed; sales threshold **TBD, not hardcoded**) **→ Signature 80/20** (Founding 25). **Legacy & Vanguard = Co-Productions**, split per project (**TBD, not hardcoded**). *(My earlier "flat 80/20" flag was wrong — the ladder is intentional.)*
-- **"Certified" mark → renamed "Verified Member"** — an identity/standing mark (real, vetted, active member); keep the ~60-day trigger; drop any wording implying RC vouches for skill.
+- **"Certified" mark → renamed "Verified Member"** — an identity/standing mark (real, vetted, active member); granted immediately at profile creation once vetting is complete (approved + paid), no waiting period *(founder decision 2026-07-12; supersedes the earlier ~60-day trigger)*; drop any wording implying RC vouches for skill.
 
 **Still TBD (do not guess — ask Kathleen):** the **Established** sales threshold, and the **Legacy/Vanguard** co-production splits.
 
@@ -174,9 +174,11 @@ These were settled before the build began. Recorded here so they're not re-litig
    chat inbox now** — just this one seam.
 3. **Category vocabularies** — reuse the starter lists in `CLAUDE.md` Section 3A.
    ⚠️ *Still needs Kathleen's final confirmation of the exact lists before launch.*
-4. **Verified Member mark** *(renamed from "Certified" 2026-07-11)* = RC-granted after ~60 days
-   from membership activation. An **identity / standing** mark (real, vetted, active member) —
-   **not** a competence stamp; RC never vouches for skill (no-endorsement).
+4. **Verified Member mark** *(renamed from "Certified" 2026-07-11)* = RC-granted **immediately at
+   profile creation once vetting is complete — approved (documentation-authenticity check passed)
+   AND paid — with no waiting period** *(founder decision 2026-07-12; supersedes the earlier "~60 days
+   from activation")*. An **identity / standing** mark (real, vetted, active member) — **not** a
+   competence stamp; RC never vouches for skill (no-endorsement).
 5. **Charter cohort badges** (revised 2026-07-11) = **Charter Studios** (first 50 founding
    studios) and **Charter Faculty** (first 50 founding teacher/performers); each is 50% off
    Year 1 (**not** lifetime), badge attaches at paid activation. Silver siblings of the gold
