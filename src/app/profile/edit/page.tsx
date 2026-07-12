@@ -112,11 +112,16 @@ export default async function ProfileEditPage() {
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
           Relevé · My profile
         </p>
-        <form action="/auth/signout" method="post">
-          <button className="text-sm text-neutral-500 underline" type="submit">
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link href="/profile/requests" className="text-sm font-medium text-neutral-700 underline">
+            Intro requests
+          </Link>
+          <form action="/auth/signout" method="post">
+            <button className="text-sm text-neutral-500 underline" type="submit">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">

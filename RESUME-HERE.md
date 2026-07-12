@@ -1,5 +1,5 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated 2026-07-12. **Step 3 (visual-first profile) AND the first slice of Step 4 (the Roster — search & browse) are complete and committed.** Next: the **Roster hiring-actions slice** (save/shortlist + the lean in-app intro request), then confirm with Kathleen whether Step 5 (Swing) or **The Beat** comes next.*
+*Updated 2026-07-12. **Step 3 (visual-first profile) AND all of Step 4 (the Roster — search & browse + hiring actions) are complete and committed.** Next: **confirm with Kathleen whether Step 5 (The Swing + reviews) or The Beat comes next** — do not start either without checking in.*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
 >
@@ -9,14 +9,28 @@
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-**Step 3 + the Roster search-and-browse slice are DONE and committed.** Two things queue up next:
+**Steps 3 and 4 are DONE and committed.** The next pillar is a **founder decision — check in with Kathleen first:**
+- **Step 5 — The Swing + two-way reviews** (spec §10–§11): the opt-in sub-finder toggle, studio-posted slots, matching + dispatch, and the double-blind 7-day-reveal review loop. This is what lights up the profile hero's hidden **earned-proof** slot (Swing count + rating) and the Roster's deferred **availability** filter.
+- **or The Beat** (the pay-to-post casting marketplace) per the **2026-07-12 roadmap note**. Plan in `docs/The_Beat_Build_Plan_2026-07-12.md`.
 
-1. **Finish Step 4 — the Roster hiring actions** (the slice deliberately deferred): **save/shortlist** (the `shortlists` table already exists) + the **lean in-app intro request** (a `connections` row of type `message-request`; talent gets an email seam and can respond; contact details stay private by default — CLAUDE.md Open Decision 2). This is the "connect" half of discovery.
-2. **Then a founder decision** — Step 5 (The Swing + two-way reviews) or **The Beat** (the 2026-07-12 roadmap note sequenced it ahead of Swing). **Confirm with Kathleen before starting either.**
+**Do not start either until Kathleen confirms which.** Re-read the relevant spec section + §17 guardrails first; ask on anything TBD.
 
-**Deferred inside Step 4 (revisit when the data exists):** true **map-pin radius** search (needs geocoding lat/lng + the studio map pins from §7); an **availability** filter (the "Available for Swing" toggle is Step 5); and **studios in the Roster** (studio profiles §7 aren't built — the Roster is talent-only for now). "Featured/priority placement" (Accelerator paid benefit, §8) isn't sold yet, so no promotion slots are shown.
+**Still deferred from Step 4 (revisit when the data exists):** true **map-pin radius** search (needs geocoding lat/lng + the studio map pins from §7); the **availability** filter (needs the Step-5 Swing toggle); **studios in the Roster** (studio profiles §7 aren't built — Roster is talent-only); and a real **messaging rail** beyond the lean intro request (Accept currently signals openness only — no contact is exchanged, per Open Decision 2). "Featured/priority placement" (Accelerator paid benefit) isn't sold yet, so no promotion slots are shown.
 
 **One forward dependency to know:** the Step-3 profile hero has a slot for **earned proof (completed-Swing count + star rating)** that is deliberately **hidden until that data exists** — it lights up when **Step 5 (The Swing + Reviews)** ships. No placeholder numbers are shown.
+
+---
+
+## ✅ What's DONE and committed (Step 4, slice 2 — the Roster: hiring actions)
+
+The "connect" half of discovery (CLAUDE.md 4C + Open Decision 2). Founder decisions confirmed: **any active member** may save + request an intro (not their own profile — since there are no studio accounts yet); and **Accept keeps contact private** (status only, no reveal).
+
+- **Recorded in the existing `connections` table** — no new table. `connection_type` already has `save` / `message-request`; RLS already lets the sender read/write their rows and the recipient talent read + update status. Migration `20260712020000` only adds a **unique index** (from_user, to_profile, type) so a save is idempotent + upsertable, plus a `from_user_id` index.
+- **On a public `/[handle]` profile** (`ConnectActions.tsx`, shown only to signed-in active members who aren't the owner): **Save** (bookmark toggle) + **Request an intro** (a lean note; no contact revealed). Server actions in `src/lib/connections/actions.ts`, gated by `hasAnyActiveMembership` + `canConnect`.
+- **`/roster/saved`** — the member's saved professionals. **`/profile/requests`** — the talent's incoming intro requests (requester **name + note only**, never contact) with **Accept** (→ responded) / **Decline** (→ closed). Nav links added on the Roster and the profile editor.
+- **Email #8 "New intro request"** wired as a Resend seam (logs until the key is set) and updated in `EMAILS.md` — one transactional email to the talent on an explicit user action; no contact in it (clean-email discipline, guardrail #5).
+- **Pure, tested logic** (`src/lib/connections/messages.ts`): intro-message validation + the `canConnect` gate.
+- **Tests:** 41 green (`npm test`) — added the connections suite. **Verified** the full round-trip against the **live DB**: save idempotency (2 inserts → 1 row), the incoming-requests query (name + note), the saved-list query, and Accept → `responded`; then deleted the seed. Logged-out gates (`/profile/requests`, `/roster/saved` → login) and the logged-out profile render (no actions shown) confirmed in-browser. Typecheck + lint clean. *(The signed-in click-through of Save/Request/Accept needs a real session, same limitation as prior steps — but the DB round-trip + RLS shape are proven and the pages compile clean.)*
 
 ---
 

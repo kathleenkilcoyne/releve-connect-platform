@@ -21,7 +21,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 5 | Request more information | **Admin manually** requests more info | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
 | 6 | Application declined | **Admin manually** declines (also auto-refunds the $30) | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
 | 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 8 | New intro request | An employer sends an in-app intro request | Talent | v1 (draft) | ⏳ not built yet |
+| 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
 | 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase (`checkout.session.completed`) | Buyer | v1 (draft) | 🔌 wired to a seam (vendor TBD) |
 | 10 | Membership renewal reminder | Stripe `invoice.upcoming` (~2 weeks before the annual charge; lead time set in Stripe → Billing) | Member | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
 

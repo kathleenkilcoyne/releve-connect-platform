@@ -280,6 +280,39 @@ export async function sendRenewalReminder(input: {
   console.warn("[notifications] Resend chosen but sender not yet implemented — sendRenewalReminder.", { to: input.to });
 }
 
+// ===========================================================================
+// The Roster hiring rail.
+// ===========================================================================
+
+/**
+ * EMAILS.md #8 — "New intro request". Fires when a member sends a lean in-app
+ * intro request to a professional (Roster hiring action). ONE email to the
+ * talent, transactional, on an explicit user action — no contact details are
+ * revealed (Open Decision 2: private by default). Best-effort seam: logs until
+ * the email vendor is wired; never throws into the action.
+ */
+export async function sendIntroRequestNotification(input: {
+  to: string;
+  talentName: string;
+  requesterName: string;
+  profileSlug: string;
+}): Promise<void> {
+  const ready = process.env.EMAIL_API_KEY && process.env.EMAIL_FROM_ADDRESS;
+  if (!ready) {
+    console.warn("[notifications] Would send NEW INTRO REQUEST:", {
+      to: input.to,
+      subject: "Someone wants to connect with you on Relevé",
+      body: `${input.requesterName} sent you an intro request. Sign in to view it and respond — your contact details stay private.`,
+      profile: `/${input.profileSlug}`,
+    });
+    return;
+  }
+  // TODO(email-vendor=Resend): send the templated, versioned email here.
+  console.warn("[notifications] Resend chosen but sender not yet implemented — sendIntroRequestNotification.", {
+    to: input.to,
+  });
+}
+
 /** Booking links surfaced after purchase (env-configured; null when unset). */
 export function bookingLinks() {
   return {

@@ -448,7 +448,10 @@ create index talent_profiles_region_idx   on talent_profiles (region_id);
 create index profile_styles_style_idx     on profile_styles (style_id);
 create index profile_levels_level_idx     on profile_levels (level_id);
 create index profile_focus_focus_idx      on profile_focus_areas (focus_area_id);
-create index connections_to_profile_idx   on connections (to_profile_id);
+create index connections_to_profile_idx   on connections (to_profile_id);   -- requests I received
+create index connections_from_user_idx    on connections (from_user_id);    -- my saves / sent (migration 20260712020000)
+-- One connection of a given type per (sender → target): makes "save" idempotent + upsertable.
+create unique index connections_sender_target_type_uniq on connections (from_user_id, to_profile_id, type);
 create index shortlists_employer_idx      on shortlists (employer_id);
 create index memberships_user_idx         on memberships (user_id);
 create index applications_state_idx       on applications (state);

@@ -138,9 +138,14 @@ export default async function RosterPage({
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
           Relevé · The Roster
         </p>
-        <Link href="/" className="text-sm text-neutral-500 underline">
-          ← Relevé
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/roster/saved" className="text-sm font-medium text-neutral-700 underline">
+            ★ Saved
+          </Link>
+          <Link href="/" className="text-sm text-neutral-500 underline">
+            ← Relevé
+          </Link>
+        </div>
       </div>
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Find a professional</h1>
       <p className="mt-2 text-neutral-600">

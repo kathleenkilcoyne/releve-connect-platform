@@ -20,6 +20,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { toReelEmbed } from "@/lib/profile/reel";
+import { hasAnyActiveMembership } from "@/lib/membership/access";
+import { canConnect } from "@/lib/connections/messages";
+import ConnectActions from "./ConnectActions";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +151,40 @@ export default async function PublicProfilePage({
   const gallery = (profile.gallery_urls ?? []).filter(Boolean);
   const honorifics = (profile.honorifics ?? []).filter(Boolean);
   const reel = toReelEmbed(profile.teaching_reel_url);
+  const firstName = profile.display_name.split(/\s+/)[0] || profile.display_name;
+
+  // ---- Viewer state: can this visitor save / request an intro? ------------
+  // Any signed-in active member (not the owner) may connect (§5 + founder
+  // decision). We also load whether they've already saved / requested, so the
+  // buttons reflect state. Logged-out or non-members simply see no actions.
+  let canAct = false;
+  let initialSaved = false;
+  let initialRequested = false;
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      canAct = canConnect({
+        viewerUserId: user.id,
+        viewerHasActiveMembership: await hasAnyActiveMembership(supabase, user.id),
+        profileOwnerUserId: profile.user_id,
+      });
+      if (canAct) {
+        const { data: myConns } = await supabase
+          .from("connections")
+          .select("type")
+          .eq("from_user_id", user.id)
+          .eq("to_profile_id", profile.profile_id);
+        const types = new Set(((myConns ?? []) as Array<{ type: string }>).map((c) => c.type));
+        initialSaved = types.has("save");
+        initialRequested = types.has("message-request");
+      }
+    }
+  } catch {
+    // Not signed in / auth unavailable → no actions shown.
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
@@ -239,6 +276,16 @@ export default async function PublicProfilePage({
 
           {/* Earned proof (completed-Swing count + rating) is intentionally
               OMITTED until the Swing/Reviews data exists (Step 5) — no fake numbers. */}
+
+          {/* Hiring actions — only for signed-in active members (not the owner). */}
+          {canAct && (
+            <ConnectActions
+              profileId={profile.profile_id}
+              firstName={firstName}
+              initialSaved={initialSaved}
+              initialRequested={initialRequested}
+            />
+          )}
         </div>
       </section>
 
