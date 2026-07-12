@@ -26,6 +26,10 @@ type Initial = {
   resume_url: string;
   social_links: Record<string, string>;
   profile_status: string;
+  swing_available: boolean;
+  swing_home_location: string;
+  swing_travel_radius: string;
+  swing_notes: string;
 } | null;
 
 const YEARS = ["0-2", "3-5", "6-10", "11-20", "20+"];
@@ -46,6 +50,8 @@ export default function ProfileEditor({
   selectedLevels,
   selectedFocus,
   selectedCerts,
+  selectedSwingStyles,
+  selectedSwingLevels,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -57,6 +63,8 @@ export default function ProfileEditor({
   selectedLevels: string[];
   selectedFocus: string[];
   selectedCerts: string[];
+  selectedSwingStyles: string[];
+  selectedSwingLevels: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -79,6 +87,11 @@ export default function ProfileEditor({
   const [resumeUrl] = useState<string>(initial?.resume_url ?? "");
   const [resumeRemoved, setResumeRemoved] = useState(false);
   const [resumePicked, setResumePicked] = useState<string>("");
+
+  // The Swing — opt-in toggle. OFF unless the teacher has turned it on. Controls
+  // whether the availability fields are shown (they stay in the DOM so their
+  // values round-trip even while hidden — turning off preserves your choices).
+  const [swingOn, setSwingOn] = useState(initial?.swing_available ?? false);
 
   const social = initial?.social_links ?? {};
 
@@ -411,6 +424,64 @@ export default function ProfileEditor({
         </div>
       </section>
 
+      {/* The Swing — member-controlled opt-in (spec §10) ----------------- */}
+      <section className="rounded-xl border border-neutral-200 p-5">
+        <h2 className="text-lg font-semibold text-neutral-900">The Swing — substitute teaching</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Opt in to be matched when a studio needs a last-minute substitute. You&apos;re in control:
+          this is <span className="font-medium">off</span> until you turn it on, and you can turn it
+          off anytime.
+        </p>
+        <label className="mt-4 flex items-center gap-3">
+          <input
+            type="checkbox"
+            name="swing_available"
+            checked={swingOn}
+            onChange={(e) => setSwingOn(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <span className="text-sm font-medium text-neutral-800">Available for Swing</span>
+        </label>
+
+        {/* Fields stay mounted (hidden when off) so values round-trip on save. */}
+        <div className={swingOn ? "mt-6 space-y-6" : "hidden"}>
+          <SwingChipRow title="Styles I'll sub" name="swing_styles" options={styleOptions} selected={selectedSwingStyles} />
+          <SwingChipRow title="Levels I'll sub" name="swing_levels" options={levelOptions} selected={selectedSwingLevels} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={label}>Home base</label>
+              <input
+                name="swing_home_location"
+                defaultValue={initial?.swing_home_location}
+                placeholder="e.g. Montclair, NJ"
+                className={input}
+              />
+            </div>
+            <div>
+              <label className={label}>Travel radius (miles)</label>
+              <input
+                name="swing_travel_radius"
+                type="number"
+                min="0"
+                defaultValue={initial?.swing_travel_radius}
+                placeholder="e.g. 25"
+                className={input}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={label}>Availability notes (optional)</label>
+            <textarea
+              name="swing_notes"
+              defaultValue={initial?.swing_notes}
+              rows={2}
+              placeholder="e.g. Weekday mornings; can travel to NYC; not available Tuesdays."
+              className={input}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Publish + save ------------------------------------------------- */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <label className="flex items-center gap-3">
@@ -490,5 +561,43 @@ function CheckGroup({
         ))}
       </div>
     </section>
+  );
+}
+
+// A lighter chip group (smaller heading) for fields nested inside a section,
+// e.g. the Swing "styles/levels I'll sub".
+function SwingChipRow({
+  title,
+  name,
+  options,
+  selected,
+}: {
+  title: string;
+  name: string;
+  options: Option[];
+  selected: string[];
+}) {
+  const sel = new Set(selected);
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-neutral-500">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <label
+            key={o.slug}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white"
+          >
+            <input
+              type="checkbox"
+              name={name}
+              value={o.slug}
+              defaultChecked={sel.has(o.slug)}
+              className="sr-only"
+            />
+            {o.label}
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }

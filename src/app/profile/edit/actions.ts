@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { buildSwingAvailabilityRow } from "@/lib/swing/availability";
 
 export type SaveState = {
   ok: boolean;
@@ -56,6 +57,17 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
+
+  // The Swing (§10) — the member-controlled availability toggle + fields. Stored
+  // in its own table so the dispatch loop can match on it later. Opt-in only.
+  const swingRow = buildSwingAvailabilityRow({
+    available: formData.get("swing_available") === "on",
+    homeLocation: String(formData.get("swing_home_location") ?? ""),
+    travelRadiusRaw: String(formData.get("swing_travel_radius") ?? ""),
+    notes: String(formData.get("swing_notes") ?? ""),
+  });
+  const swingStyles = formData.getAll("swing_styles").map(String).filter(Boolean);
+  const swingLevels = formData.getAll("swing_levels").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
   for (const k of ["website", "instagram", "vimeo", "youtube", "linkedin"] as const) {
@@ -253,6 +265,13 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   await replaceJoin("profile_levels", "level_id", levels, "levels");
   await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
   await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
+
+  // ---- The Swing: availability row + what they'll sub ----------------------
+  await supabase
+    .from("swing_availability")
+    .upsert({ profile_id: profileId, ...swingRow, updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
+  await replaceJoin("swing_styles", "style_id", swingStyles, "styles");
+  await replaceJoin("swing_levels", "level_id", swingLevels, "levels");
 
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");

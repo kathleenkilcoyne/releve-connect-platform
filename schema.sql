@@ -581,10 +581,47 @@ where p.profile_status = 'published' and p.visibility = 'public';
 -- revoke all on roster_profiles from anon, authenticated;  (server-only read)
 
 -- ============================================================================
+-- SECTION 14 — THE SWING: teacher availability (Step 5, Slice A; spec §10)
+-- ----------------------------------------------------------------------------
+-- Applied via migration 20260712030000_swing_availability.sql. TEACHER-SIDE ONLY:
+-- the member-controlled opt-in toggle + the fields the dispatch loop (Slice B)
+-- will match on. `is_available` defaults FALSE — opt-in is mandatory (§17).
+-- ============================================================================
+
+-- One row per teacher (1:1 with talent_profiles). Own-row RLS.
+create table swing_availability (
+  profile_id          uuid primary key references talent_profiles(profile_id) on delete cascade,
+  is_available        boolean not null default false,   -- OFF until the teacher opts in
+  home_location       text,                             -- free text now; geocoded for radius later
+  travel_radius_miles int check (travel_radius_miles is null or travel_radius_miles >= 0),
+  notes               text,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create index swing_availability_available_idx on swing_availability (is_available) where is_available;
+
+-- The styles + levels a teacher will SUB — chosen independently from their
+-- teaching set (reuses styles + the 5 levels). Own-row RLS, like profile_styles.
+create table swing_styles (
+  profile_id uuid not null references talent_profiles(profile_id) on delete cascade,
+  style_id   uuid not null references styles(id),
+  primary key (profile_id, style_id)
+);
+create index swing_styles_style_idx on swing_styles (style_id);
+
+create table swing_levels (
+  profile_id uuid not null references talent_profiles(profile_id) on delete cascade,
+  level_id   uuid not null references levels(id),
+  primary key (profile_id, level_id)
+);
+create index swing_levels_level_idx on swing_levels (level_id);
+
+-- ============================================================================
 -- END OF DRAFT SCHEMA
 -- ----------------------------------------------------------------------------
 -- Sections 1–11 are applied (supabase/setup.sql). Section 12 (Stripe Connect)
 -- is applied via supabase/migrations/20260708120000_stripe_connect_signature_experience.sql;
--- Section 13 (Roster) via 20260712010000_roster_certifications_and_view.sql —
--- both also carry their own column/RLS changes.
+-- Section 13 (Roster) via 20260712010000_roster_certifications_and_view.sql;
+-- Section 14 (The Swing, Slice A) via 20260712030000_swing_availability.sql —
+-- each also carries its own column/RLS changes.
 -- ============================================================================

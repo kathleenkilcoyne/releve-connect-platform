@@ -85,13 +85,24 @@ export default async function ProfileEditPage() {
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
   let selectedCerts: string[] = [];
+  let selectedSwingStyles: string[] = [];
+  let selectedSwingLevels: string[] = [];
+  // The Swing availability (off + empty until the teacher opts in).
+  let swing = { available: false, home_location: "", travel_radius: "", notes: "" };
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc] = await Promise.all([
+    const [ps, pl, pf, pc, sa, ss, sl] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
+      supabase
+        .from("swing_availability")
+        .select("is_available, home_location, travel_radius_miles, notes")
+        .eq("profile_id", pid)
+        .maybeSingle(),
+      supabase.from("swing_styles").select("styles(slug)").eq("profile_id", pid),
+      supabase.from("swing_levels").select("levels(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -104,6 +115,19 @@ export default async function ProfileEditPage() {
     selectedLevels = slugsOf(pl.data, "levels");
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
+    selectedSwingStyles = slugsOf(ss.data, "styles");
+    selectedSwingLevels = slugsOf(sl.data, "levels");
+    const saRow = sa.data as
+      | { is_available: boolean; home_location: string | null; travel_radius_miles: number | null; notes: string | null }
+      | null;
+    if (saRow) {
+      swing = {
+        available: saRow.is_available,
+        home_location: saRow.home_location ?? "",
+        travel_radius: saRow.travel_radius_miles != null ? String(saRow.travel_radius_miles) : "",
+        notes: saRow.notes ?? "",
+      };
+    }
   }
 
   return (
@@ -153,6 +177,10 @@ export default async function ProfileEditPage() {
                 resume_url: p.resume_url ?? "",
                 social_links: p.social_links ?? {},
                 profile_status: p.profile_status ?? "draft",
+                swing_available: swing.available,
+                swing_home_location: swing.home_location,
+                swing_travel_radius: swing.travel_radius,
+                swing_notes: swing.notes,
               }
             : null
         }
@@ -165,6 +193,8 @@ export default async function ProfileEditPage() {
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
+        selectedSwingStyles={selectedSwingStyles}
+        selectedSwingLevels={selectedSwingLevels}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
