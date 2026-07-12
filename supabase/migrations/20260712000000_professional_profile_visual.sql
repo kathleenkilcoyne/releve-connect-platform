@@ -22,9 +22,9 @@
 -- WHAT THIS DOES NOT DO
 --   • Adds no rows to talent_profiles; changes/removes nothing existing. Safe to
 --     run more than once (add-column-if-not-exists, on-conflict-do-nothing).
---   • Does NOT grant Verified Member — that stays a ~60-day earned, admin-granted
---     mark (§13). The app stamps `certified_eligible_at` at profile creation and
---     leaves `verification_flag` false.
+--   • Does NOT itself grant Verified Member. The app grants it at profile
+--     creation once vetting is complete (approved + paid) — no waiting period
+--     (founder decision 2026-07-12). This migration only adds the columns.
 --
 -- PREREQUISITE: schema.sql + prior migrations applied (talent_profiles exists).
 -- ============================================================================

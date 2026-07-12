@@ -169,8 +169,8 @@ create table talent_profiles (
   status              profile_review     not null default 'pending',
   profile_status      publish_status     not null default 'draft',
   visibility          visibility_status  not null default 'public',
-  verification_flag   boolean            not null default false, -- Verified Member: identity/standing mark (admin-granted); NOT a competence stamp
-  certified_eligible_at timestamptz,       -- Verified Member eligibility: set ~60 days after activation; admin grants after (identity mark, not competence)
+  verification_flag   boolean            not null default false, -- Verified Member: identity/standing mark, NOT a competence stamp. Granted at profile creation once vetting is complete (approved + paid) — no waiting period (founder decision 2026-07-12, supersedes the old ~60-day rule)
+  certified_eligible_at timestamptz,       -- timestamp the Verified Member mark was granted (set when verification_flag flips true)
   -- Editorial honorifics carried from the approved application (build spec §13). SERVER-STAMPED
   -- at profile creation — never set from the profile form (conferred by Kathleen, not self-selected).
   honorifics          text[]             not null default '{}',

@@ -194,11 +194,17 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     const { error } = await supabase.from("talent_profiles").update(row).eq("user_id", user.id);
     if (error) return { ok: false, message: `Couldn't save: ${error.message}` };
   } else {
-    // FIRST CREATION — carry the approval decision onto the profile (build spec
-    // §5/§13). Honorifics and the marketplace tier were conferred by Kathleen on
-    // the APPLICATION; copy them here so they can never be self-edited on the
-    // profile form. Verified Member is NOT granted now — it's a ~60-day EARNED
-    // mark, so we only set the eligibility clock and leave verification_flag false.
+    // FIRST CREATION — carry the approval decision onto the profile. Honorifics
+    // and the marketplace tier were conferred by Kathleen on the APPLICATION;
+    // copy them here so they can never be self-edited on the profile form.
+    //
+    // Verified Member is granted IMMEDIATELY once vetting is complete — no
+    // waiting period (founder decision 2026-07-12, supersedes the old §13 ~60-day
+    // rule). "Vetting complete" = the applicant passed the documentation-
+    // authenticity check (their application is `approved`) AND has paid (this
+    // profile builder is already gated behind an active Professional membership,
+    // see page.tsx). Both hold here, so an approved applicant's profile is
+    // Verified the moment it's created.
     const { data: appRow } = await admin
       .from("applications")
       .select("honorifics, approved_tier")
@@ -209,11 +215,13 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
       .maybeSingle();
     const approved = appRow as { honorifics: string[] | null; approved_tier: string | null } | null;
 
-    const eligible = new Date();
-    eligible.setDate(eligible.getDate() + 60); // Verified Member eligibility (~60 days active)
     row.honorifics = approved?.honorifics ?? [];
     if (approved?.approved_tier) row.choreographer_tier = approved.approved_tier;
-    row.certified_eligible_at = eligible.toISOString();
+    if (approved) {
+      // Vetting complete (approved + paid) → grant the Verified Member mark now.
+      row.verification_flag = true;
+      row.certified_eligible_at = new Date().toISOString(); // when it was granted
+    }
 
     const { data, error } = await supabase
       .from("talent_profiles")
