@@ -21,6 +21,9 @@ type Initial = {
   credentials: string;
   age_range: string;
   headshot_url: string;
+  teaching_reel_url: string;
+  gallery_urls: string[];
+  resume_url: string;
   social_links: Record<string, string>;
   profile_status: string;
 } | null;
@@ -62,6 +65,17 @@ export default function ProfileEditor({
   const bioWords = bio.trim() ? bio.trim().split(/\s+/).length : 0;
   const bioLong = bioWords > 350;
 
+  // Photo gallery (up to 8). `kept` = existing URLs the member keeps; `newPreviews`
+  // = object URLs for freshly-picked files (the file input carries the real files).
+  const [kept, setKept] = useState<string[]>(initial?.gallery_urls ?? []);
+  const [newPreviews, setNewPreviews] = useState<string[]>([]);
+  const galleryCount = kept.length + newPreviews.length;
+
+  // Résumé / CV state: whether a file exists, and whether the member cleared it.
+  const [resumeUrl] = useState<string>(initial?.resume_url ?? "");
+  const [resumeRemoved, setResumeRemoved] = useState(false);
+  const [resumePicked, setResumePicked] = useState<string>("");
+
   const social = initial?.social_links ?? {};
 
   return (
@@ -97,6 +111,23 @@ export default function ProfileEditor({
         <p className="mt-2 text-xs text-neutral-400">JPG, PNG, or WebP · up to 5MB.</p>
       </section>
 
+      {/* Teaching Reel — the highest-value item, above the fold (spec §6) */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Teaching Reel</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Your headline video — this plays at the top of your profile. Paste a Vimeo or YouTube
+          link. A <span className="font-medium">vertical</span> clip (like a Reel) fills the hero
+          best.
+        </p>
+        <input
+          name="teaching_reel_url"
+          type="url"
+          defaultValue={initial?.teaching_reel_url}
+          placeholder="https://vimeo.com/…  or  https://youtube.com/watch?v=…"
+          className={`${input} mt-3`}
+        />
+      </section>
+
       {/* Basics --------------------------------------------------------- */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -107,7 +138,7 @@ export default function ProfileEditor({
         <div className="sm:col-span-2">
           <label className={label}>Profile handle (your web address)</label>
           <div className="flex items-center gap-1 text-sm">
-            <span className="text-neutral-400">/talent/</span>
+            <span className="text-neutral-400">releveconnect.com/</span>
             <input
               name="public_slug"
               defaultValue={initial?.public_slug}
@@ -116,7 +147,8 @@ export default function ProfileEditor({
             />
           </div>
           <p className="mt-1 text-xs text-neutral-400">
-            Leave blank and we&apos;ll make one from your name. Letters, numbers, and dashes.
+            This is your shareable link — put it in your Instagram bio. Leave blank and we&apos;ll
+            make one from your name. Letters, numbers, and dashes.
           </p>
         </div>
 
@@ -199,8 +231,10 @@ export default function ProfileEditor({
         selected={selectedStyles}
       />
       {/* Levels --------------------------------------------------------- */}
+      {/* Teaching levels — the five seeded rungs, multi-select. Check only the
+          levels you'll teach (no age-group filter; age is demographic-only). */}
       <CheckGroup
-        title="Levels you teach / dance"
+        title="Teaching levels"
         name="levels"
         options={levelOptions}
         selected={selectedLevels}
@@ -223,6 +257,115 @@ export default function ProfileEditor({
           placeholder="Degrees, certifications, notable training or companies…"
           className={input}
         />
+      </section>
+
+      {/* Photo gallery (up to 8, shown as a grid — spec §6) ------------- */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Photo gallery</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Up to 8 photos, shown as a grid on your profile.{" "}
+          <span className="tabular-nums">{galleryCount}/8</span> used.
+        </p>
+        {galleryCount > 0 && (
+          <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {kept.map((url) => (
+              <div
+                key={url}
+                className="relative aspect-square overflow-hidden rounded-lg ring-1 ring-neutral-200"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <input type="hidden" name="gallery_existing" value={url} />
+                <button
+                  type="button"
+                  onClick={() => setKept(kept.filter((u) => u !== url))}
+                  aria-label="Remove photo"
+                  className="absolute right-1 top-1 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white hover:bg-black/80"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {newPreviews.map((url, i) => (
+              <div
+                key={i}
+                className="relative aspect-square overflow-hidden rounded-lg ring-1 ring-neutral-200"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <span className="absolute left-1 top-1 rounded bg-neutral-900/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  new
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <label className="mt-3 inline-block cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+          {galleryCount > 0 ? "Choose photos to add" : "Add photos"}
+          <input
+            type="file"
+            name="gallery_new"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              setNewPreviews(files.map((f) => URL.createObjectURL(f)));
+            }}
+          />
+        </label>
+        <p className="mt-2 text-xs text-neutral-400">
+          Pick all the photos you want to add at once. Newest selection replaces the last.
+        </p>
+      </section>
+
+      {/* Résumé / CV (PDF) ---------------------------------------------- */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Résumé / CV</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          A PDF visitors can download from your profile.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          {resumeUrl && !resumeRemoved && !resumePicked && (
+            <a
+              href={resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-neutral-700 underline"
+            >
+              Current résumé ↗
+            </a>
+          )}
+          <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+            {resumeUrl && !resumeRemoved ? "Replace PDF" : "Upload PDF"}
+            <input
+              type="file"
+              name="resume"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                setResumePicked(f ? f.name : "");
+                if (f) setResumeRemoved(false);
+              }}
+            />
+          </label>
+          {resumePicked && (
+            <span className="text-xs text-neutral-500">Selected: {resumePicked}</span>
+          )}
+        </div>
+        {resumeUrl && !resumePicked && (
+          <label className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
+            <input
+              type="checkbox"
+              name="resume_remove"
+              checked={resumeRemoved}
+              onChange={(e) => setResumeRemoved(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Remove my current résumé
+          </label>
+        )}
       </section>
 
       {/* Links ---------------------------------------------------------- */}
@@ -275,7 +418,7 @@ export default function ProfileEditor({
           </button>
           {state.ok && state.slug && (
             <a
-              href={`/talent/${state.slug}`}
+              href={`/${state.slug}`}
               target="_blank"
               className="text-sm font-medium text-neutral-700 underline"
             >

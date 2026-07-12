@@ -161,6 +161,9 @@ create table talent_profiles (
   -- Designed so reels can LATER become sellable catalog pieces (CLAUDE.md 3).
   social_links    jsonb not null default '{}'::jsonb,   -- {website, instagram, vimeo, youtube, linkedin}
   video_reels     jsonb not null default '[]'::jsonb,   -- [{label, url, kind:'teaching|choreography|performance', order}]
+  -- Visual-first profile media (build spec §6; migration 20260712000000):
+  teaching_reel_url text,                                -- the hero video (Vimeo/YouTube), highest-value item above the fold
+  gallery_urls    jsonb not null default '[]'::jsonb,    -- ordered list of up to 8 photo URLs, rendered as a grid
 
   -- Status & standing
   status              profile_review     not null default 'pending',
@@ -168,6 +171,9 @@ create table talent_profiles (
   visibility          visibility_status  not null default 'public',
   verification_flag   boolean            not null default false, -- Verified Member: identity/standing mark (admin-granted); NOT a competence stamp
   certified_eligible_at timestamptz,       -- Verified Member eligibility: set ~60 days after activation; admin grants after (identity mark, not competence)
+  -- Editorial honorifics carried from the approved application (build spec §13). SERVER-STAMPED
+  -- at profile creation — never set from the profile form (conferred by Kathleen, not self-selected).
+  honorifics          text[]             not null default '{}',
   choreographer_tier  choreographer_tier not null default 'emerging',
   founder_distinction founder_distinction not null default 'none',
 

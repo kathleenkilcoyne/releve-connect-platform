@@ -7,6 +7,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasActiveProfileTier } from "@/lib/membership/access";
 import ProfileEditor from "./ProfileEditor";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ type ProfileFields = {
   credentials: string | null;
   age_range: string | null;
   headshot_url: string | null;
+  teaching_reel_url: string | null;
+  gallery_urls: string[] | null;
+  resume_url: string | null;
   social_links: Record<string, string> | null;
   profile_status: string | null;
 };
@@ -38,6 +42,14 @@ export default async function ProfileEditPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // GATE (build spec §6 + §17): the profile builder is the Professional tier's
+  // product. Only members with an ACTIVE Professional / Professional·Full
+  // membership may build or edit a profile. Everyone else is sent to /subscribe
+  // (approved applicants activate there; the page itself explains the ladder).
+  if (!(await hasActiveProfileTier(supabase, user.id))) {
+    redirect("/subscribe?from=profile");
+  }
 
   // Pick-lists (world-readable).
   const [stylesRes, levelsRes, focusRes, rolesRes] = await Promise.all([
@@ -57,7 +69,8 @@ export default async function ProfileEditPage() {
     .from("talent_profiles")
     .select(
       "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
-        "bio, years_experience, credentials, age_range, headshot_url, social_links, profile_status",
+        "bio, years_experience, credentials, age_range, headshot_url, teaching_reel_url, " +
+        "gallery_urls, resume_url, social_links, profile_status",
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -125,6 +138,9 @@ export default async function ProfileEditPage() {
                 credentials: p.credentials ?? "",
                 age_range: p.age_range ?? "",
                 headshot_url: p.headshot_url ?? "",
+                teaching_reel_url: p.teaching_reel_url ?? "",
+                gallery_urls: p.gallery_urls ?? [],
+                resume_url: p.resume_url ?? "",
                 social_links: p.social_links ?? {},
                 profile_status: p.profile_status ?? "draft",
               }

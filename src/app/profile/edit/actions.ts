@@ -10,6 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isReservedSlug } from "@/lib/reserved-slugs";
 
 export type SaveState = {
   ok: boolean;
@@ -48,6 +49,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const years = String(formData.get("years_experience") ?? "").trim() || null;
   const credentials = String(formData.get("credentials") ?? "").trim() || null;
   const ageRange = String(formData.get("age_range") ?? "").trim() || null;
+  const teachingReelUrl = String(formData.get("teaching_reel_url") ?? "").trim() || null;
   const publish = formData.get("publish") === "on";
 
   const styles = formData.getAll("styles").map(String).filter(Boolean);
@@ -77,14 +79,24 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // ---- Find any existing profile of mine -----------------------------------
   const { data: existing } = await supabase
     .from("talent_profiles")
-    .select("profile_id, public_slug, headshot_url")
+    .select("profile_id, public_slug, headshot_url, gallery_urls, resume_url")
     .eq("user_id", user.id)
     .maybeSingle();
 
   // ---- Work out a unique handle (public_slug) ------------------------------
-  let handle = String(formData.get("public_slug") ?? "").trim();
-  handle = handle ? slugify(handle) : existing?.public_slug ?? slugify(displayName);
-  // Ensure global uniqueness (admin can see everyone's slugs; the RLS client can't).
+  // The handle is a ROOT-LEVEL URL (releveconnect.com/<handle>), so it must not
+  // be a reserved app path. Reject an explicitly-typed reserved handle outright;
+  // for an auto-generated one, the uniqueness loop below skips reserved candidates.
+  const requestedHandle = String(formData.get("public_slug") ?? "").trim();
+  if (requestedHandle && isReservedSlug(slugify(requestedHandle))) {
+    return {
+      ok: false,
+      message: `“${slugify(requestedHandle)}” is a reserved word — please choose a different handle.`,
+    };
+  }
+  let handle = requestedHandle ? slugify(requestedHandle) : existing?.public_slug ?? slugify(displayName);
+  // Ensure global uniqueness (admin can see everyone's slugs; the RLS client can't)
+  // AND that the handle never collides with a reserved app route.
   let candidate = handle;
   for (let n = 2; n < 50; n++) {
     const { data: taken } = await admin
@@ -92,7 +104,8 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
       .select("profile_id")
       .eq("public_slug", candidate)
       .maybeSingle();
-    if (!taken || taken.profile_id === existing?.profile_id) break;
+    const collides = (taken && taken.profile_id !== existing?.profile_id) || isReservedSlug(candidate);
+    if (!collides) break;
     candidate = `${handle}-${n}`;
   }
   handle = candidate;
@@ -113,6 +126,46 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     headshotUrl = admin.storage.from("headshots").getPublicUrl(path).data.publicUrl;
   }
 
+  // ---- Optional résumé / CV (PDF) upload ----------------------------------
+  // `undefined` = leave as-is; `null` = the member cleared it; a string = new URL.
+  let resumeUrl: string | null | undefined = undefined;
+  const resumeFile = formData.get("resume");
+  if (resumeFile && typeof resumeFile === "object" && "size" in resumeFile && resumeFile.size > 0) {
+    const rf = resumeFile as File;
+    const path = `${user.id}/resume-${Date.now()}.pdf`;
+    const bytes = Buffer.from(await rf.arrayBuffer());
+    const { error: upErr } = await admin.storage
+      .from("resumes")
+      .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+    if (upErr) return { ok: false, message: `Résumé upload failed: ${upErr.message}` };
+    resumeUrl = admin.storage.from("resumes").getPublicUrl(path).data.publicUrl;
+  } else if (formData.get("resume_remove") === "on") {
+    resumeUrl = null;
+  }
+
+  // ---- Photo gallery (up to 8) --------------------------------------------
+  // The form sends the ORDERED list the member wants: `gallery_existing` for the
+  // URLs they kept, plus any newly-picked files in `gallery_new`. We upload the
+  // new ones and keep the union, capped at 8. Always written (the form is the
+  // full desired state), so removals take effect too.
+  const keptGallery = formData.getAll("gallery_existing").map(String).filter(Boolean);
+  const newGalleryFiles = formData
+    .getAll("gallery_new")
+    .filter((f): f is File => typeof f === "object" && f !== null && "size" in f && (f as File).size > 0);
+  const uploadedGallery: string[] = [];
+  for (let i = 0; i < newGalleryFiles.length && keptGallery.length + uploadedGallery.length < 8; i++) {
+    const gf = newGalleryFiles[i];
+    const ext = (gf.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    const path = `${user.id}/gallery-${Date.now()}-${i}.${ext}`;
+    const bytes = Buffer.from(await gf.arrayBuffer());
+    const { error: upErr } = await admin.storage
+      .from("gallery")
+      .upload(path, bytes, { contentType: gf.type, upsert: true });
+    if (upErr) return { ok: false, message: `Gallery upload failed: ${upErr.message}` };
+    uploadedGallery.push(admin.storage.from("gallery").getPublicUrl(path).data.publicUrl);
+  }
+  const galleryUrls = [...keptGallery, ...uploadedGallery].slice(0, 8);
+
   // ---- Build the row and save ---------------------------------------------
   const row: Record<string, unknown> = {
     user_id: user.id,
@@ -126,18 +179,42 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     years_experience: years,
     credentials,
     age_range: ageRange,
+    teaching_reel_url: teachingReelUrl,
+    gallery_urls: galleryUrls,
     social_links: social,
     profile_status: publish ? "published" : "draft",
     visibility: "public",
     updated_at: new Date().toISOString(),
   };
   if (headshotUrl !== undefined) row.headshot_url = headshotUrl;
+  if (resumeUrl !== undefined) row.resume_url = resumeUrl;
 
   let profileId = existing?.profile_id as string | undefined;
   if (existing) {
     const { error } = await supabase.from("talent_profiles").update(row).eq("user_id", user.id);
     if (error) return { ok: false, message: `Couldn't save: ${error.message}` };
   } else {
+    // FIRST CREATION — carry the approval decision onto the profile (build spec
+    // §5/§13). Honorifics and the marketplace tier were conferred by Kathleen on
+    // the APPLICATION; copy them here so they can never be self-edited on the
+    // profile form. Verified Member is NOT granted now — it's a ~60-day EARNED
+    // mark, so we only set the eligibility clock and leave verification_flag false.
+    const { data: appRow } = await admin
+      .from("applications")
+      .select("honorifics, approved_tier")
+      .eq("user_id", user.id)
+      .eq("state", "approved")
+      .order("reviewed_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    const approved = appRow as { honorifics: string[] | null; approved_tier: string | null } | null;
+
+    const eligible = new Date();
+    eligible.setDate(eligible.getDate() + 60); // Verified Member eligibility (~60 days active)
+    row.honorifics = approved?.honorifics ?? [];
+    if (approved?.approved_tier) row.choreographer_tier = approved.approved_tier;
+    row.certified_eligible_at = eligible.toISOString();
+
     const { data, error } = await supabase
       .from("talent_profiles")
       .insert(row)
