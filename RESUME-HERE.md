@@ -1,5 +1,5 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated 2026-07-12. **Step 3 (the visual-first Professional profile) is complete and committed.** Next session: confirm with Kathleen whether to build **Step 4 — the Roster / discovery** (spec §8) or **The Beat** (per the 2026-07-12 roadmap note) — **do not start either without checking in.***
+*Updated 2026-07-12. **Step 3 (visual-first profile) AND the first slice of Step 4 (the Roster — search & browse) are complete and committed.** Next: the **Roster hiring-actions slice** (save/shortlist + the lean in-app intro request), then confirm with Kathleen whether Step 5 (Swing) or **The Beat** comes next.*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
 >
@@ -9,13 +9,27 @@
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-**Step 3 is DONE and committed (see the Step-3 section below).** The next pillar is a **founder decision — check in with Kathleen first:**
-- **Step 4 — the Roster / discovery** (build spec §8): searchable directory of vetted profiles + directory-hiring portal + the studio-accessibility block in search. This is the natural next step in the spec's critical path (it makes the Step-3 supply *discoverable*).
-- **or The Beat** (the pay-to-post casting marketplace) per the **2026-07-12 roadmap note** — Kathleen sequenced it ahead of Swing/Reviews/Marketplace. Plan in `docs/The_Beat_Build_Plan_2026-07-12.md`.
+**Step 3 + the Roster search-and-browse slice are DONE and committed.** Two things queue up next:
 
-**Rule:** do **not** start either until Kathleen confirms which. Re-read the relevant spec section (§8 for Roster) + the §17 guardrails first. Ask on anything TBD — don't guess.
+1. **Finish Step 4 — the Roster hiring actions** (the slice deliberately deferred): **save/shortlist** (the `shortlists` table already exists) + the **lean in-app intro request** (a `connections` row of type `message-request`; talent gets an email seam and can respond; contact details stay private by default — CLAUDE.md Open Decision 2). This is the "connect" half of discovery.
+2. **Then a founder decision** — Step 5 (The Swing + two-way reviews) or **The Beat** (the 2026-07-12 roadmap note sequenced it ahead of Swing). **Confirm with Kathleen before starting either.**
+
+**Deferred inside Step 4 (revisit when the data exists):** true **map-pin radius** search (needs geocoding lat/lng + the studio map pins from §7); an **availability** filter (the "Available for Swing" toggle is Step 5); and **studios in the Roster** (studio profiles §7 aren't built — the Roster is talent-only for now). "Featured/priority placement" (Accelerator paid benefit, §8) isn't sold yet, so no promotion slots are shown.
 
 **One forward dependency to know:** the Step-3 profile hero has a slot for **earned proof (completed-Swing count + star rating)** that is deliberately **hidden until that data exists** — it lights up when **Step 5 (The Swing + Reviews)** ships. No placeholder numbers are shown.
+
+---
+
+## ✅ What's DONE and committed (Step 4, slice 1 — the Roster: search & browse)
+
+Built to build spec §8 + §13. Founder decisions confirmed up front: the Roster is **gated to any active membership** (§5 — browsing is a paid benefit); this slice is **search & browse only** (hiring actions are the next slice); **location = region/state now** (true radius later); and **structured cert tags were added now** so the §8 cert filter is real.
+
+- **`/roster`** (`src/app/roster/page.tsx`) — gated by `hasAnyActiveMembership()` (logged-out → `/login?from=roster`; no active membership → `/subscribe?from=roster`). Category **tabs** by role (Teachers / Choreographers / Performers — role is a category, kept OUT of the filter bar per §8). Clean **filter bar**: style · teaching level · certification · region · state · full-text (name+bio). Honorifics show on cards as recognition but are **never filters** (§13). Result cards link to `/[handle]`; paginated (24/page); plain GET form, no client JS.
+- **DB migration** `20260712010000_roster_certifications_and_view.sql` (**applied live + mirrored into `schema.sql`**): new `certifications` vocab (7 tags — ABT NTC, RAD, Cecchetti, Vaganova/Balanchine, PBT, Acrobatic Arts, Other) + `profile_certifications` join (own-row RLS) + the **`roster_profiles` view** (published+public only; pre-aggregates style/level/cert slugs as arrays for one-overlap-per-facet; `owner_active` flag so lapsed members drop out of discovery; **SELECT revoked from anon/authenticated** — server-only read).
+- **Cert tags wired into the profile editor** — new "Certifications" multi-select (self-reported / searchable, not endorsed, §13); saved via `profile_certifications`.
+- **Search-filter logic** is a pure, tested module (`src/lib/roster/filters.ts`): `parseRosterParams` + `profileMatchesFilters` (ANY-within-facet, AND-across-facets, region/state/text, active-owner gate).
+- **Tests:** 33 green (`npm test`) — added the Roster filter suite + the `hasAnyActiveMembership` gate.
+- **Verified:** ran **10 filter scenarios against the live DB** with seeded profiles (role, style, cert, level, region, state, full-text, AND-across-facets, and the active-membership gate dropping a lapsed owner) — all returned the exact expected sets; then deleted the seed. Logged-out gate → login confirmed. Typecheck + lint clean. *(A real schema mismatch was caught and fixed during this: `regions` uses `label`/`slug`, not `name`.)* The **signed-in Roster UI** couldn't be driven here (needs a real magic-link session), same limitation as the Step-3 editor — but the query is proven correct against live data and the page compiles with no errors.
 
 ---
 

@@ -41,18 +41,22 @@ export default function ProfileEditor({
   levelOptions,
   focusOptions,
   roleOptions,
+  certOptions,
   selectedStyles,
   selectedLevels,
   selectedFocus,
+  selectedCerts,
 }: {
   initial: Initial;
   styleOptions: Option[];
   levelOptions: Option[];
   focusOptions: Option[];
   roleOptions: Option[];
+  certOptions: Option[];
   selectedStyles: string[];
   selectedLevels: string[];
   selectedFocus: string[];
+  selectedCerts: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -246,6 +250,22 @@ export default function ProfileEditor({
         options={focusOptions}
         selected={selectedFocus}
       />
+      {/* Certifications — structured, searchable tags (spec §6). Self-reported,
+          searchable, NOT endorsed (§13) — studios can filter the Roster by these. */}
+      {certOptions.length > 0 && (
+        <div>
+          <CheckGroup
+            title="Certifications"
+            name="certs"
+            options={certOptions}
+            selected={selectedCerts}
+          />
+          <p className="mt-2 text-xs text-neutral-400">
+            Self-reported and searchable — check the certifications you hold. Studios can filter the
+            Roster by these.
+          </p>
+        </div>
+      )}
 
       {/* Credentials ---------------------------------------------------- */}
       <section>

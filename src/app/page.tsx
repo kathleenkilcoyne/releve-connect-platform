@@ -35,6 +35,10 @@ export default function Home() {
         </Link>
       </div>
 
+      <Link href="/roster" className="mt-6 text-sm font-medium text-neutral-600 underline">
+        Browse the Roster →
+      </Link>
+
       <p className="mt-10 text-sm italic text-neutral-500">
         together we rise · nous nous levons · relevé
       </p>

@@ -31,6 +31,16 @@ export function hasActiveProfileTierFromRows(rows: MembershipRow[]): boolean {
 }
 
 /**
+ * Pure predicate: does the member hold ANY active membership (any tier)? This is
+ * the Roster-access gate — browsing the directory is a paid benefit that starts
+ * at Live Pass (§5), so any active tier (Live Pass, Professional, or a studio
+ * tier) qualifies. Extracted for unit tests (guardrail #6).
+ */
+export function hasAnyActiveMembershipFromRows(rows: MembershipRow[]): boolean {
+  return rows.some((m) => m.membership_status === "active");
+}
+
+/**
  * Loose shape of a Supabase-like client — just enough to run our one read,
  * without importing Supabase's heavily-generic types (which trip TS's
  * deep-instantiation guard). Any of this project's clients satisfies it.
@@ -53,4 +63,20 @@ export async function hasActiveProfileTier(
     .eq("user_id", userId)
     .eq("membership_status", "active");
   return hasActiveProfileTierFromRows((data as MembershipRow[] | null) ?? []);
+}
+
+/**
+ * Does this user hold ANY active membership? Gates Roster access (§5). Pass a
+ * request-scoped Supabase client; reads only this user's own membership rows.
+ */
+export async function hasAnyActiveMembership(
+  db: SupabaseLike,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from("memberships")
+    .select("tier, membership_status")
+    .eq("user_id", userId)
+    .eq("membership_status", "active");
+  return hasAnyActiveMembershipFromRows((data as MembershipRow[] | null) ?? []);
 }

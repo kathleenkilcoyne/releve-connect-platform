@@ -55,6 +55,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const styles = formData.getAll("styles").map(String).filter(Boolean);
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
+  const certs = formData.getAll("certs").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
   for (const k of ["website", "instagram", "vimeo", "youtube", "linkedin"] as const) {
@@ -251,6 +252,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   await replaceJoin("profile_styles", "style_id", styles, "styles");
   await replaceJoin("profile_levels", "level_id", levels, "levels");
   await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
+  await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
 
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");

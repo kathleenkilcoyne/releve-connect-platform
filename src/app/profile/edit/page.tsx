@@ -52,17 +52,19 @@ export default async function ProfileEditPage() {
   }
 
   // Pick-lists (world-readable).
-  const [stylesRes, levelsRes, focusRes, rolesRes] = await Promise.all([
+  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
+    supabase.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
   const levelOptions = (levelsRes.data ?? []) as Option[];
   const focusOptions = (focusRes.data ?? []) as Option[];
   const roleOptions = (rolesRes.data ?? []) as Option[];
+  const certOptions = (certsRes.data ?? []) as Option[];
 
   // My existing profile (own-row only via RLS).
   const { data: profile } = await supabase
@@ -82,12 +84,14 @@ export default async function ProfileEditPage() {
   let selectedStyles: string[] = [];
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
+  let selectedCerts: string[] = [];
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf] = await Promise.all([
+    const [ps, pl, pf, pc] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
+      supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -99,6 +103,7 @@ export default async function ProfileEditPage() {
     selectedStyles = slugsOf(ps.data, "styles");
     selectedLevels = slugsOf(pl.data, "levels");
     selectedFocus = slugsOf(pf.data, "focus_areas");
+    selectedCerts = slugsOf(pc.data, "certifications");
   }
 
   return (
@@ -150,9 +155,11 @@ export default async function ProfileEditPage() {
         levelOptions={levelOptions}
         focusOptions={focusOptions}
         roleOptions={roleOptions}
+        certOptions={certOptions}
         selectedStyles={selectedStyles}
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
+        selectedCerts={selectedCerts}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">

@@ -529,9 +529,59 @@ create table experience_purchases (
 );
 
 -- ============================================================================
+-- SECTION 13 — THE ROSTER: CERT TAGS + SEARCH VIEW (Step 4)
+-- ----------------------------------------------------------------------------
+-- Applied via migration 20260712010000_roster_certifications_and_view.sql.
+-- ============================================================================
+
+-- Structured, filterable certification vocabulary (build spec §6). Same shape as
+-- styles/levels; world-readable; self-reported / searchable, NOT endorsed (§13).
+create table certifications (
+  id         uuid primary key default gen_random_uuid(),
+  slug       text unique not null,   -- abt-ntc, rad, cecchetti, vaganova-balanchine, pbt, acrobatic-arts, other
+  label      text not null,
+  sort_order int not null default 0,
+  is_active  boolean not null default true
+);
+
+-- profile ↔ certification (own-row RLS, like profile_styles/profile_levels).
+create table profile_certifications (
+  profile_id       uuid not null references talent_profiles(profile_id) on delete cascade,
+  certification_id uuid not null references certifications(id),
+  primary key (profile_id, certification_id)
+);
+create index profile_certifications_cert_idx on profile_certifications (certification_id);
+
+-- The Roster search view: PUBLISHED + public profiles only, each profile's
+-- style/level/cert slugs pre-aggregated as arrays (one array-overlap per facet),
+-- plus `owner_active` (does the owner hold an ACTIVE membership right now, so
+-- lapsed members drop out of discovery). Read by the SERVER (service role) only —
+-- SELECT is revoked from anon/authenticated so the gated directory can't be scraped.
+create or replace view roster_profiles as
+select
+  p.profile_id, p.user_id, p.display_name, p.public_slug, p.primary_role,
+  p.city, p.state_province, p.country, p.region_id, p.headshot_url,
+  p.verification_flag, p.honorifics, p.years_experience, p.search_tsv,
+  coalesce((select array_agg(distinct s.slug)
+            from profile_styles ps join styles s on s.id = ps.style_id
+            where ps.profile_id = p.profile_id), '{}') as style_slugs,
+  coalesce((select array_agg(distinct l.slug)
+            from profile_levels pl join levels l on l.id = pl.level_id
+            where pl.profile_id = p.profile_id), '{}') as level_slugs,
+  coalesce((select array_agg(distinct c.slug)
+            from profile_certifications pc join certifications c on c.id = pc.certification_id
+            where pc.profile_id = p.profile_id), '{}') as cert_slugs,
+  exists(select 1 from memberships m
+         where m.user_id = p.user_id and m.membership_status = 'active') as owner_active
+from talent_profiles p
+where p.profile_status = 'published' and p.visibility = 'public';
+-- revoke all on roster_profiles from anon, authenticated;  (server-only read)
+
+-- ============================================================================
 -- END OF DRAFT SCHEMA
 -- ----------------------------------------------------------------------------
 -- Sections 1–11 are applied (supabase/setup.sql). Section 12 (Stripe Connect)
--- is applied via supabase/migrations/20260708120000_stripe_connect_signature_experience.sql,
--- which also adds the new columns to talent_profiles/memberships and the RLS.
+-- is applied via supabase/migrations/20260708120000_stripe_connect_signature_experience.sql;
+-- Section 13 (Roster) via 20260712010000_roster_certifications_and_view.sql —
+-- both also carry their own column/RLS changes.
 -- ============================================================================
