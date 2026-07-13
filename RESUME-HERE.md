@@ -1,4 +1,22 @@
 # ▶️ RESUME HERE — Relevé Connect build
+
+> ## ▶️ START HERE — good morning, 2026-07-14
+>
+> **Everything through 2026-07-13 is built, verified on the live database, committed, and pushed to GitHub** (latest commit `2512e61`). Nothing is broken and nothing is half-finished — it's a clean place to pick up.
+>
+> **Where things stand, in plain terms:**
+> - **The Swing** has its *teacher* side (opt-in availability) and *real studio accounts* (§7 studio profiles).
+> - **The Beat** now has its **entire hiring-side database** — the job categories, the postings, partner packages, the payments ledger, and the security rules. This is the *plumbing*; there are **no screens and no payment flow yet**.
+>
+> **Pick ONE brick to lay next** (any is a fine starting point):
+> 1. **The Beat — Stripe checkout** *(the money step)*: let someone pay to post a job ($49, or $29 for members) and let college/university partners buy their annual packages, reusing the Stripe setup you already have for memberships. → turns the Beat schema into **revenue**.
+> 2. **The Beat — post & browse screens** *(the visible step)*: the actual pages to create a job posting and to browse/filter the board. → turns the schema into **something you can see and click**.
+> 3. **The Swing — dispatch loop**: a studio posts an open sub slot → matched teachers are notified → the studio picks who covers it. → **connects teachers and studios** for real.
+>
+> **Still parked for your decision (no rush):** §D — do the *self-marketing / service* lanes (coaching, photography, creative & production services, accompanists) live **inside The Beat** or in a **separate vetted directory**? Nothing on that side gets built until you decide. Details are in `docs/The_Beat_Build_Plan_2026-07-12.md` (see "Additions — 2026-07-13", section D).
+>
+> **To reopen the project:** open the folder `C:\Users\kathl\releve-platform`. The full running detail is everything below this box.
+
 *Updated 2026-07-13. **Steps 3 and 4 are complete. Step 5 (The Swing): Slice A (teacher "Available for Swing") AND real studio accounts + the light §7 studio profile are DONE and committed.** Studios now sign up via **light onboarding** — no $30 fee, no approval queue (founder decision 2026-07-13; they are the buyer side, not vetted talent). **Next up: the dispatch loop (Slice B)** — studio posts a slot → match → notify → teacher claims → studio picks → locks → auto-completes → unlocks reviews (Slice C). **Do NOT use the admin-posts stopgap** (violates the §17 no-founder-middleman guardrail). Map pins are stored-address-now / geocode-later (founder decision 2026-07-13). **The Beat — hiring-side schema is now built + verified live (2026-07-13):** admin-managed two-level taxonomy, postings (multi-subcategory, 30-day expiry, portfolio media), partner packages, a transactions ledger, and RLS. Self-marketing/service lanes stay gated behind §D.*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
