@@ -233,20 +233,78 @@ create table profile_focus_areas (
 -- self-promotion.
 -- ============================================================================
 
+-- §7 studio profile. Fleshed out by migration 20260713000000_studio_profile_and_accounts.sql
+-- (applied live + mirrored here). Studios sign up via LIGHT ONBOARDING — no $30 fee,
+-- no approval queue (founder decision 2026-07-13): they are the buyer side, not vetted talent.
 create table employer_profiles (
   employer_id   uuid primary key default gen_random_uuid(),
   owner_user_id uuid not null references users(user_id) on delete cascade,
   name          text not null,
+  website       text,
+  -- Full address (drives the map pin + accessibility block, §7).
+  address_line1  text,
+  address_line2  text,
   city          text,
   state_province text,
+  postal_code   text,
   country       text,
+  -- Map pin — NULLABLE, geocoded from the address in a later slice ("build the
+  -- column, fill it later"). Unlocks the deferred radius search (§8) + Swing geo-match.
+  lat           double precision,
+  lng           double precision,
+  geocoded_at   timestamptz,
+  -- Studio facts a sub needs (§7).
+  year_founded       int check (year_founded is null or (year_founded between 1800 and (extract(year from now())::int + 1))),
+  student_count_band text check (student_count_band is null or student_count_band in ('under_100','100_299','300_plus')),
+  staff_count        int check (staff_count is null or staff_count >= 0),
+  room_count         int check (room_count is null or room_count >= 0),
+  -- Accessibility / "getting there" block (§7) — the differentiator.
+  nearest_transit    text,    -- nearest train line(s)/station, bus route(s) — free text
+  car_required       boolean,
+  parking            text check (parking is null or parking in ('onsite','street','none')),
+  directions_note    text,
+  culture_note       text,
   logo_url      text,
   bio           text,
   links         jsonb not null default '{}'::jsonb,
-  verified      boolean not null default false,
+  verified      boolean not null default false,       -- Verified Employer badge (Growth tier); set by admin, not self
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+create index employer_profiles_geo_idx on employer_profiles (lat, lng) where lat is not null and lng is not null;
+
+-- §7 concentration/focus vocab (studio-specific — distinct from choreographer focus_areas).
+create table studio_concentrations (
+  id         uuid primary key default gen_random_uuid(),
+  slug       text unique not null,   -- competition, technique-recreational, conservatory-pre-professional
+  label      text not null,
+  sort_order int not null default 0,
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+-- Studio ↔ vocab joins (own-row RLS via owns_employer). Styles offered + certs valued
+-- reuse the existing styles/certifications vocab; concentration uses studio_concentrations.
+create table employer_styles (
+  employer_id uuid not null references employer_profiles(employer_id) on delete cascade,
+  style_id    uuid not null references styles(id),
+  primary key (employer_id, style_id)
+);
+create index employer_styles_style_idx on employer_styles (style_id);
+
+create table employer_concentrations (
+  employer_id      uuid not null references employer_profiles(employer_id) on delete cascade,
+  concentration_id uuid not null references studio_concentrations(id),
+  primary key (employer_id, concentration_id)
+);
+create index employer_concentrations_conc_idx on employer_concentrations (concentration_id);
+
+create table employer_certifications (
+  employer_id      uuid not null references employer_profiles(employer_id) on delete cascade,
+  certification_id uuid not null references certifications(id),
+  primary key (employer_id, certification_id)
+);
+create index employer_certifications_cert_idx on employer_certifications (certification_id);
 
 -- ============================================================================
 -- SECTION 5 — BADGES
@@ -569,59 +627,4 @@ select
             from profile_styles ps join styles s on s.id = ps.style_id
             where ps.profile_id = p.profile_id), '{}') as style_slugs,
   coalesce((select array_agg(distinct l.slug)
-            from profile_levels pl join levels l on l.id = pl.level_id
-            where pl.profile_id = p.profile_id), '{}') as level_slugs,
-  coalesce((select array_agg(distinct c.slug)
-            from profile_certifications pc join certifications c on c.id = pc.certification_id
-            where pc.profile_id = p.profile_id), '{}') as cert_slugs,
-  exists(select 1 from memberships m
-         where m.user_id = p.user_id and m.membership_status = 'active') as owner_active
-from talent_profiles p
-where p.profile_status = 'published' and p.visibility = 'public';
--- revoke all on roster_profiles from anon, authenticated;  (server-only read)
-
--- ============================================================================
--- SECTION 14 — THE SWING: teacher availability (Step 5, Slice A; spec §10)
--- ----------------------------------------------------------------------------
--- Applied via migration 20260712030000_swing_availability.sql. TEACHER-SIDE ONLY:
--- the member-controlled opt-in toggle + the fields the dispatch loop (Slice B)
--- will match on. `is_available` defaults FALSE — opt-in is mandatory (§17).
--- ============================================================================
-
--- One row per teacher (1:1 with talent_profiles). Own-row RLS.
-create table swing_availability (
-  profile_id          uuid primary key references talent_profiles(profile_id) on delete cascade,
-  is_available        boolean not null default false,   -- OFF until the teacher opts in
-  home_location       text,                             -- free text now; geocoded for radius later
-  travel_radius_miles int check (travel_radius_miles is null or travel_radius_miles >= 0),
-  notes               text,
-  created_at          timestamptz not null default now(),
-  updated_at          timestamptz not null default now()
-);
-create index swing_availability_available_idx on swing_availability (is_available) where is_available;
-
--- The styles + levels a teacher will SUB — chosen independently from their
--- teaching set (reuses styles + the 5 levels). Own-row RLS, like profile_styles.
-create table swing_styles (
-  profile_id uuid not null references talent_profiles(profile_id) on delete cascade,
-  style_id   uuid not null references styles(id),
-  primary key (profile_id, style_id)
-);
-create index swing_styles_style_idx on swing_styles (style_id);
-
-create table swing_levels (
-  profile_id uuid not null references talent_profiles(profile_id) on delete cascade,
-  level_id   uuid not null references levels(id),
-  primary key (profile_id, level_id)
-);
-create index swing_levels_level_idx on swing_levels (level_id);
-
--- ============================================================================
--- END OF DRAFT SCHEMA
--- ----------------------------------------------------------------------------
--- Sections 1–11 are applied (supabase/setup.sql). Section 12 (Stripe Connect)
--- is applied via supabase/migrations/20260708120000_stripe_connect_signature_experience.sql;
--- Section 13 (Roster) via 20260712010000_roster_certifications_and_view.sql;
--- Section 14 (The Swing, Slice A) via 20260712030000_swing_availability.sql —
--- each also carries its own column/RLS changes.
--- ============================================================================
+       

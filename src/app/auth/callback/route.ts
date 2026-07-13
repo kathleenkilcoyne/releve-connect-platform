@@ -8,7 +8,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/profile/edit";
+  // Only honor an INTERNAL relative path (guard against open-redirects); default
+  // to the talent profile editor.
+  const nextParam = searchParams.get("next");
+  const next = nextParam && nextParam.startsWith("/") ? nextParam : "/profile/edit";
 
   if (code) {
     const supabase = await createClient();

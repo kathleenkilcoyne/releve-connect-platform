@@ -192,3 +192,9 @@ These were settled before the build began. Recorded here so they're not re-litig
       areas / regions final lists still to confirm before launch.
 - [x] **Email vendor** (2026-07-11): **Resend**.
 - [ ] **Still TBD:** the Established sales threshold, and the Legacy/Vanguard co-production splits.
+
+## 2026-07-13 — Studio accounts (the studio side of The Swing)
+
+- **Studio sign-up = light onboarding** (Kathleen, 2026-07-13): studios are the buyer/customer side, not vetted talent, so **no $30 application fee and no admin approval queue.** They sign in (magic link) and fill a §7 studio profile; the `employer` account + `employer_profiles` row are created on first save at `/studio/edit`. Rationale: the vetting gate exists to protect the *talent* supply's credibility; the studio is the demand side and gatekeeping it only adds friction to the buyer. (A later "Verified Employer" badge — Growth tier — remains admin-set, separate from sign-up.)
+- **Map pin = store-address-now, geocode-later** (Kathleen, 2026-07-13): the §7 studio address is captured now; `employer_profiles.lat`/`lng`/`geocoded_at` columns exist but stay NULL until a geocoding provider is wired in a later slice. Same "build the column, fill it later" pattern as the profile earned-proof slot. The deferred **map-pin radius** search (§8) and Swing geo-matching (§10) light up once lat/lng are populated; until then Swing matching stays coarse (city/state).
+- **Studio concentration is its own vocab** (`studio_concentrations`: Competition · Technique/Recreational · Conservatory/Pre-Professional) — deliberately separate from the choreographer `focus_areas` list, which means something different.

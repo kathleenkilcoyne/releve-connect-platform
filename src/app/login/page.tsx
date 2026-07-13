@@ -20,9 +20,17 @@ export default function LoginPage() {
     setError(null);
     try {
       const supabase = createClient();
+      // Carry an optional post-login destination through the magic link. A studio
+      // signing in from /studio lands back on /studio/edit; talent (no next param)
+      // falls through to the callback's default (/profile/edit). Read from the URL
+      // at submit time so we don't need a Suspense-wrapped useSearchParams here.
+      const next = new URLSearchParams(window.location.search).get("next");
+      const redirectTo =
+        `${window.location.origin}/auth/callback` +
+        (next && next.startsWith("/") ? `?next=${encodeURIComponent(next)}` : "");
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: redirectTo },
       });
       if (error) setError(error.message);
       else setSent(true);

@@ -1,37 +1,47 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated 2026-07-12. **Steps 3 and 4 are complete. Step 5 (The Swing): Slice A — the teacher "Available for Swing" foundation — is DONE and committed.** Studio-side decision RESOLVED: **BUILD REAL STUDIO ACCOUNTS** (Option 1) — studios are the shared blocker for The Swing, The Beat, studios-in-the-Roster, and map-pin radius search. **Next up: real studio sign-up + light studio profile (§7)**, then the dispatch loop, then the review engine. **Do NOT use the admin-posts stopgap** (violates the §17 no-founder-middleman guardrail).*
+*Updated 2026-07-13. **Steps 3 and 4 are complete. Step 5 (The Swing): Slice A (teacher "Available for Swing") AND real studio accounts + the light §7 studio profile are DONE and committed.** Studios now sign up via **light onboarding** — no $30 fee, no approval queue (founder decision 2026-07-13; they are the buyer side, not vetted talent). **Next up: the dispatch loop (Slice B)** — studio posts a slot → match → notify → teacher claims → studio picks → locks → auto-completes → unlocks reviews (Slice C). **Do NOT use the admin-posts stopgap** (violates the §17 no-founder-middleman guardrail). Map pins are stored-address-now / geocode-later (founder decision 2026-07-13).*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
 >
 > **📣 Roadmap note (2026-07-12):** After Step 3 (Profiles), the next major pillar is **The Beat** (pay-to-post job/audition marketplace — the College/University partner-package revenue). Full corrected build plan (Supabase Auth, NOT Clerk; reconciled pricing) is in **`docs/The_Beat_Build_Plan_2026-07-12.md`**. Founder decision: The Beat is sequenced **ahead of** Swing/Reviews/Marketplace. Do not build it until Profiles ship.
 
+> **📣 Session note (2026-07-13, Kathleen + Cowork):** Built the **studio side of The Swing** — real `employer` accounts + the light §7 studio profile (see the new DONE section). Studio sign-up is **light onboarding** (no fee, no approval). Map pins: store the address now, geocode later. **Kathleen's plan from here:** finish The Swing, then **organize The Beat** so every filter/section of the Audition Page carries **jobs** too (the College/University revenue piece).
+
 ---
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-**Step 5 Slice A (teacher "Available for Swing" foundation) is DONE (see the Slice-A section below).** Next up: **real studio accounts** — the resolved foundation that unblocks the rest of The Swing (and The Beat, studios-in-the-Roster, map-pin radius). Re-read spec §7 (studio profile) + §10–§11 + the §17 guardrails first; ask on anything TBD.
+**Step 5 Slice A (teacher availability) AND real studio accounts + the light §7 studio profile are DONE (see the two DONE sections below).** Next up: **the dispatch loop (Slice B)** — the studio side of The Swing that finally connects teachers ↔ studios. Re-read spec §10–§11 + the §17 guardrails first; ask on anything TBD.
 
-**Concretely, the next slice — real studio sign-up + a light studio profile (§7):**
-- A studio can create an account (`account_type = 'employer'`) and a `employer_profiles` row — currently that table is empty with no creation path anywhere.
-- §7 essentials: studio name, website, city/state, **full address + map pin (lat/lng)**, year founded, student-count band, staff count, styles offered, **accessibility block** (nearest train/bus, car-required, parking), concentration/focus, certifications valued, culture note.
-- The map-pin/geo is what later unlocks the deferred **map-pin radius** search and the Swing geo-matching.
-- **TBD to confirm with Kathleen:** how studios *sign up* (same `/apply` intake with the studio branch → approval → account? or a separate lighter studio onboarding, since studios are the buyer side and aren't "vetted" like talent?). **Ask — don't guess.**
+**Concretely, the next slice — the dispatch loop (§10, Slice B):**
+- A studio **posts an open sub slot directly** — date, time, location, style, level needed, pay, optional required cert. (New table, e.g. `swing_slots`, owned by the employer; studios now exist to own it.)
+- System **matches** only teachers who (a) have Swing on, (b) match style + level + geography, (c) hold the required cert if specified. *(Geography stays coarse — city/state — until the studio map pins are geocoded; the `lat`/`lng` columns already exist, empty.)*
+- Matched teachers **notified** (in-app + email seam now; SMS later) → teacher **taps to claim** → **studio picks from responders** (not first-come, §17) → slot **locks** → after the date, **auto-completes** → unlocks the two-way review (Slice C).
 
-### The remaining Step-5 slices (after studio accounts)
-- **Slice B — The dispatch loop:** studio posts a slot → match (Swing-on + style + level + geography + required cert) → notify → teacher claims → **studio picks from responders** → slot locks → auto-completes after the date.
-- **Slice C — The trust engine:** two-way, **double-blind, 7-day-reveal** reviews unlocked on completion, rolled into the profile star rating (this lights up the hero's earned-proof slot + the Roster availability filter).
+### The remaining Step-5 slice (after the dispatch loop)
+- **Slice C — The trust engine:** two-way, **double-blind, 7-day-reveal** reviews unlocked on completion, rolled into the profile star rating (lights up the hero's earned-proof slot + the Roster availability filter). *Reminder:* the existing `reviews` table hangs off `connection_id`; a completed Swing gig isn't a connection, so reviews get reworked to hang off a completed swing claim (migration needed).
 
 ### Sub-decisions already framed (revisit when building)
-- **Levels = the 5 ratified rungs** (§10's "four rungs" is a stale leftover; §6 confirmed keep all five). Slice A used the 5 seeded `levels`.
+- **Levels = the 5 ratified rungs.**
 - **Swing $20/use billing** (studio-paid; 3 at Connect / included at Growth / unlimited at Accelerator): *recommend defer* — build the matching + review loop first, wire billing as a later slice.
-- **Dispatch alerts:** *recommend in-app + email seam now, SMS later* (no SMS provider set up; sub calls are time-sensitive so SMS matters eventually).
-- **Review model:** the existing `reviews` table is tied to `connection_id`; a completed Swing gig isn't a connection, so the review will be reworked to hang off a completed `swing_claim` (migration needed).
+- **Dispatch alerts:** *in-app + email seam now, SMS later* (no SMS provider set up; sub calls are time-sensitive so SMS matters eventually).
 
-*(Alternative pillar still on the table if Kathleen redirects: **The Beat**, per the 2026-07-12 roadmap note — plan in `docs/The_Beat_Build_Plan_2026-07-12.md`.)*
+*(Alternative pillar still on the table if Kathleen redirects: **The Beat**, per the 2026-07-12 roadmap note — plan in `docs/The_Beat_Build_Plan_2026-07-12.md`. Kathleen's 2026-07-13 intent: finish the studio side of The Swing, then **organize The Beat** so all Audition-Page filters/sections carry **jobs** too — the College/University revenue piece.)*
 
-**Still deferred from Step 4 (revisit when the data exists):** true **map-pin radius** search (needs geocoding lat/lng + the studio map pins from §7); the **availability** filter (needs the Step-5 Swing toggle); **studios in the Roster** (studio profiles §7 aren't built — Roster is talent-only); and a real **messaging rail** beyond the lean intro request (Accept currently signals openness only — no contact is exchanged, per Open Decision 2). "Featured/priority placement" (Accelerator paid benefit) isn't sold yet, so no promotion slots are shown.
+**Still deferred (revisit when the data exists):** true **map-pin radius** search (the `lat`/`lng` columns exist but are empty — needs a geocoding provider wired); the **availability** filter in the Roster; **studios in the Roster** (studio profiles now exist — the Roster query can be extended to include them next); the **messaging rail** beyond the lean intro request.
 
-**One forward dependency to know:** the Step-3 profile hero has a slot for **earned proof (completed-Swing count + star rating)** that is deliberately **hidden until that data exists** — it lights up when **Step 5 (The Swing + Reviews)** ships. No placeholder numbers are shown.
+**One forward dependency to know:** the Step-3 profile hero's **earned-proof slot** (completed-Swing count + star rating) stays hidden until Slice B + C ship real data.
+
+---
+
+## ✅ What's DONE and committed (Step 5 — real studio accounts + the light §7 studio profile)
+
+The studio side's foundation — the shared blocker for the dispatch loop, The Beat, studios-in-the-Roster, and map-pin radius. **Light onboarding** (founder decision 2026-07-13): studios are the buyer side, not vetted talent — **no $30 fee, no approval queue.** They sign in (magic link) and fill a §7 profile; the `employer` account is created on first save.
+
+- **DB migration** `20260713000000_studio_profile_and_accounts.sql` (**applied live + mirrored into `schema.sql` §4**): fleshed out `employer_profiles` to §7 — website, **full address**, **map pin `lat`/`lng` (NULLABLE — geocode-later)** + `geocoded_at`, `year_founded`, `student_count_band` (Under 100 / 100–299 / 300+), `staff_count`, `room_count`, the **accessibility block** (`nearest_transit`, `car_required`, `parking` onsite/street/none, `directions_note`), and `culture_note`. New **`studio_concentrations`** vocab (Competition · Technique/Recreational · Conservatory/Pre-Professional — deliberately separate from choreographer `focus_areas`). Three join tables — **`employer_styles` / `employer_concentrations` / `employer_certifications`** (styles + certs reuse the existing vocab) with **own-row RLS** via `owns_employer()`. Check constraints on the bands/counts/year/parking.
+- **Studio sign-up + editor:** `/studio` (public "For Studios" front door) → `/studio/edit` (the profile form). Not signed in → `/login?next=/studio/edit` (the magic link brings them back — `login/page.tsx` now carries an internal `next`; `auth/callback` honors it behind an open-redirect guard). On first save, `saveStudioProfile` (`src/app/studio/edit/actions.ts`) creates the `users` row as **`account_type='employer'`** + the `employer_profiles` row + the joins. Editing an address clears any stored map pin so the later geocode backfill re-pins. Homepage gained a **"For studios →"** link.
+- **Pure, tested logic** (`src/lib/studio/profile.ts`): `buildEmployerProfileRow` + `parseYearFounded` / `parseCount` / `parseEnum` / `parseTriBool` / `addressChanged`. Out-of-vocab values are dropped (not fatal); only the studio name is required.
+- **Tests:** **61 green** (`npm test`) — added the 13-test studio suite. **Verified against the live DB:** a full studio save round-trips exactly (all §7 fields + 3 styles + 2 concentrations + 1 cert; `lat`/`lng`/`geocoded_at` correctly NULL), all four check constraints reject bad data (negative staff, bad parking, bad band, year 1700) with the row left intact, and the join-table RLS is own-row-only (`authenticated`, no anon) with `studio_concentrations` public-read; seed deleted after (cascade confirmed). Typecheck + lint clean. *(Signed-in click-through needs a real magic-link session — same limitation as every prior slice — but the DB round-trip + RLS shape are proven and the pages compile clean.)*
 
 ---
 
