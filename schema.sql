@@ -628,3 +628,108 @@ select
             where ps.profile_id = p.profile_id), '{}') as style_slugs,
   coalesce((select array_agg(distinct l.slug)
        
+-- ============================================================================
+-- SECTION 15 — THE BEAT (hiring-side marketplace) — §9
+-- ----------------------------------------------------------------------------
+-- Applied via migration 20260713120000_beat_hiring_schema.sql (live + mirrored
+-- here). HIRING motion only — "post a role, someone applies". The self-marketing
+-- / service motion (coaching, photography, creative & production services,
+-- accompanists) is GATED behind founder decision §D (inside The Beat vs a separate
+-- vetted directory) — deliberately NOT built here; the gated SERVICE families are
+-- NOT seeded. Two-level ADMIN-MANAGED taxonomy; a small stable engagement enum;
+-- multi-subcategory postings; 30-day expiry; portfolio media. RLS is defined in
+-- the migration (active postings world-readable; poster manages own; packages +
+-- transactions private). Naming: poster/holder/payer = the platform user
+-- (users.user_id); neutral because a poster may be a studio OR an individual.
+-- ============================================================================
+
+create type beat_engagement_type as enum ('audition','employment','freelance_gig','other');
+create type beat_posting_type    as enum ('one_off','studio_included','partner_package');
+create type beat_posting_status  as enum ('draft','active','expired','closed');
+create type beat_partner_tier    as enum ('essential','premier','elite');
+create type beat_partner_status  as enum ('active','expired','cancelled');
+create type beat_txn_type        as enum ('one_off_post','studio_included_debit','partner_package_purchase','partner_package_debit');
+create type beat_txn_status      as enum ('pending','completed','failed');
+
+-- Two-level taxonomy (admin-managed vocab).
+create table beat_categories (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique not null, label text not null,
+  sort_order int not null default 0, is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create table beat_subcategories (
+  id uuid primary key default gen_random_uuid(),
+  category_id uuid not null references beat_categories(id) on delete cascade,
+  slug text not null, label text not null,
+  sort_order int not null default 0, is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (category_id, slug)          -- slug unique WITHIN a family (so "other" can repeat)
+);
+create index beat_subcategories_category_idx on beat_subcategories (category_id);
+
+-- Annual prepaid posting-credit bundles (College/University partner packages).
+create table beat_partner_packages (
+  id uuid primary key default gen_random_uuid(),
+  holder_user_id uuid not null references users(user_id) on delete cascade,
+  package_type beat_partner_tier not null,
+  total_credits int not null check (total_credits >= 0),
+  credits_used int not null default 0 check (credits_used >= 0),
+  credits_remaining int generated always as (total_credits - credits_used) stored,
+  starts_at timestamptz not null default now(), ends_at timestamptz,
+  status beat_partner_status not null default 'active',
+  created_at timestamptz not null default now()
+);
+create index beat_partner_packages_holder_idx on beat_partner_packages (holder_user_id);
+
+-- The hiring post. Studio "included" posts (annual allowance, reset annually) are
+-- just posting_type='studio_included'; the yearly cap is enforced at post-time by
+-- counting within the membership year (policy, not a column). union_status is the
+-- planned future cross-cutting filter (add as a nullable column when built).
+create table beat_postings (
+  id uuid primary key default gen_random_uuid(),
+  poster_user_id uuid not null references users(user_id) on delete cascade,
+  title text not null, description text,
+  category_id uuid not null references beat_categories(id),
+  engagement_type beat_engagement_type not null default 'other',
+  posting_type beat_posting_type not null default 'one_off',
+  status beat_posting_status not null default 'draft',
+  location text, compensation_info text, application_method text,
+  portfolio_links jsonb not null default '[]'::jsonb,     -- [{label,url}] media/samples
+  partner_package_id uuid references beat_partner_packages(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '30 days')
+);
+create index beat_postings_poster_idx   on beat_postings (poster_user_id);
+create index beat_postings_category_idx on beat_postings (category_id);
+create index beat_postings_status_idx   on beat_postings (status);
+create index beat_postings_expires_idx  on beat_postings (expires_at);
+create index beat_postings_partner_idx  on beat_postings (partner_package_id);
+
+-- A post ↔ many subcategories.
+create table beat_posting_subcategories (
+  posting_id uuid not null references beat_postings(id) on delete cascade,
+  subcategory_id uuid not null references beat_subcategories(id),
+  primary key (posting_id, subcategory_id)
+);
+create index beat_posting_subcategories_sub_idx on beat_posting_subcategories (subcategory_id);
+
+-- Transactions ledger. Stripe columns null until the checkout flow is built.
+create table beat_transactions (
+  id uuid primary key default gen_random_uuid(),
+  payer_user_id uuid not null references users(user_id) on delete cascade,
+  amount_cents int not null default 0,
+  transaction_type beat_txn_type not null,
+  posting_id uuid references beat_postings(id) on delete set null,
+  partner_package_id uuid references beat_partner_packages(id) on delete set null,
+  status beat_txn_status not null default 'pending',
+  stripe_payment_intent_id text, stripe_session_id text,
+  created_at timestamptz not null default now()
+);
+create index beat_transactions_payer_idx   on beat_transactions (payer_user_id);
+create index beat_transactions_posting_idx on beat_transactions (posting_id);
+create index beat_transactions_partner_idx on beat_transactions (partner_package_id);
+
+-- Ownership helper for posting-scoped RLS (see the migration for policies).
+-- create function owns_beat_posting(uuid) returns boolean ... (in migration)

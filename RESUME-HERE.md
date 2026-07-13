@@ -1,5 +1,5 @@
 # ▶️ RESUME HERE — Relevé Connect build
-*Updated 2026-07-13. **Steps 3 and 4 are complete. Step 5 (The Swing): Slice A (teacher "Available for Swing") AND real studio accounts + the light §7 studio profile are DONE and committed.** Studios now sign up via **light onboarding** — no $30 fee, no approval queue (founder decision 2026-07-13; they are the buyer side, not vetted talent). **Next up: the dispatch loop (Slice B)** — studio posts a slot → match → notify → teacher claims → studio picks → locks → auto-completes → unlocks reviews (Slice C). **Do NOT use the admin-posts stopgap** (violates the §17 no-founder-middleman guardrail). Map pins are stored-address-now / geocode-later (founder decision 2026-07-13).*
+*Updated 2026-07-13. **Steps 3 and 4 are complete. Step 5 (The Swing): Slice A (teacher "Available for Swing") AND real studio accounts + the light §7 studio profile are DONE and committed.** Studios now sign up via **light onboarding** — no $30 fee, no approval queue (founder decision 2026-07-13; they are the buyer side, not vetted talent). **Next up: the dispatch loop (Slice B)** — studio posts a slot → match → notify → teacher claims → studio picks → locks → auto-completes → unlocks reviews (Slice C). **Do NOT use the admin-posts stopgap** (violates the §17 no-founder-middleman guardrail). Map pins are stored-address-now / geocode-later (founder decision 2026-07-13). **The Beat — hiring-side schema is now built + verified live (2026-07-13):** admin-managed two-level taxonomy, postings (multi-subcategory, 30-day expiry, portfolio media), partner packages, a transactions ledger, and RLS. Self-marketing/service lanes stay gated behind §D.*
 
 > **📣 Session note (2026-07-11, Kathleen + Cowork):** The repo is now **backed up to a private GitHub repo — `kathleenkilcoyne/releve-connect-platform`** (branch `main`, all 11 commits pushed). See the **Backup** section below. Tomorrow's agreed to-do list is at the bottom under **🗓️ TOMORROW**.
 >
@@ -10,6 +10,11 @@
 ---
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
+
+**Two live tracks after 2026-07-13:**
+
+- **The Beat** — the hiring-side schema shipped + verified live (see the DONE section below). **Next Beat step:** the Stripe checkout — per-post ($49 / $29 member) + partner-package purchase + studio-included debit — reusing the existing membership webhook pattern; member-vs-non-member price is a lookup against `memberships.tier` (Professional `professional` / Creator `professional_full`). Then the post/browse UI. **Still gated — do NOT build:** the self-marketing / service lanes (§D — inside The Beat vs a separate vetted directory) and their trust model (§E.5).
+- **The Swing** — the dispatch loop (Slice B, below) is still the other open pillar.
 
 **Step 5 Slice A (teacher availability) AND real studio accounts + the light §7 studio profile are DONE (see the two DONE sections below).** Next up: **the dispatch loop (Slice B)** — the studio side of The Swing that finally connects teachers ↔ studios. Re-read spec §10–§11 + the §17 guardrails first; ask on anything TBD.
 
@@ -31,6 +36,18 @@
 **Still deferred (revisit when the data exists):** true **map-pin radius** search (the `lat`/`lng` columns exist but are empty — needs a geocoding provider wired); the **availability** filter in the Roster; **studios in the Roster** (studio profiles now exist — the Roster query can be extended to include them next); the **messaging rail** beyond the lean intro request.
 
 **One forward dependency to know:** the Step-3 profile hero's **earned-proof slot** (completed-Swing count + star rating) stays hidden until Slice B + C ship real data.
+
+---
+
+## ✅ What's DONE and committed (The Beat — hiring-side schema, 2026-07-13)
+
+The Beat's HIRING motion — "post a role, someone applies" (build spec §9; plan + Additions in `docs/The_Beat_Build_Plan_2026-07-12.md`). **Schema + RLS only — no UI, no Stripe flow** (Stripe columns are placeholder/null; pricing resolves at checkout later against `memberships`). The **self-marketing / service motion** (coaching, photography, creative & production services, accompanists) is **gated behind §D** and deliberately NOT built — the gated service families are not even seeded.
+
+- **DB migration** `20260713120000_beat_hiring_schema.sql` (**applied live + mirrored into `schema.sql` §15**): two-level **admin-managed taxonomy** `beat_categories` → `beat_subcategories`; a small **stable** `beat_engagement_type` enum (audition / employment / freelance_gig / other) — the §B "opportunity_type split", with subject-matter in the taxonomy; **`beat_postings`** (`expires_at` default **+30 days**, `portfolio_links` jsonb media, `posting_type`, `status`); **`beat_posting_subcategories`** (a post carries **multiple** subcategories, §E.6); **`beat_partner_packages`** (annual credit bundles; `credits_remaining` generated); **`beat_transactions`** ledger (amounts in cents; Stripe ids null). `owns_beat_posting()` helper.
+- **Seeded HIRING families only** (4 categories / 23 subcategories): Teaching & Classes, Choreography, Auditions & Company (Film/TV · Cruise · Theme Park live here as **subcategories** — setting deferred, §E.1), Studio Admin & Support. The gated **service** families are intentionally NOT seeded.
+- **RLS:** active postings **world-readable** (job seekers browse); a poster manages only their **own** rows incl. drafts; partner packages + transactions **private**; taxonomy public-read.
+- **Naming** (deviates from the plan's Clerk-era `employer_id`, aligned to repo conventions): `poster_user_id` / `holder_user_id` / `payer_user_id` → `users(user_id)` — neutral because a poster may be a studio **or** an individual.
+- **Verified against the live DB:** full round-trip (posting + 2 subcategories + partner package + transaction); **RLS proven by simulating roles** — anon sees only the active posting (not the draft), the poster sees both, a different user sees only the active; generated `credits_remaining` = 35 (40−5); `expires_at` = 30 days; `portfolio_links` is a json array; enum/check constraints reject bad engagement/status/negative-credits. Seed deleted after (cascade confirmed); taxonomy intact. Typecheck/lint N/A (no app code this slice).
 
 ---
 
