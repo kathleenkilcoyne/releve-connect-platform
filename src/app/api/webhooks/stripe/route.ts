@@ -52,6 +52,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
+  // Idempotency gate. Stripe delivers events at-least-once (5xx retries, manual
+  // re-sends), so skip any event id we've already finished. The per-row status
+  // guards inside each handler are the second layer — fulfillment is doubly
+  // idempotent. (If processed_stripe_events isn't migrated yet, this degrades
+  // gracefully: the select returns no row and we fall back to those guards.)
+  const events = createAdminClient();
+  const { data: alreadyProcessed } = await events
+    .from("processed_stripe_events")
+    .select("event_id")
+    .eq("event_id", event.id)
+    .maybeSingle();
+  if (alreadyProcessed) {
+    return NextResponse.json({ received: true, deduped: true });
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -84,6 +99,11 @@ export async function POST(req: Request) {
     console.error(`[stripe webhook] handler for ${event.type} failed:`, err);
     return NextResponse.json({ error: "Handler error." }, { status: 500 });
   }
+
+  // Record the event only AFTER successful handling, so a failed handler (which
+  // returned 500 above → Stripe retries) is free to run again. A PK conflict
+  // from a concurrent redelivery is harmless — the row is already there.
+  await events.from("processed_stripe_events").insert({ event_id: event.id });
 
   return NextResponse.json({ received: true });
 }

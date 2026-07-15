@@ -122,6 +122,11 @@ export async function POST(
     : {
         application_fee_amount: applicationFee,
         transfer_data: { destination: artist!.stripe_account_id as string },
+        // Make the artist the merchant of record so Stripe's processing fee
+        // settles against THEIR account — the artist bears card fees out of
+        // their 80%, matching what artists were told ("you keep 80% minus card
+        // processing"). Without this, Relevé's 20% would absorb the card fee.
+        on_behalf_of: artist!.stripe_account_id as string,
       };
 
   const session = await stripe.checkout.sessions.create({
