@@ -1,5 +1,54 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ BRICK 4 — DONE & VERIFIED (2026-07-15)
+>
+> **The $499 Signature Experience money flow is complete, tested end-to-end in Stripe TEST mode, and committed** (`1751e13` on `main`). Full run confirmed live: onboarding flipped `payouts_enabled`→true (`acct_1TtVV3HFRJ6ZwRKb`); a `4242` payment set the purchase `paid` + `access_granted_at` with the exact **20/80 split** ($99.80 fee / $399.20 transfer); **`on_behalf_of`** verified on the real charge (artist bears the card fee); the `processed_stripe_events` migration is applied live and a **re-delivered event deduped with no double-grant**.
+>
+> **Loose ends to tidy (not blocking):**
+> - **Restore the production webhook secret** in `.env.local` — swap the CLI `whsec_…` back to the "PROD webhook secret" saved in Notepad. The rolled `sk_test_…` is now your real key; your **deployed** env vars may still hold the OLD key that expires ~24h after the 2026-07-15 roll — update them there too.
+> - **Task queued:** `api/connect/onboard` has **no auth check** (takes `profileId` from the body) — add Supabase-Auth verification so a caller can only onboard their own profile; confirm buyer-side auth on checkout.
+> - **Test fixtures still in the live DB** (safe to leave or delete): test artist `2ec75e64…` (Connect acct + a paid `experience_purchases` row + a bundled Access membership + buyer `johndoe@gmail.com`) and the published test work `f6ae50aa…` ("Split-Path Test Experience").
+> - **Not yet pushed to GitHub** — only committed locally.
+>
+> *(The detailed how-we-did-it walkthrough from the 2026-07-15 session is preserved in the box below.)*
+>
+> ## ▶️ (reference) the 2026-07-15 plan — finishing **Brick 4** (the $499 Signature Experience money flow)
+>
+> **HOW KATHLEEN WANTS TO WORK THIS (agreed 2026-07-14):**
+> - Give her the **PowerShell `Invoke-RestMethod`** version of every command (she's on Windows PowerShell — plain `curl` quoting trips up).
+> - **One step at a time. Wait for her to confirm each step works before giving the next.** Do not dump the whole sequence.
+>
+> **What's already DONE (don't rebuild any of this):**
+> - Brick 4 = the $499 Signature Experience via **Stripe Connect**. It is **already implemented** — NOT as Deno Edge Functions and NOT with Clerk (that framing in the original "Brick 4" prompt describes Brent's old stack). In THIS app it's **Next.js API routes + Supabase Auth**:
+>   - `src/app/api/connect/onboard/route.ts` — Express onboarding (Flow A)
+>   - `src/app/api/experiences/[workId]/checkout/route.ts` — destination-charge checkout, 80/20 split (Flow B)
+>   - `src/app/api/webhooks/stripe/route.ts` — signature-verified fulfillment (Flow C)
+> - **Two spec gaps were closed on 2026-07-14 (code committed? NO — still UNCOMMITTED in the working tree):**
+>   1. **`on_behalf_of`** added to the checkout split path → the artist is merchant of record, so Stripe's card fee comes out of the artist's 80% ("you keep 80% minus card processing"). Founder no-split path untouched.
+>   2. **`processed_stripe_events`** dedupe table — migration `supabase/migrations/20260714000000_processed_stripe_events.sql`, **APPLIED to the live DB and verified** (table exists, RLS on, session index present). Webhook now dedupes by Stripe event id (gate on entry + record-after-success), layered on the existing per-row status guards.
+>   - `npx tsc --noEmit` → clean; `eslint` on both routes → clean. **Not yet `git commit`ed — commit after the test passes.**
+>
+> **Test fixtures already created in the live DB (use these):**
+> - **Test artist (non-founder):** profile `2ec75e64-4980-4d9a-8df9-abfee39b550d` ("Kathleen McAree"). Currently **no Connect account, `payouts_enabled=false`** → onboarding it is **step 1** of the test.
+> - **Test work:** `f6ae50aa-d9e1-4090-9d65-0611612af71b` ("Split-Path Test Experience"), $499, published, owned by that non-founder artist → its checkout takes the **real split path**. Buy page: `http://localhost:3000/experiences/f6ae50aa-d9e1-4090-9d65-0611612af71b`.
+> - ⚠️ **Do NOT test the split with the founder's work.** `FOUNDER_PROFILE_ID = b782d686-928a-45a2-887d-9192191e37d1` — its work uses the no-split 100%-to-founder path and would NOT exercise `on_behalf_of`.
+>
+> **Webhook secret — the one setup gotcha (why we stopped here):**
+> - `.env.local` already has a `STRIPE_WEBHOOK_SIGNING_SECRET` (~len 70 = a **Dashboard endpoint** secret) but `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, which Stripe's servers can't reach. For the LOCAL test we need the **Stripe CLI** (NOT installed yet) to forward events to localhost with a matching signature.
+> - Setup order tomorrow: (1) `winget install --id Stripe.StripeCli` + `stripe login` (test mode); (2) `stripe listen --forward-to localhost:3000/api/webhooks/stripe` → copy the `whsec_…` it prints; (3) **back up the current secret value first**, then put the CLI's `whsec_…` into `.env.local`; (4) restart `npm run dev`; keep `stripe listen` running the whole test. **Restore the original secret after the test.**
+>
+> **The test sequence (one step at a time tomorrow):**
+> 1. Install + start Stripe CLI (`stripe listen`), swap secret, restart dev.
+> 2. **Onboard** artist `2ec75e64…` — POST `/api/connect/onboard` `{profileId}` (Invoke-RestMethod) → open returned URL → finish Stripe Express **test** onboarding (SSN `000-00-0000`, routing `110000000`, acct `000123456789`) → `account.updated` should flip `payouts_enabled=true`.
+> 3. **Buy** work `f6ae50aa…` → pay `4242 4242 4242 4242` (any future exp / CVC / ZIP) → `checkout.session.completed` sets the purchase `paid` + `access_granted_at`.
+> 4. **Verify in Stripe test dashboard:** application fee = 20% ($99.80), transfer = 80% ($399.20) to the connected account, card fee on the **connected account** (the `on_behalf_of` effect).
+> 5. **Re-deliver** the event (`stripe events resend <evt_id>`) → webhook returns `deduped`, nothing double-grants, one row in `processed_stripe_events`.
+> - After a green test: **commit** the 3 changed files + the migration, then **restore** the production webhook secret in `.env.local`.
+>
+> **DB checks (Claude runs these live via Supabase MCP, project `hmqqxbkhcqspqmsjxodq`):** `payouts_enabled` on `2ec75e64…`; the `experience_purchases` row (status/`access_granted_at`/fee+transfer cents); `processed_stripe_events` after resend.
+>
+> **Deferred to AFTER the test (tracked as a task):** `api/connect/onboard` takes `profileId` from the request body with **no auth check** — add Supabase-Auth verification so a caller can only onboard their own profile; also confirm the buyer-side auth on the checkout route. (Kept open on purpose so tomorrow's onboarding step can POST directly.)
+
 > ## ▶️ START HERE — good morning, 2026-07-14
 >
 > **Everything through 2026-07-13 is built, verified on the live database, committed, and pushed to GitHub** (latest commit `2512e61`). Nothing is broken and nothing is half-finished — it's a clean place to pick up.
