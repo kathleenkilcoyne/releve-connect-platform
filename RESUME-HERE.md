@@ -4,11 +4,13 @@
 >
 > **The $499 Signature Experience money flow is complete, tested end-to-end in Stripe TEST mode, and committed** (`1751e13` on `main`). Full run confirmed live: onboarding flipped `payouts_enabled`→true (`acct_1TtVV3HFRJ6ZwRKb`); a `4242` payment set the purchase `paid` + `access_granted_at` with the exact **20/80 split** ($99.80 fee / $399.20 transfer); **`on_behalf_of`** verified on the real charge (artist bears the card fee); the `processed_stripe_events` migration is applied live and a **re-delivered event deduped with no double-grant**.
 >
-> **Loose ends to tidy (not blocking):**
-> - **Restore the production webhook secret** in `.env.local` — swap the CLI `whsec_…` back to the "PROD webhook secret" saved in Notepad. The rolled `sk_test_…` is now your real key; your **deployed** env vars may still hold the OLD key that expires ~24h after the 2026-07-15 roll — update them there too.
+> **Pushed to GitHub** ✅ — commits `1751e13` (code + migration) and `f4803b3` (RESUME note) are on `origin/main` (`kathleenkilcoyne/releve-connect-platform`).
+>
+> **Loose ends (none blocking — Brick 4 is shipped):**
+> - **Webhook secret in `.env.local` — intentionally SKIPPED (optional).** During the test we put the Stripe CLI's throwaway `whsec_…` into `STRIPE_WEBHOOK_SIGNING_SECRET`; it's still there and that's harmless — `.env.local` is local-only and the site isn't live, so local webhooks only work via the CLI anyway. We checked the Stripe Dashboard (Workbench → Webhooks) and found **no active production webhook endpoint**, so there was nothing to "restore." **At deploy time:** create a real webhook endpoint and set its `whsec_…` in the HOST env vars (Netlify), not this file.
+> - **Rolled Stripe key:** `STRIPE_SECRET_KEY` in `.env.local` is now the new rolled `sk_test_…` key (the old one was set to expire ~24h after the 2026-07-15 roll). Any **deployed** env vars still holding the old key must be updated on the host.
 > - **Task queued:** `api/connect/onboard` has **no auth check** (takes `profileId` from the body) — add Supabase-Auth verification so a caller can only onboard their own profile; confirm buyer-side auth on checkout.
 > - **Test fixtures still in the live DB** (safe to leave or delete): test artist `2ec75e64…` (Connect acct + a paid `experience_purchases` row + a bundled Access membership + buyer `johndoe@gmail.com`) and the published test work `f6ae50aa…` ("Split-Path Test Experience").
-> - **Not yet pushed to GitHub** — only committed locally.
 >
 > *(The detailed how-we-did-it walkthrough from the 2026-07-15 session is preserved in the box below.)*
 >
