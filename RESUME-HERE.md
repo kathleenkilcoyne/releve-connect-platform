@@ -1,5 +1,27 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ "THIS WEEK" CALENDAR — PASS ONE + PASS TWO SCHEMA DONE (2026-07-17)
+>
+> **What shipped this session:** the **"This Week"** calendar — the daily-use feature that is (1) the *passport* bringing minors + families onto the platform, (2) the studio↔family *coordination* tool, and (3) the family-subscription *revenue* on-ramp. Built in two passes, both on branch **`feature/this-week-calendar-pass-one`** (pushed to `origin`; **PR is open**; **NOT yet merged to `main`**). Commits: **`68dcb2a`** (Pass One UI) + **`3206e23`** (Pass Two migration).
+>
+> **Pass One — static UI (committed, verified in-browser at `/this-week`):**
+> - A real, reusable, **typed** prototype of TWO views: the professional *"one calendar, every role"* week (Kathleen — Dancer · Teacher) AND a family-only parent/student *child's week* (Ava, managed by Kathleen). A preview-only view switch toggles them (production derives the viewer from auth).
+> - Rebuilt in **BLACK · CREAM · GOLD** (the mockups' berry was a placeholder — deliberately absent). Colour appears **only** on category tags/dots + the card's left edge. Serif headings. Verified: cream bg, gold accents, no berry; filter chips + week-nav work; a11y (text on every chip, colour never the only signal).
+> - Code lives in **`src/components/this-week/`** (FilterBar, WeekNav, DayGroup, EventCard, AttachmentChip, PayBadge, DashboardRollup, ChildWeek, ViewSwitch, comms seams ChangeAlert/AnnouncementCard/MessageBubble/NoteChip) and **`src/lib/this-week/`** (types.ts, categories.ts, data.ts). Feature-scoped design tokens in `src/components/this-week/tokens.css` (scoped to `.this-week-scope` — existing pages untouched).
+> - **The single data seam:** `getThisWeek(viewer)` · `getCommunications(viewer)` · `hasFamilyAccess(account)` — all return hardcoded mock now. Pass Two is a **data swap behind these, not a rewrite**.
+>
+> **Pass Two — family-layer schema (APPLIED to the live DB + RLS-verified):**
+> - Migration **`supabase/migrations/20260717214525_family_layer_and_studio_schedule.sql`** is applied to project `hmqqxbkhcqspqmsjxodq` and **registered** in Supabase migration history. Compile-checked via `BEGIN/ROLLBACK` first, then applied. **9 RLS-protected tables** — family_accounts · students · guardianships · studio_staff · affiliations · studio_classes · class_sessions · enrollments · communications — plus `app_config`.
+> - **Safety model enforced in RLS (Kathleen's refinements, all in):** a minor is **never public** (students is separate from talent_profiles, no anon policy, `visibility` pinned to `family_only`, DOB unreachable by studios). **Teacher access is CLASS-SCOPED** — only students in classes they're assigned to teach; studio-wide sight requires an explicit `studio_staff` **admin** role. **Guardian permissions are GRANULAR** (`billing / calendar / messages / medical_forms / pickup_authorization`, gated per surface). **Adulthood age is config** (`adult_transition_age = 18`, via `public.adult_transition_age()`), never hardcoded.
+> - **Proven live** (seeded + torn down in one call — nothing persists): a non-guardian sees **0** student rows; the guardian sees their child + DOB; the owner sees the family account. Security advisors: my helpers match the existing `owns_*` pattern (no new risk class). `account_type` unchanged; **auth / The Beat / Senior Spotlight / all existing tables untouched.**
+>
+> **▶️ NEXT (Pass Two, part 2 — code wiring; the UI does NOT change):**
+> 1. Repoint the three seams (`getThisWeek` / `getCommunications` / `hasFamilyAccess` in `src/lib/this-week/data.ts`) at **Supabase queries** against the new tables — "the same week, filtered to the viewer."
+> 2. Build a **recurrence expander** that writes `class_sessions` rows from `studio_classes.recurrence` (RRULE) — that's what a week query reads.
+> 3. Wire the viewer to the authenticated session (drop the preview toggle).
+>
+> **Notes / gotchas:** Supabase org is on the **Free plan → no dev branches** (apply via rollback compile-check then live; see memory). PR had to be opened via the **browser** (no `gh` CLI here). Nothing is half-finished — DB is consistent, branch pushed, `main` untouched.
+
 > ## ✅ BRICK 4 — DONE & VERIFIED (2026-07-15)
 >
 > **The $499 Signature Experience money flow is complete, tested end-to-end in Stripe TEST mode, and committed** (`1751e13` on `main`). Full run confirmed live: onboarding flipped `payouts_enabled`→true (`acct_1TtVV3HFRJ6ZwRKb`); a `4242` payment set the purchase `paid` + `access_granted_at` with the exact **20/80 split** ($99.80 fee / $399.20 transfer); **`on_behalf_of`** verified on the real charge (artist bears the card fee); the `processed_stripe_events` migration is applied live and a **re-delivered event deduped with no double-grant**.
