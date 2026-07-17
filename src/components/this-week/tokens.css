@@ -1,0 +1,49 @@
+/*
+ * "This Week" design tokens — BLACK · CREAM · GOLD.
+ *
+ * IMPORTANT: every selector is scoped under `.this-week-scope`, so importing
+ * this file does NOT restyle the rest of the app (which stays white/Arial).
+ * The mockups rendered in berry as a placeholder — berry is deliberately ABSENT
+ * here. The chrome is neutral; the ONLY colour is the category tokens, used on
+ * the tags, dots and card left-edge.
+ */
+
+.this-week-scope {
+  /* Neutral base ---------------------------------------------------------- */
+  --rc-ink: #17130d; /* black — text, selected chip fill, wordmark */
+  --rc-ink-soft: #2b241b; /* softened ink for large fills */
+  --rc-cream: #f4eede; /* page background */
+  --rc-ivory: #fcf9f1; /* card / surface */
+  --rc-gold: #c6a15b; /* brand gold — accents, badges, rules */
+  --rc-gold-soft: #e7d9b8; /* gold at low emphasis */
+  --rc-muted: #6f6656; /* muted detail text */
+  --rc-hairline: #e3d9c3; /* dividers, card borders */
+
+  /* Category palette (the only colour on screen) -------------------------- */
+  --rc-cat-taking: #2f7d4f; /* green */
+  --rc-cat-teaching: #b98a2e; /* gold */
+  --rc-cat-subbing: #c46a2a; /* orange */
+  --rc-cat-rehearsing: #6b4e9e; /* purple */
+  --rc-cat-auditioning: #b23a3a; /* red */
+  --rc-cat-coaching: #2f6db0; /* blue */
+  --rc-cat-deadline: #7a2e3a; /* maroon */
+  --rc-cat-performance: #6b4e9e; /* purple */
+  --rc-cat-availability: #6b6b6b; /* gray */
+  --rc-cat-personal: #6e7b3d; /* olive */
+
+  /* Type ------------------------------------------------------------------ */
+  --font-rc-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+
+  background: var(--rc-cream);
+  color: var(--rc-ink);
+}
+
+/* Serif headings without touching the global font stack. */
+.this-week-scope .rc-serif {
+  font-family: var(--font-rc-serif);
+}
+
+/* A soft, non-berry card shadow used across the feature. */
+.this-week-scope .rc-card-shadow {
+  box-shadow: 0 1px 2px rgba(23, 19, 13, 0.06), 0 6px 16px rgba(23, 19, 13, 0.05);
+}
