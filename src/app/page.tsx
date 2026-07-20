@@ -14,6 +14,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { ClimbSignup } from "@/components/home/ClimbSignup";
 import "@/components/home/tokens.css";
 
 export const metadata = {
@@ -54,8 +55,9 @@ export default function Home() {
         </Link>
 
         <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
+          <HeaderLink href="/studio">Studios</HeaderLink>
+          <HeaderLink href="/climb">The Climb</HeaderLink>
           <HeaderLink href="/roster">The Roster</HeaderLink>
-          <HeaderLink href="/studio">For Studios</HeaderLink>
           <HeaderLink href="/login">Sign in</HeaderLink>
           <Link
             href="/apply"
@@ -167,7 +169,8 @@ export default function Home() {
           className="mx-auto h-auto w-full max-w-[900px]"
         />
 
-        {/* The artwork's content, as text — for screen readers and search. */}
+        {/* The artwork's role labels, as text — for screen readers and search.
+            (The strip below is rendered visibly, so it isn't repeated here.) */}
         <ul className="sr-only">
           {ECOSYSTEM_ROLES.map((role) => (
             <li key={role.name}>
@@ -175,8 +178,93 @@ export default function Home() {
             </li>
           ))}
         </ul>
-        <p className="sr-only">
+
+        {/* The strip, as crisp type beneath the artwork. It also appears small
+            inside the PNG itself; rendered here it reads as the section's
+            closing line rather than image detail. */}
+        <p className="mx-auto mt-8 max-w-[52rem] text-[clamp(0.62rem,1.5vw,0.82rem)] uppercase leading-relaxed tracking-[0.22em] text-[var(--rc-gold-bright)]">
           Seen · Connected · Protected · Licensed · Marketed · Monetized
+        </p>
+        <p className="mt-4 text-[1.05rem] italic text-[var(--rc-gold-bright)] opacity-90">
+          Together, we rise.
+        </p>
+      </section>
+
+      {/* ────────────────────── Marketplace — how you use it ──────────────────
+          NOTE: Senior Spotlight and the $499 Signature Experience are curated
+          and invite-only, and must NEVER appear on the public homepage. The
+          licensing lane described here is the GENERAL promise — you own it, you
+          set your price, Relevé takes a fee only on a sale. Do not wire any of
+          this to the $499 checkout. */}
+      <section
+        aria-labelledby="marketplace-heading"
+        className="bg-[var(--rc-cream-2)] px-7 py-14 sm:py-20"
+      >
+        <div className="mx-auto max-w-[760px]">
+          <h2
+            id="marketplace-heading"
+            className="text-center text-[clamp(1.4rem,3.2vw,2rem)] font-medium leading-tight text-[var(--rc-ink)]"
+          >
+            More than a network — it&apos;s where you build your career.
+          </h2>
+          <p className="mx-auto mt-5 max-w-[42rem] text-center text-[1.05rem] leading-relaxed text-[var(--rc-ink-soft)]">
+            Relevé Connect isn&apos;t just another platform for dancers and connection.
+            It&apos;s your playground to build a career — the place where the work actually
+            happens. Here&apos;s how you use it:
+          </p>
+
+          <ul className="mt-10 space-y-6">
+            <FeatureItem title="License your choreography.">
+              Your work is yours — you own it, you set your price, Relevé licenses and protects
+              it, and you earn every time it&apos;s used. We take a marketplace fee only when it
+              sells — never a cut of your teaching or your labor.
+            </FeatureItem>
+            <FeatureItem title="Find the work — or find the talent.">
+              Teachers and dancers discover real teaching opportunities. Studio owners find
+              vetted teachers and choreographers, ready to hire.
+            </FeatureItem>
+            <FeatureItem title="The Swing — never scramble for a sub again.">
+              Our staffing feature for last-minute call-outs: studios find a qualified sub fast;
+              teachers set their own availability (or opt out) and earn on their own terms — a
+              flat <span className="font-semibold text-[var(--rc-gold)]">$50/hour</span>.
+            </FeatureItem>
+            <FeatureItem title="The Flex Series — test before you commit.">
+              Studios pilot new programs in their real schedule, for a flexible 4, 6, or 8 weeks.
+            </FeatureItem>
+          </ul>
+
+          <p className="mt-10 text-center text-[1.1rem] italic text-[var(--rc-gold)]">
+            This isn&apos;t a directory you sit in. It&apos;s a marketplace you work in.
+          </p>
+        </div>
+      </section>
+
+      {/* ───────────────────────── The Climb ─────────────────────────
+          Open to everyone, no account. Explicit opt-in + unsubscribe — the
+          deliberate opposite of the silent auto-subscribe path. */}
+      <section aria-labelledby="climb-heading" className="px-7 py-14 text-center sm:py-20">
+        <p className="text-[0.72rem] uppercase tracking-[0.32em] text-[var(--rc-gold)]">
+          The Climb
+        </p>
+        <h2
+          id="climb-heading"
+          className="mt-3 text-[clamp(1.4rem,3.2vw,2rem)] font-medium leading-tight text-[var(--rc-ink)]"
+        >
+          A monthly letter to the working dance world.
+        </h2>
+        <p className="mx-auto mt-4 max-w-[34rem] text-[1.02rem] leading-relaxed text-[var(--rc-ink-soft)]">
+          One issue a month, on the 1st. Open to everyone — no account needed.
+        </p>
+
+        <ClimbSignup />
+
+        <p className="mt-6">
+          <Link
+            href="/climb"
+            className="text-[0.85rem] text-[var(--rc-muted)] underline underline-offset-4"
+          >
+            Read past issues →
+          </Link>
         </p>
       </section>
 
@@ -206,12 +294,22 @@ export default function Home() {
         </p>
         <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
           <FooterLink href="/apply">Apply</FooterLink>
-          <FooterLink href="/studio">For Studios</FooterLink>
+          <FooterLink href="/studio">Studios</FooterLink>
+          <FooterLink href="/climb">The Climb</FooterLink>
           <FooterLink href="/roster">The Roster</FooterLink>
           <FooterLink href="/login">Sign in</FooterLink>
         </nav>
       </footer>
     </div>
+  );
+}
+
+function FeatureItem({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <li className="border-l-2 border-[var(--rc-gold)] pl-5">
+      <p className="text-[1.05rem] font-semibold text-[var(--rc-ink)]">{title}</p>
+      <p className="mt-1.5 text-[1rem] leading-relaxed text-[var(--rc-ink-soft)]">{children}</p>
+    </li>
   );
 }
 
