@@ -32,7 +32,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 |---|---|---|---|---|---|
 | 1 | Application received (confirmation) | Applicant clicks **Submit** (free period). Reverts to the $30 fee-paid webhook when payment is on. | Applicant | `application-received.v2` | ✅ implemented |
 | 2 | New application alert | Same event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | `admin-new-application.v1` | ✅ implemented |
-| 3 | Save-and-resume link | Applicant's progress auto-saves mid-form | Applicant | — | ⏳ not built yet (launch blocker) |
+| 3 | Save-and-resume link | **Once**, the first time a draft auto-saves. Never again for that application (guarded by `resume_email_sent_at`) — autosave runs every few seconds, so "once" is load-bearing. | Applicant | `application-resume-link.v1` | ✅ implemented |
 | 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v2` | ✅ implemented |
 | 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v1` | ✅ implemented |
 | 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v1` | ✅ implemented |

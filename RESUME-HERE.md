@@ -1,5 +1,36 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ APPLY-FLOW FIXES from Kathleen's self-test (2026-07-20)
+>
+> She tested on **Brent's old site** and filed 7 findings. Mapped onto the new build: **3 were already impossible here**, **1 was fixed earlier today**, **3 were real** and are now done.
+>
+> ### Fixed this pass
+> **AUTO-SAVE + 14-day resume link** (the launch blocker). Form saves ~2.5s after you stop typing and restores exactly on return.
+> - New `applications.draft_fields` (flat snapshot) is **separate from `answers`** on purpose: `answers` is the nested, reviewed artifact built at submit; rehydrating a half-finished form out of it would be lossy. `draft_fields` round-trips byte-for-byte.
+> - Restore writes values back into the DOM once on mount rather than converting ~40 fields to controlled inputs. The three values that drive *rendering* (roles, primary role, story) are seeded from the draft first, so **role-branched sections exist before the rest is restored into them** — verified: the choreographer section re-rendered with its field intact.
+> - **No draft is created for someone who merely opens the page** (guarded on first/last name or story being non-empty) — otherwise a visit would mint a draft and email them.
+> - Resume email fires **exactly once**, stamped via `resume_email_sent_at` before sending. Verified: still one email after many autosaves.
+> - Save indicator is honest — it showed `Not saved — <real DB error>` during testing rather than a false "Saved".
+>
+> **RE-ENTRY (her #3, in a worse form here).** The old site wasted her time with a late error; the new build handed a returning applicant a **blank form that silently OVERWROTE their submission**. Now `/apply` looks first: draft → rehydrate · already submitted → **status page, no editable form** · nothing → fresh form.
+>
+> **APPROVE FEEDBACK (her #5).** The new build did refresh, but the default filter is "in-review", so an approved row **silently vanished** — reads as a glitch. Now the row **stays visible** and the buttons are replaced by the outcome: *"Approved ✓ — complimentary membership through Jul 20, 2027. Welcome email sent."* It reports the **side effect**, so a silent comp-grant failure is visible immediately.
+>
+> **STALE $30 ADMIN COPY** (my miss from the free-launch pass): the Decline button said "refunds $30" and the header said declining "refunds the $30 automatically". There is no $30 — the admin was being told a refund happened that never did.
+>
+> ### Already impossible in the new build (no work needed)
+> - **#1 forced secondary-role section** — only `first_name`/`last_name`/`email` are `required`; the Studio Owner section is one optional textarea.
+> - **#2 studio asked a teaching question** — "Styles you teach" is in §5, gated on the Teacher role; the studio path never asks it.
+> - **#4 studio-name validation glitch** — there is no Studio name field here.
+> - **#6 approval email** — implemented + verified earlier today; says "you're in → build your profile", no $30.
+>
+> ### ⚠️ Gotcha worth remembering
+> A `"use server"` file may export **only async functions**. An exported `const` there passes `tsc` AND `eslint` and only fails at runtime — caught by opening the page, not by the toolchain.
+>
+> ### ▶️ STILL OPEN — needs Kathleen's input (do not guess)
+> 1. **What should the studio/employer path actually ask?** Today it's one free-text box. `employer_profiles` already has unused `student_count_band`, `staff_count`, `room_count`, `year_founded` — she liked those questions on the old site.
+> 2. **What should the PRIMARY role require?** Right now almost nothing is required: only the 150-word story has a minimum, references are optional, and §12 "select at least one" is unenforced. Her rule ("primary role required, extra roles optional") is satisfied only because *nothing* is required — the opposite problem.
+
 > ## ✅ EMAIL SENDER + FREE FOUNDING LAUNCH (2026-07-20)
 >
 > ### Email actually sends now

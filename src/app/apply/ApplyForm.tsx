@@ -1,17 +1,61 @@
 "use client";
 
 // The role-branched intake (CLAUDE.md §3A). Full form + consents + a minimum
-// word count on the Story. On submit it saves the application (server action),
-// then sends the applicant to the $30 fee checkout.
+// word count on the Story.
 //
-// FAST-FOLLOW (required before public launch, per DECISIONS.md): auto-save + a
-// 14-day resume link. This version is submit-only — don't open it to real
-// applicants until auto-save lands.
+// AUTO-SAVE (the fast-follow DECISIONS.md called a launch blocker) is now here:
+// the form saves a flat snapshot of itself a couple of seconds after you stop
+// typing, and restores it exactly when you come back. See ./draft.ts.
+//
+// Restoring is done by writing values back into the DOM once, on mount, rather
+// than by converting the whole form to controlled inputs. The form is
+// deliberately uncontrolled — forty-odd fields of React state would be a lot of
+// machinery, and re-rendering the tree on every keystroke of a 250-word essay is
+// exactly the wrong trade. The three values that DO drive rendering (roles,
+// primary role, story word count) are seeded from the draft up front so the
+// role-branched sections exist before the rest is restored into them.
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { submitApplication } from "./actions";
+import { saveApplicationDraft } from "./draft";
 
 type Option = { slug: string; label: string };
+type DraftFields = Record<string, string | string[]>;
+
+/** Draft values may be scalars or arrays; callers usually want an array. */
+function toArray(v: string | string[] | undefined): string[] {
+  if (v === undefined) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+/** How long after the last keystroke we save. Long enough not to spam. */
+const AUTOSAVE_DEBOUNCE_MS = 2_500;
+
+/**
+ * Write a saved draft back into the live form.
+ *
+ * Handles every control type in one pass — text, textarea, select, checkbox,
+ * radio — so adding a field to the form needs no change here. Dispatches `input`
+ * so anything listening (the story word counter) stays in sync.
+ */
+function hydrateForm(form: HTMLFormElement, draft: DraftFields) {
+  for (const [name, raw] of Object.entries(draft)) {
+    const values = toArray(raw);
+    const nodes = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+      `[name="${CSS.escape(name)}"]`,
+    );
+    if (nodes.length === 0) continue;
+
+    nodes.forEach((node) => {
+      if (node instanceof HTMLInputElement && (node.type === "checkbox" || node.type === "radio")) {
+        node.checked = values.includes(node.value);
+      } else {
+        node.value = values[0] ?? "";
+      }
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+}
 
 const STORY_MIN_WORDS = 150;
 const AGE_RANGES = ["18-24", "25-34", "35-50", "50+"];
@@ -70,8 +114,52 @@ function CheckGroup({ name, options }: { name: string; options: Option[] }) {
   );
 }
 
+type SaveState =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved"; at: Date }
+  | { kind: "error"; message: string };
+
+/**
+ * The auto-save status line.
+ *
+ * `aria-live="polite"` so a screen-reader user hears "Saved" without being
+ * interrupted mid-sentence. A save FAILURE is stated plainly rather than shown
+ * as a colour change — if their work isn't safe, they need to know in words.
+ */
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state.kind === "idle") {
+    return (
+      <span className="text-xs text-neutral-400" aria-live="polite">
+        Your progress saves automatically
+      </span>
+    );
+  }
+  if (state.kind === "saving") {
+    return (
+      <span className="text-xs text-neutral-500" aria-live="polite">
+        Saving…
+      </span>
+    );
+  }
+  if (state.kind === "saved") {
+    return (
+      <span className="text-xs text-green-700" aria-live="polite">
+        ✓ Saved{" "}
+        {state.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-medium text-red-600" aria-live="polite">
+      Not saved — {state.message} Keep this tab open.
+    </span>
+  );
+}
+
 export default function ApplyForm({
   email,
+  initial,
   roleOptions,
   styleOptions,
   levelOptions,
@@ -79,20 +167,84 @@ export default function ApplyForm({
   openToOptions,
 }: {
   email: string;
+  /** A previously auto-saved draft, restored on mount. */
+  initial?: DraftFields | null;
   roleOptions: Option[];
   styleOptions: Option[];
   levelOptions: Option[];
   focusOptions: Option[];
   openToOptions: Option[];
 }) {
-  const [roles, setRoles] = useState<Set<string>>(new Set());
-  const [primaryRole, setPrimaryRole] = useState("");
-  const [story, setStory] = useState("");
+  // Seeded from the draft so the role-branched sections are already rendered
+  // when hydrateForm() runs — otherwise their fields wouldn't exist yet to fill.
+  const [roles, setRoles] = useState<Set<string>>(() => new Set(toArray(initial?.roles)));
+  const [primaryRole, setPrimaryRole] = useState(() => String(initial?.primary_role ?? ""));
+  const [story, setStory] = useState(() => String(initial?.story_bio ?? ""));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>({ kind: "idle" });
+
+  const formRef = useRef<HTMLFormElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Set once the form is submitted, so a queued autosave can't fire afterwards. */
+  const submitted = useRef(false);
 
   const storyWords = useMemo(() => wc(story), [story]);
   const has = (slug: string) => roles.has(slug);
+
+  // ---- Restore a saved draft, once ----------------------------------------
+  useEffect(() => {
+    if (initial && formRef.current) hydrateForm(formRef.current, initial);
+    // Intentionally mount-only: re-running would stamp over live typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- Auto-save -----------------------------------------------------------
+  const persist = useCallback(async () => {
+    const form = formRef.current;
+    if (!form || submitted.current) return;
+
+    const data = new FormData(form);
+
+    // Don't create a draft (and don't email a resume link) for someone who has
+    // merely opened the page. Wait until they've actually written something.
+    const meaningful = ["first_name", "last_name", "story_bio"].some((f) =>
+      String(data.get(f) ?? "").trim(),
+    );
+    if (!meaningful) return;
+
+    setSaveState({ kind: "saving" });
+    try {
+      const res = await saveApplicationDraft(data);
+      if (res.ok) setSaveState({ kind: "saved", at: new Date(res.savedAt) });
+      else setSaveState({ kind: "error", message: res.message });
+    } catch {
+      // Offline or a dropped connection — say so rather than showing "Saved".
+      setSaveState({ kind: "error", message: "Couldn't reach the server." });
+    }
+  }, []);
+
+  const scheduleSave = useCallback(() => {
+    if (submitted.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(persist, AUTOSAVE_DEBOUNCE_MS);
+  }, [persist]);
+
+  // Flush a pending save when the tab is hidden or closed — the exact moments
+  // someone walks away mid-sentence.
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === "hidden" && saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        void persist();
+      }
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [persist]);
 
   function toggleRole(slug: string, on: boolean) {
     setRoles((prev) => {
@@ -113,12 +265,17 @@ export default function ApplyForm({
       return;
     }
     setBusy(true);
+    // Stop autosave: a queued draft save landing after submit would try to write
+    // to an application that is no longer editable.
+    submitted.current = true;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
     try {
       const formData = new FormData(e.currentTarget);
       const res = await submitApplication({ ok: false, message: "" }, formData);
       if (!res.ok || !res.applicationId) {
         setError(res.message || "Something went wrong. Please try again.");
         setBusy(false);
+        submitted.current = false; // let autosave resume; their work is still live
         return;
       }
       // FREE FOUNDING PERIOD: no application fee, so a saved application goes
@@ -128,13 +285,25 @@ export default function ApplyForm({
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
+      submitted.current = false;
     }
   }
 
   const selectedRoles = roleOptions.filter((r) => roles.has(r.slug));
 
   return (
-    <form onSubmit={onSubmit} className="mt-8">
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      onInput={scheduleSave}
+      onChange={scheduleSave}
+      className="mt-8"
+    >
+      {/* Auto-save status. Sticks to the top so it's visible from any section —
+          the reassurance is worth more the further down the form you are. */}
+      <div className="sticky top-0 z-10 -mx-1 mb-2 flex justify-end bg-white/90 px-1 py-2 backdrop-blur">
+        <SaveIndicator state={saveState} />
+      </div>
       {/* 1 — Identity & Contact */}
       <Section n={1} title="Identity & contact">
         <div className="grid grid-cols-2 gap-4">

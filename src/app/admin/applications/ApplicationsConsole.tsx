@@ -61,6 +61,17 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
     if (token) window.localStorage.setItem(TOKEN_KEY, token);
   }, [token]);
 
+  /**
+   * What just happened to each application, so the console can CONFIRM an action
+   * instead of silently swallowing it.
+   *
+   * Without this, approving looked like nothing happened: the request succeeded,
+   * `router.refresh()` ran, and the row simply vanished — because the default
+   * filter is "in-review" and the application had just become "approved". A card
+   * disappearing reads as a glitch, not a confirmation.
+   */
+  const [done, setDone] = useState<Record<string, string>>({});
+
   // ---- Filters -------------------------------------------------------------
   const [stateFilter, setStateFilter] = useState("in-review");
   const [roleFilter, setRoleFilter] = useState("");
@@ -68,6 +79,10 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
 
   const filtered = useMemo(() => {
     return applications.filter((a) => {
+      // Keep anything just acted on visible, whatever the filter says, so the
+      // confirmation can actually be seen. Otherwise approving makes the row
+      // disappear and the action looks like it failed.
+      if (done[a.application_id]) return true;
       if (stateFilter !== "all" && a.state !== stateFilter) return false;
       if (roleFilter && !(a.roles ?? []).includes(roleFilter)) return false;
       if (search) {
@@ -76,7 +91,7 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
       }
       return true;
     });
-  }, [applications, stateFilter, roleFilter, search]);
+  }, [applications, stateFilter, roleFilter, search, done]);
 
   async function act(id: string, body: unknown) {
     setBusy(true);
@@ -89,6 +104,9 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
+
+      const action = (body as { action?: string }).action;
+      setDone((prev) => ({ ...prev, [id]: describeOutcome(action, data) }));
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -155,6 +173,7 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
             onToggle={() => setExpanded(expanded === a.application_id ? null : a.application_id)}
             busy={busy}
             tokenSet={!!token}
+            outcome={done[a.application_id] ?? null}
             act={act}
           />
         ))}
@@ -193,12 +212,41 @@ function LinkList({ links }: { links: Array<[string, string]> }) {
   );
 }
 
+/**
+ * Turn an API response into a sentence the admin can trust.
+ *
+ * Deliberately reports the SIDE EFFECT, not just the state change — approving
+ * now also grants a complimentary founding membership, and if that silently
+ * failed while the approval succeeded, you would want to know immediately
+ * rather than when the member emails asking why they're locked out.
+ */
+function describeOutcome(action: string | undefined, data: Record<string, unknown>): string {
+  if (action === "approve") {
+    const fm = data.foundingMembership;
+    if (fm && typeof fm === "object" && "until" in fm) {
+      const until = new Date(String((fm as { until: string }).until)).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      return `Approved ✓ — complimentary membership through ${until}. Welcome email sent.`;
+    }
+    if (fm === "already_active") return "Approved ✓ — they already had an active membership.";
+    return "Approved ✓ — but NO membership was granted. Check the server log.";
+  }
+  if (action === "decline") return "Declined — the 'not right now' email has been sent.";
+  if (action === "request_info") return "More info requested — email sent.";
+  if (action === "honorifics") return "Honorifics saved.";
+  return "Done.";
+}
+
 function ApplicationCard({
   app,
   open,
   onToggle,
   busy,
   tokenSet,
+  outcome,
   act,
 }: {
   app: ApplicationRow;
@@ -206,6 +254,8 @@ function ApplicationCard({
   onToggle: () => void;
   busy: boolean;
   tokenSet: boolean;
+  /** Set once this application has been acted on — replaces the buttons. */
+  outcome: string | null;
   act: (id: string, body: unknown) => Promise<void>;
 }) {
   const ans = (app.answers ?? {}) as Ans;
@@ -296,44 +346,53 @@ function ApplicationCard({
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Decision</p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {isChoreographer ? (
-                <>
-                  <select value={tier} onChange={(e) => setTier(e.target.value)} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm">
-                    {TIERS.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+            {/* Once acted on, the buttons are replaced by what actually happened
+                — not left live and identical, which is what made the old console
+                look like it had ignored the click. */}
+            {outcome ? (
+              <div className="mt-3 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+                <span className="font-medium">{outcome}</span>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {isChoreographer ? (
+                  <>
+                    <select value={tier} onChange={(e) => setTier(e.target.value)} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm">
+                      {TIERS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={!canAct}
+                      onClick={() => act(app.application_id, { action: "approve", tier })}
+                      className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+                    >
+                      {busy ? "Approving…" : "Approve at tier"}
+                    </button>
+                  </>
+                ) : (
                   <button
                     disabled={!canAct}
-                    onClick={() => act(app.application_id, { action: "approve", tier })}
+                    onClick={() => act(app.application_id, { action: "approve" })}
                     className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
                   >
-                    Approve at tier
+                    {busy ? "Approving…" : "Approve"}
                   </button>
-                </>
-              ) : (
+                )}
+
                 <button
                   disabled={!canAct}
-                  onClick={() => act(app.application_id, { action: "approve" })}
-                  className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+                  onClick={() => {
+                    if (confirm("Decline this application? We'll email them a 'not right now'.")) {
+                      act(app.application_id, { action: "decline" });
+                    }
+                  }}
+                  className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 disabled:opacity-40"
                 >
-                  Approve
+                  Decline
                 </button>
-              )}
-
-              <button
-                disabled={!canAct}
-                onClick={() => {
-                  if (confirm("Decline this application? The $30 will be refunded in full.")) {
-                    act(app.application_id, { action: "decline" });
-                  }
-                }}
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 disabled:opacity-40"
-              >
-                Decline (refunds $30)
-              </button>
-            </div>
+              </div>
+            )}
 
             {/* Request more info */}
             <div className="mt-3 flex flex-wrap items-end gap-2">

@@ -139,6 +139,38 @@ export async function sendApplicationReceived(input: {
 }
 
 /**
+ * EMAILS.md #3 — "Save-and-resume link".
+ *
+ * Fires ONCE, the first time a draft is auto-saved — never again for that
+ * application (the caller stamps `resume_email_sent_at` before sending). Autosave
+ * runs every few seconds, so "once" is load-bearing, not a nicety.
+ */
+export async function sendApplicationResumeLink(input: {
+  to: string;
+  firstName: string | null;
+  token: string;
+  expiresInDays: number;
+}): Promise<void> {
+  const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
+  const link = `${emailSiteUrl()}/apply?resume=${encodeURIComponent(input.token)}`;
+
+  await sendEmail({
+    to: input.to,
+    template: "application-resume-link.v1",
+    subject: "Your Relevé application — saved, pick up any time",
+    text: body(
+      hello,
+      "We've saved your application in progress, so you can stop and come back " +
+        "to it. Nothing has been submitted yet.",
+      `Pick up where you left off: ${link}`,
+      `This link works for the next ${input.expiresInDays} days. You'll need to be ` +
+        "signed in with this email address.",
+      "We'll only send this once — your progress keeps saving automatically as you write.",
+    ),
+  });
+}
+
+/**
  * EMAILS.md #2 — "New application alert". One internal email to the admin
  * (ADMIN_ALERT_EMAIL) on the same event as #1.
  */
