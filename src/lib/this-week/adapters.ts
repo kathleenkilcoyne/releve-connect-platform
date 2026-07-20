@@ -19,6 +19,7 @@ import type {
   CalendarEvent,
   Communication,
   EventCategory,
+  PayInfo,
 } from "./types";
 import { formatTime, weekdayKeyOf } from "./week";
 
@@ -74,10 +75,20 @@ export function toCalendarEvent(
   item: SessionWithClass,
   relation: ViewerRelation,
   timeZone: string,
+  /**
+   * session_id → pay. Passed ONLY for the teacher's own view; a student's or
+   * guardian's card must never carry what the teacher is paid, so callers on
+   * that path simply omit it.
+   */
+  payBySession?: Map<string, PayInfo>,
 ): CalendarEvent {
   const { session, klass } = item;
   const startsAt = new Date(session.starts_at);
   const endsAt = session.ends_at ? new Date(session.ends_at) : null;
+
+  // Belt-and-braces: even if a caller passed a map by mistake, a non-teacher
+  // view never renders pay.
+  const pay = relation === "teacher" ? payBySession?.get(session.session_id) : undefined;
 
   return {
     id: session.session_id,
@@ -91,8 +102,9 @@ export function toCalendarEvent(
       ...(endsAt && klass.kind !== "class" ? { end: formatTime(timeZone, endsAt) } : {}),
     },
     detail: detailFor(item, relation),
-    // NOTE: attachments and pay have no column yet — see RESUME-HERE.
-    // Deliberately omitted rather than faked, so the UI shows the truth.
+    ...(pay ? { pay } : {}),
+    // NOTE: attachments still have no column — see RESUME-HERE. Omitted rather
+    // than faked, so the UI shows the truth.
   };
 }
 
@@ -178,10 +190,11 @@ export function mergeWeek(
   timeZone: string,
   personal: PersonalEventRow[],
   swingRadiusMiles: number | null,
+  payBySession?: Map<string, PayInfo>,
 ): CalendarEvent[] {
   const withInstants: { event: CalendarEvent; at: number }[] = [
     ...sessions.map((s) => ({
-      event: toCalendarEvent(s, relation, timeZone),
+      event: toCalendarEvent(s, relation, timeZone, payBySession),
       at: new Date(s.session.starts_at).getTime(),
     })),
     ...personal.map((p) => ({

@@ -308,6 +308,79 @@ export async function fetchStudentWeek(
   return joinSessions(sessions, classes);
 }
 
+/* ────────────────────────────  Compensation  ─────────────────────────────── */
+//  RLS on both tables is narrow by design: the teacher sees their own, a studio
+//  ADMIN (owner or explicit admin) sees their studio's, and nobody else sees
+//  anything — not front-desk staff, not fellow teachers, not guardians. These
+//  functions therefore return only what the caller is entitled to; they add no
+//  filtering of their own beyond scoping to the profile being rendered.
+
+export interface EngagementRow {
+  engagement_id: string;
+  employer_id: string;
+  /** null = the studio-wide default rate; set = an override for one class. */
+  class_id: string | null;
+  kind: "ongoing" | "substitution" | "one_off";
+  rate_amount_cents: number;
+  rate_unit: "hourly" | "per_session" | "per_student";
+  rate_source: "platform_set" | "teacher_set" | "negotiated";
+  currency: string;
+  effective_from: string;
+  effective_to: string | null;
+  status: "active" | "ended";
+}
+
+export interface EarningRow {
+  earning_id: string;
+  session_id: string | null;
+  amount_cents: number;
+  currency: string;
+  status: "pending" | "approved" | "paid" | "void";
+  rate_amount_cents: number;
+  rate_unit: "hourly" | "per_session" | "per_student";
+}
+
+/** The teacher's pay agreements — used to price sessions that have no earning yet. */
+export async function fetchEngagements(
+  supabase: Client,
+  profileId: string,
+): Promise<EngagementRow[]> {
+  const { data, error } = await supabase
+    .from("teaching_engagements")
+    .select(
+      "engagement_id, employer_id, class_id, kind, rate_amount_cents, rate_unit, rate_source, currency, effective_from, effective_to, status",
+    )
+    .eq("teacher_profile_id", profileId)
+    .eq("status", "active");
+
+  if (error) {
+    console.error("[this-week] engagements read failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as EngagementRow[];
+}
+
+/** Actual recorded earnings for this week's sessions — the snapshotted truth. */
+export async function fetchEarningsForSessions(
+  supabase: Client,
+  profileId: string,
+  sessionIds: string[],
+): Promise<EarningRow[]> {
+  if (sessionIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("teaching_earnings")
+    .select("earning_id, session_id, amount_cents, currency, status, rate_amount_cents, rate_unit")
+    .eq("teacher_profile_id", profileId)
+    .in("session_id", sessionIds);
+
+  if (error) {
+    console.error("[this-week] earnings read failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as EarningRow[];
+}
+
 /* ─────────────────────────────  Personal events  ─────────────────────────── */
 
 /** A self-entered calendar entry (see the personal_events migration). */

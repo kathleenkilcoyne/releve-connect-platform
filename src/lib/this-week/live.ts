@@ -14,8 +14,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { mergeWeek, toCalendarEvents, toCommunications } from "./adapters";
+import { buildPayMap } from "./pay";
 import {
   fetchCommunicationRows,
+  fetchEarningsForSessions,
+  fetchEngagements,
   fetchFamilySubscription,
   fetchGuardedStudents,
   fetchPersonalEvents,
@@ -132,12 +135,29 @@ export async function buildLiveWeek(
   /* ── The professional week ───────────────────────────────────────────── */
   let professional: WeekBundle | null = null;
   if (profileRow) {
+    // Pay is fetched ONLY here, on the member's own professional view. It is
+    // never fetched for, or passed to, a child's week — a guardian has no
+    // business seeing what their child's teacher is paid. RLS would refuse a
+    // stranger anyway; this keeps the view layer from even asking.
+    const payBySession = profileId
+      ? buildPayMap(
+          teaching,
+          await fetchEngagements(supabase, profileId),
+          await fetchEarningsForSessions(
+            supabase,
+            profileId,
+            teaching.map((t) => t.session.session_id),
+          ),
+        )
+      : new Map();
+
     const events = mergeWeek(
       teaching,
       "teacher",
       DEFAULT_TIMEZONE,
       personal,
       swingRadius,
+      payBySession,
     );
     professional = {
       viewer: {
@@ -233,12 +253,9 @@ function rolesOf(row: { primary_role?: unknown }): string[] {
 }
 
 /**
- * The "Teacher Dashboard · This Week" rollup, built from the same sessions the
- * week renders — so the two can never disagree.
- *
- * Pay is deliberately absent: there is no rate or payment-status column yet, and
- * inventing one would put a number in front of a working teacher that no system
- * of record backs. See RESUME-HERE.
+ * The "Teacher Dashboard · This Week" rollup, built from the same sessions AND
+ * the same pay map the week renders — so the card and the rollup can never
+ * disagree about what a class pays.
  */
 function buildTeacherRollup(
   sessions: SessionWithClass[],
@@ -264,6 +281,7 @@ function buildTeacherRollup(
       items: teaching.map((e) => ({
         label: e.title,
         detail: [dayLabel.get(e.id), e.time.start, ...e.detail].filter(Boolean).join(" · "),
+        ...(e.pay ? { pay: e.pay } : {}),
       })),
     },
   ];

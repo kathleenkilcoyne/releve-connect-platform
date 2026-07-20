@@ -230,12 +230,71 @@ values ('2ec75e64-4980-4d9a-8df9-abfee39b550d', true, 'Ridgewood, NJ', 25)
 on conflict (profile_id) do update
   set is_available = true, travel_radius_miles = 25;
 
+-- ── 7. Compensation (teaching_engagements + teaching_earnings) ──────────────
+-- Pay is a RELATIONSHIP between teacher and studio, never a property of a class.
+--
+-- Two colleagues exist purely to prove the privacy model is ROLE-scoped, not
+-- just ownership-scoped: neither can see a cent of Kathleen's pay.
+insert into public.users (user_id, email, account_type, display_name, status) values
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccc01','frontdesk@bergen-ballet.fixture','employer','Front Desk (fixture)','active'),
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccc02','otherteacher@bergen-ballet.fixture','talent','Other Teacher (fixture)','active')
+on conflict (user_id) do nothing;
+
+insert into public.talent_profiles (profile_id, user_id, display_name, public_slug, primary_role, profile_status)
+values ('dddddddd-dddd-4ddd-8ddd-dddddddddd01','cccccccc-cccc-4ccc-8ccc-cccccccccc02',
+        'Other Teacher (fixture)','other-teacher-fixture','teacher','draft')
+on conflict (profile_id) do nothing;
+
+insert into public.studio_staff (employer_id, user_id, role, talent_profile_id) values
+ ('22222222-2222-4222-8222-222222222222','cccccccc-cccc-4ccc-8ccc-cccccccccc01','front_desk', null),
+ ('22222222-2222-4222-8222-222222222222','cccccccc-cccc-4ccc-8ccc-cccccccccc02','teacher','dddddddd-dddd-4ddd-8ddd-dddddddddd01')
+on conflict (employer_id, user_id) do nothing;
+
+insert into public.teaching_engagements
+  (engagement_id, teacher_profile_id, employer_id, class_id, kind,
+   rate_amount_cents, rate_unit, rate_source, effective_from)
+values
+  -- Ongoing, class-scoped: SHE sets this rate.
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01','2ec75e64-4980-4d9a-8df9-abfee39b550d',
+   '22222222-2222-4222-8222-222222222222','55555555-5555-4555-8555-555555555555',
+   'ongoing', 6500,'hourly','teacher_set', date '2026-06-01'),
+
+  -- A Swing substitution. The 9900 below is IGNORED: the enforce_platform_rate
+  -- trigger overwrites it with the app_config value ($50/hr), because the Swing
+  -- rate is a platform constant no client may edit. Substitutions must be
+  -- class-scoped (a constraint), since you cover a specific class.
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02','2ec75e64-4980-4d9a-8df9-abfee39b550d',
+   '22222222-2222-4222-8222-222222222222','66666666-6666-4666-8666-666666666666',
+   'substitution', 9900,'hourly','platform_set', date '2026-06-01')
+on conflict (engagement_id) do nothing;
+
+-- A recorded earning for this week's Ballet III: 75 min @ $65/hr = $81.25.
+-- The card shows THIS, not the agreed rate — the ledger is the truth about what
+-- was earned. Next week's class has no earning, so it falls back to "$65/hr".
+insert into public.teaching_earnings
+  (earning_id, engagement_id, teacher_profile_id, employer_id, session_id, source_kind,
+   work_date, minutes, rate_amount_cents, rate_unit, rate_source, amount_cents, status, paid_at)
+select 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+       '2ec75e64-4980-4d9a-8df9-abfee39b550d','22222222-2222-4222-8222-222222222222',
+       s.session_id,'ongoing',
+       (s.starts_at at time zone 'America/New_York')::date, 75,
+       6500,'hourly','teacher_set', round(6500 * 75 / 60.0)::int, 'paid', now()
+from public.class_sessions s
+where s.class_id = '55555555-5555-4555-8555-555555555555'
+order by s.starts_at
+limit 1
+on conflict do nothing;
+
 commit;
 
 -- ============================================================================
 -- TEARDOWN — removes the entire fixture. Cascades handle the children
 -- (students, guardianships, classes, sessions, enrollments, communications).
 --
+--   delete from public.teaching_earnings     where employer_id = '22222222-2222-4222-8222-222222222222';
+--   delete from public.teaching_engagements  where employer_id = '22222222-2222-4222-8222-222222222222';
+--   delete from public.talent_profiles   where profile_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddd01';
+--   delete from public.users             where user_id::text like 'cccccccc-cccc-4ccc-8ccc-cccccccccc0%';
 --   delete from public.personal_events   where event_id::text like '99999999-9999-4999-8999-9999999999%';
 --   delete from public.affiliations      where employer_id = '22222222-2222-4222-8222-222222222222';
 --   delete from public.family_accounts   where family_id   = '33333333-3333-4333-8333-333333333333';

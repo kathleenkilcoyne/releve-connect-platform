@@ -1,5 +1,38 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ COMPENSATION — teaching_engagements + teaching_earnings (2026-07-20)
+>
+> **Pay is now relationship-based, exactly as directed.** A class defines *schedule, location, structure* and says nothing about money. Compensation lives on the engagement between a teacher and a studio. Migration `20260720150000`, applied + registered.
+>
+> ### The architectural decision that avoids a later redesign: TWO tables
+> - **`teaching_engagements` = the AGREEMENT.** "Kathleen teaches at Bergen Ballet for $65/hr, effective June 1." Mutable. Answers *what should this pay?*
+> - **`teaching_earnings` = the FACT.** "July 20, 75 min @ $65/hr = $81.25, paid." Append-only, **rate snapshotted**. Answers *what WAS earned?*
+>
+> Why it matters: with only the agreement, every historical earning would be recomputed from the *current* rate — so a September raise would silently rewrite what August paid, and no payroll report, tax summary or earnings chart could ever be trusted. **Verified live:** the card shows `$81.25 Paid` (the recorded fact) even when the engagement is edited to $99/hr.
+>
+> **Ready for payroll / earnings / dashboards / analytics without schema change:** money is integer **cents** + currency (never floats) · `work_date` is a DATE so payroll periods and tax years group naturally · `teacher_profile_id` + `employer_id` are **denormalised onto the ledger** so dashboards group without joins and RLS evaluates cheaply · status lifecycle (`pending→approved→paid`, plus `void` for reversals) · `payout_batch_id` + `external_reference` give a future payroll run somewhere to write back · `source_kind` segments Swing subs from ongoing teaching.
+>
+> ### Enforced at the DATA layer, not the UI
+> - **Swing = $50/hr, immovable.** `enforce_platform_rate` trigger overwrites any `platform_set` rate from `app_config.swing_hourly_rate_cents`. **Verified:** asked for $99 → stored $50; edited to $120 → still $50. The $50 is **config, not a literal** — change it without a deploy.
+> - **Paid history is immutable.** `protect_paid_earnings` refuses to alter the amount/date/teacher of a `paid` line ("Void it and record a correcting line instead") — but status may still move, so **reversals remain possible**. Both verified.
+> - **Substitutions must be class-scoped** (constraint). Found by testing: a Swing engagement with a null `class_id` acted as the *studio-wide default* and silently pulled every unpriced class down to the Swing rate.
+> - **Rate resolution:** most specific wins (class-scoped beats studio-wide), then most recently effective. Mirrored in SQL (`resolve_teaching_rate`, for reporting) and TS (`pay.ts`, for the calendar without an RPC per session) — **keep the two in sync.**
+>
+> ### Privacy — verified as a role matrix, not just ownership
+> | Viewer | Engagements | Earnings |
+> |---|---|---|
+> | The teacher (owns the pay) | ✅ 2 | ✅ 1 |
+> | Studio owner (pays it) | ✅ 2 | ✅ 1 |
+> | **Front desk, same studio** | **0** | **0** |
+> | **Another teacher, same studio** | **0** | **0** |
+> | Unrelated member | 0 | 0 |
+>
+> Colleagues cannot see each other's pay. The rule lives in **one** function — `can_see_studio_compensation()` — so adding a future `payroll`/`bookkeeper` role is a one-function edit, not a rewrite of four policies. In the UI, pay is fetched **only** for the member's own professional view and never for a child's week: **verified** that the same Ballet III session showing `$81.25` to the teacher shows **no money at all** on Ava's card.
+>
+> **Tests: 105 passing** (12 new in `pay.test.ts` — earning-beats-agreed-rate, effective dating, specificity, status mapping, and pay-never-on-a-student-card).
+>
+> **▶️ NEXT:** nothing is half-built here. Natural follow-ons when wanted: a job that writes `teaching_earnings` when a session completes (currently seeded by hand); a studio-side UI to record engagements; an earnings/payroll view for the teacher. Remaining smaller gaps: attachments have no column; `talent_profiles` has only `primary_role`, so the header reads "Kathleen — Teacher" not "Dancer · Teacher".
+
 > ## ✅ "THIS WEEK" — PERSONAL EVENTS: "one calendar, every role" is now literally true (2026-07-20)
 >
 > **The professional week now merges TWO sources.** The studio's schedule (what she's booked to teach) and her own entries (what she takes, auditions for, owes). Verified in-browser: Monday shows Company Class 10:00 AM (personal) above Ballet III 4:30 PM (studio) — interleaved by real instant, not grouped by source.
