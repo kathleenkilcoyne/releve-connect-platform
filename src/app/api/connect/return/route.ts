@@ -8,10 +8,16 @@
 // re-fetch the account so the status is fresh even if the webhook is a moment
 // behind (or, in local dev, not running).
 
+// AUTH: the caller must be signed in and own the profile. This route is less
+// dangerous than the other two (it only refreshes status from Stripe), but it
+// writes payouts_enabled with the service-role client, so it is gated the same
+// way rather than left as the odd one out.
+
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe/server";
 import { siteUrl } from "@/lib/stripe/config";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireProfileOwner } from "@/lib/connect/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,16 +30,18 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${base}/connect/payouts?error=missing_profile`);
   }
 
+  // ── Ownership gate ────────────────────────────────────────────────────────
+  const auth = await requireProfileOwner(profileId);
+  if (!auth.ok) {
+    const error = auth.status === 401 ? "signin_required" : "not_authorized";
+    return NextResponse.redirect(`${base}/connect/payouts?error=${error}`);
+  }
+  const profile = auth.profile;
+
   const stripe = getStripe();
   const db = createAdminClient();
 
-  const { data: profile } = await db
-    .from("talent_profiles")
-    .select("profile_id, stripe_account_id, payouts_enabled")
-    .eq("profile_id", profileId)
-    .single();
-
-  let ready = Boolean(profile?.payouts_enabled);
+  let ready = Boolean(profile.payouts_enabled);
 
   if (profile?.stripe_account_id) {
     try {

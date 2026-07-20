@@ -10,6 +10,23 @@ import ConnectButton from "./ConnectButton";
 
 export const dynamic = "force-dynamic";
 
+/** Turn the ?error= slug into something a person can act on. */
+function payoutErrorMessage(code: string): string {
+  switch (code) {
+    case "signin_required":
+      return "Please sign in to connect your payouts.";
+    case "not_authorized":
+      // Deliberately vague: it must not confirm whether that profile exists.
+      return "That profile isn't available to you. Sign in with the account that owns it.";
+    case "no_account":
+      return "No payout account has been started yet — use the button above to begin.";
+    case "missing_profile":
+      return "We couldn't tell which profile to connect. Try again from your profile page.";
+    default:
+      return `Something went wrong (${code}).`;
+  }
+}
+
 export default async function PayoutsPage({
   searchParams,
 }: {
@@ -66,7 +83,9 @@ export default async function PayoutsPage({
         </div>
       )}
 
-      {error && <p className="mt-6 text-sm text-red-600">Error: {error}</p>}
+      {error && (
+        <p className="mt-6 text-sm text-red-600">{payoutErrorMessage(error)}</p>
+      )}
 
       <Link href="/" className="mt-12 inline-block text-sm text-neutral-500 underline">
         ← Back to Relevé

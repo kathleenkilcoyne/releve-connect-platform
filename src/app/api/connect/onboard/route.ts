@@ -6,11 +6,16 @@
 // their talent_profile, then returns a single-use hosted-onboarding URL for the
 // browser to redirect to. The artist enters their own bank/tax details on
 // Stripe's page — Relevé never sees them. See spec §3.
+//
+// AUTH: the caller must be signed in AND own `profileId`. Without that check
+// anyone could mint an onboarding link for another artist and attach their own
+// bank account, hijacking that artist's payouts. See lib/connect/auth.ts.
 
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe/server";
 import { siteUrl } from "@/lib/stripe/config";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireProfileOwner } from "@/lib/connect/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,19 +31,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "profileId is required." }, { status: 400 });
   }
 
+  // ── Ownership gate ────────────────────────────────────────────────────────
+  const auth = await requireProfileOwner(profileId);
+  if (!auth.ok) {
+    // "not yours" and "doesn't exist" are reported identically so this route
+    // cannot be used to discover which profile ids are real.
+    return auth.status === 401
+      ? NextResponse.json({ error: "Please sign in first." }, { status: 401 })
+      : NextResponse.json(
+          { error: "That profile is not available to you." },
+          { status: 403 },
+        );
+  }
+  const profile = auth.profile;
+
   const stripe = getStripe();
   const db = createAdminClient();
-
-  // Look up the artist.
-  const { data: profile, error } = await db
-    .from("talent_profiles")
-    .select("profile_id, display_name, stripe_account_id, payouts_enabled")
-    .eq("profile_id", profileId)
-    .single();
-
-  if (error || !profile) {
-    return NextResponse.json({ error: "Talent profile not found." }, { status: 404 });
-  }
 
   // Create the Express account once, then reuse it on subsequent visits.
   let accountId = profile.stripe_account_id as string | null;

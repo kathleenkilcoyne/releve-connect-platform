@@ -6,6 +6,7 @@
 // /api/admin/* routes (ADMIN_TOKEN required) — see AdminConsole.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 import AdminConsole from "./AdminConsole";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,9 @@ export type WorkRow = {
 };
 
 export default async function AdminSignatureWorksPage() {
+  // Admin tooling backed by service-role reads — same gate as the vetting queue.
+  await requireAdminPage("/admin/signature-works");
+
   const db = createAdminClient();
 
   const { data: artistData } = await db

@@ -58,14 +58,20 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
   const concentrations = formData.getAll("concentrations").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
 
-  // ---- Make sure there's a matching account row (first save only) ----------
-  // Studios are `employer`. Upsert on conflict so a brand-new studio account is
-  // created as employer; an existing account_type is not downgraded elsewhere.
+  // ---- Make sure there's a matching account row ----------------------------
+  // Studios are `employer`, but only on FIRST creation — an existing role is
+  // preserved so saving a studio page can never demote an admin.
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("account_type")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   await supabase.from("users").upsert(
     {
       user_id: user.id,
       email: user.email,
-      account_type: "employer",
+      account_type: existingUser?.account_type ?? "employer",
       display_name: row.name,
       status: "active",
     },

@@ -4,6 +4,7 @@
 // admin console pattern.
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 import ApplicationsConsole from "./ApplicationsConsole";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,9 @@ export type ApplicationRow = {
 };
 
 export default async function AdminApplicationsPage() {
+  // This page renders real applicants' PII. Gate BEFORE any query runs.
+  await requireAdminPage("/admin/applications");
+
   const db = createAdminClient();
 
   const { data: appData } = await db

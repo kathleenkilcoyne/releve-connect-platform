@@ -77,12 +77,22 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
 
   const admin = createAdminClient();
 
-  // ---- Make sure there's a matching account row (first save only) ----------
+  // ---- Make sure there's a matching account row ----------------------------
+  // account_type is set only when the row is FIRST created. Overwriting it here
+  // would silently demote an existing admin (or employer) to `talent` every time
+  // they saved their profile — which, now that the admin console is gated on
+  // account_type = 'admin', would revoke their own access mid-session.
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("account_type")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   await supabase.from("users").upsert(
     {
       user_id: user.id,
       email: user.email,
-      account_type: "talent",
+      account_type: existingUser?.account_type ?? "talent",
       display_name: displayName,
       status: "active",
     },

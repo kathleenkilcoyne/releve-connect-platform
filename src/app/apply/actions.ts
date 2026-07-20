@@ -154,8 +154,22 @@ export async function submitApplication(
   );
 
   // ---- Make sure there's a matching account row (applicants are talent) -----
+  // Only set account_type when the row is first created — never downgrade an
+  // existing admin/employer to `talent` just because they filled in the form.
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("account_type")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   await supabase.from("users").upsert(
-    { user_id: user.id, email, account_type: "talent", display_name: `${firstName} ${lastName}`, status: "active" },
+    {
+      user_id: user.id,
+      email,
+      account_type: existingUser?.account_type ?? "talent",
+      display_name: `${firstName} ${lastName}`,
+      status: "active",
+    },
     { onConflict: "user_id" },
   );
 
