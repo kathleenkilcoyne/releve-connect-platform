@@ -210,15 +210,20 @@ hand. A deploy can ship code ahead of schema. Keep applying deliberately.
     works but is membership-gated), and **The Beat · The Climb · The Green Room**
     (no route at all). Say the word once those pages exist and each is a one-line
     add.
-- 🔨 **"This Week" additions — BLOCKED on content, not code:**
-  - The daily **"You Matter Here"** rotation. The file on disk
-    (`~/Downloads/releve_connect_you_matter_here.html`) has **8 lines, not 30** —
-    Kathleen is sending the rest. ⚠️ That mockup is **plum/aubergine**; it must be
-    rebuilt in black · cream · gold.
-  - **Music player** — not specified anywhere. The July-17 calendar spec has no
-    player; its only "music" references are attachment chips (♪ class music),
-    which are links to a resource, not playback. Needs a sentence on what it
-    should actually do before it can be built.
+- ✅ **"This Week" additions — DONE.**
+  - **"You Matter Here"** greeting band with all **30** of Kathleen's lines,
+    rotating by day-of-year (stable all day, cycles monthly). Rebuilt in black ·
+    cream · gold — the source mockup's plum is deliberately not carried over.
+  - **Music player** — the pipe is built: `music` storage bucket, a single
+    `this_week_current_track` config value Kathleen sets herself, tap-to-play
+    (never autoplay), `preload="none"`. No track set = no player, which is normal.
+  - 🧍 **To use it:** upload an audio file to the `music` bucket, then set
+    `app_config.this_week_current_track` to the filename (and optionally
+    `this_week_current_track_credit`).
+  - 🛑 **LICENSING — standing hazard, like MailerLite.** Only (a) royalty-free
+    tracks Relevé has licensed or (b) a member's ORIGINAL work may go in that
+    bucket. Never commercial music, not even as a placeholder — a public bucket
+    on a real domain is publication.
 
 ---
 

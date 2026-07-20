@@ -19,6 +19,7 @@ import type { LiveWeekPayload } from "@/lib/this-week/live";
 import type { ProfessionalViewer, WeekBundle } from "@/lib/this-week/types";
 import { ChildWeek } from "./ChildWeek";
 import { DashboardRollup } from "./DashboardRollup";
+import { GreetingBand, type GreetingTrack } from "./GreetingBand";
 import { FilterBar, type FilterValue } from "./FilterBar";
 import { ViewSwitch, type ViewKey } from "./ViewSwitch";
 import { WeekNav } from "./WeekNav";
@@ -28,10 +29,13 @@ export function ThisWeekScreen({
   mode,
   weekOffset,
   payload,
+  greeting,
 }: {
   mode: "live" | "demo";
   weekOffset: number;
   payload?: LiveWeekPayload;
+  /** "You Matter Here" — resolved on the server so the daily line can't flicker. */
+  greeting?: { message: string; track: GreetingTrack | null };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,6 +83,13 @@ export function ThisWeekScreen({
           This Week
         </span>
       </div>
+
+      {/* "You Matter Here" — the first thing on the page, before the week. */}
+      {greeting && (
+        <div className="mt-6">
+          <GreetingBand message={greeting.message} track={greeting.track} />
+        </div>
+      )}
 
       {/* Demo mode says so plainly. Showing sample data unlabelled next to a
           real member's name would be the one genuinely misleading outcome. */}

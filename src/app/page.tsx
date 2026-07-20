@@ -73,18 +73,13 @@ export default function Home() {
         </p>
 
         <h1 className="text-[clamp(1.9rem,4.6vw,3.15rem)] font-medium leading-[1.16] tracking-[0.3px] text-[var(--rc-ink)]">
-          You don&apos;t need a bigger dream.
-          <span className="block">
-            You need the courage to become the person who can live it.
-          </span>
+          There are trillions of stars. Each one has its place to shine.
+          <span className="block italic text-[var(--rc-gold)]">This one is yours.</span>
         </h1>
 
         <p className="mx-auto mt-7 max-w-[660px] text-[clamp(1.02rem,2.1vw,1.2rem)] leading-relaxed text-[var(--rc-ink-soft)]">
-          The dance world has never lacked talent. What we&apos;ve lacked is the strategy — and
-          the system — to showcase who we truly are.{" "}
-          <b className="font-semibold italic text-[var(--rc-gold)]">
-            Relevé Connect exists to do exactly that.
-          </b>
+          A professional home for the working dance world — where you&apos;re seen, supported, and
+          connected from day one.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3.5">
@@ -92,40 +87,58 @@ export default function Home() {
             href="/apply"
             className="rounded-sm bg-[var(--rc-gold)] px-8 py-3.5 text-[0.82rem] uppercase tracking-[0.16em] text-white no-underline transition-colors hover:bg-[#9c7c26]"
           >
-            Apply to Relevé
+            Apply
           </Link>
-          <Link
-            href="/studio"
+          {/* "Meet Relevé" has no page of its own, so it scrolls to the mission
+              rather than becoming a dead link. */}
+          <a
+            href="#mission"
             className="rounded-sm border border-[var(--rc-gold)] px-8 py-3.5 text-[0.82rem] uppercase tracking-[0.16em] text-[var(--rc-gold)] no-underline transition-colors hover:bg-[color:rgba(182,145,47,0.08)]"
           >
-            For Studios
-          </Link>
+            Meet Relevé
+          </a>
         </div>
       </section>
 
-      {/* ─────────────────────────── Promise ─────────────────────────── */}
-      <section className="bg-[var(--rc-cream-2)] px-7 py-12 text-center sm:py-20">
+      {/* ─────────────────────────── Mission ─────────────────────────── */}
+      <section
+        id="mission"
+        aria-labelledby="mission-heading"
+        className="scroll-mt-24 bg-[var(--rc-cream-2)] px-7 py-12 text-center sm:py-20"
+      >
+        <h2 id="mission-heading" className="sr-only">
+          Our mission
+        </h2>
         <div className="mx-auto max-w-[720px]">
           <p className="text-[clamp(1.02rem,2vw,1.18rem)] leading-relaxed text-[var(--rc-ink-soft)]">
-            This is where you find your stride — where you build your own system within our
-            ecosystem. From day one, your profile is yours to grow: you curate your art, your
-            credentials, your story, and it develops as you do.
+            Talent alone was never enough. Careers are built through relationships, strategy,
+            preparation, and opportunity — and for too long, the dance world has had the talent
+            without the infrastructure to carry it.
           </p>
           <p className="mt-5 text-[clamp(1.02rem,2vw,1.18rem)] leading-relaxed text-[var(--rc-ink-soft)]">
-            And you never do it alone. Professional, proven resources. Real contacts. Networking
-            that opens because you are{" "}
-            <span className="italic text-[var(--rc-gold)]">seen</span>. A community that has your
-            back — because if you&apos;re struggling today, someone here has struggled too, and
-            someone here has come through it.
+            Relevé Connect is that infrastructure. We connect artists with opportunity, give them
+            the tools to navigate every stage of a professional career, and help dancers, teachers,
+            choreographers, and studios build lives on purpose, prosperity, and integrity —
+            sustainable careers rooted in excellence.
           </p>
-          <p className="mt-7 text-[clamp(1.3rem,3vw,1.7rem)] leading-[1.35] text-[var(--rc-ink)]">
-            There is strength in numbers.
-            <br />
-            <b className="font-semibold text-[var(--rc-gold)]">Each one, teach one.</b>
-            <br />
-            That is why we are here.
+          <p className="mt-5 text-[clamp(1.02rem,2vw,1.18rem)] leading-relaxed text-[var(--rc-ink-soft)]">
+            There are trillions of stars in the universe, and each one has its own place to shine.
+            You carry a unique gift, a unique voice, a unique path. Our mission is to help you
+            discover who you already are — and to surround you with the relationships, strategy,
+            and opportunity to let your light be seen.
           </p>
         </div>
+      </section>
+
+      {/* ────────────────────────── Courage line ──────────────────────────
+          Deliberately its own quiet moment on cream, deeper down the page. */}
+      <section className="px-7 py-14 text-center sm:py-20">
+        <p className="mx-auto max-w-[760px] text-[clamp(1.25rem,2.9vw,1.65rem)] leading-[1.4] text-[var(--rc-ink)]">
+          You don&apos;t need a bigger dream. You need the{" "}
+          <span className="italic text-[var(--rc-gold)]">courage</span>{" "}
+          to become the person who can live it — and you won&apos;t take that step alone.
+          That&apos;s why we&apos;re here, every step of the way.
+        </p>
       </section>
 
       {/* ────────────────────────── Ecosystem ──────────────────────────
@@ -167,10 +180,29 @@ export default function Home() {
         </p>
       </section>
 
+      {/* ──────────────────────────── Close ────────────────────────────
+          The last thing on the page is the promise, not a call to action. */}
+      <section className="px-7 py-16 text-center sm:py-24">
+        <p className="text-[clamp(1.5rem,3.6vw,2.15rem)] leading-[1.3] text-[var(--rc-ink)]">
+          You belong here. You matter here.
+        </p>
+        <p className="mt-3 text-[clamp(1.5rem,3.6vw,2.15rem)] italic leading-[1.3] text-[var(--rc-gold)]">
+          Together, we rise.
+        </p>
+        <div className="mt-10">
+          <Link
+            href="/apply"
+            className="rounded-sm bg-[var(--rc-gold)] px-8 py-3.5 text-[0.82rem] uppercase tracking-[0.16em] text-white no-underline transition-colors hover:bg-[#9c7c26]"
+          >
+            Apply
+          </Link>
+        </div>
+      </section>
+
       {/* ──────────────────────────── Footer ──────────────────────────── */}
       <footer className="border-t border-[color:rgba(217,184,95,0.15)] bg-[var(--rc-black)] px-6 py-8 text-center">
         <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[#8a7f6a]">
-          Together, We Rise
+          together we rise · nous nous levons · relevé
         </p>
         <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
           <FooterLink href="/apply">Apply</FooterLink>

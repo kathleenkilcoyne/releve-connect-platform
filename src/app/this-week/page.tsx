@@ -19,6 +19,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildLiveWeek } from "@/lib/this-week/live";
+import { messageForDay } from "@/lib/this-week/daily-message";
+import { getCurrentTrack } from "@/lib/this-week/music";
 import { ThisWeekScreen } from "@/components/this-week/ThisWeekScreen";
 import "@/components/this-week/tokens.css";
 
@@ -50,8 +52,19 @@ export default async function ThisWeekPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Signed out → the sample week.
-  if (!user) return <ThisWeekScreen mode="demo" weekOffset={weekOffset} />;
+  // The greeting is resolved on the SERVER: the daily line must not flicker or
+  // change between the server render and hydration, and the track config is a
+  // read the client has no business doing.
+  const greeting = {
+    message: messageForDay(),
+    track: await getCurrentTrack(supabase),
+  };
+
+  // Signed out → the sample week (still gets the greeting; it costs nothing and
+  // it's the warmest part of the page).
+  if (!user) {
+    return <ThisWeekScreen mode="demo" weekOffset={weekOffset} greeting={greeting} />;
+  }
 
   const payload = await buildLiveWeek(
     supabase,
@@ -64,10 +77,15 @@ export default async function ThisWeekPage({
   // an empty page, per the demo-mode decision. `isEmpty` is scoped to the week
   // being viewed, so paging into a quiet week correctly falls back too.
   if (payload.isEmpty && !payload.professional && payload.students.length === 0) {
-    return <ThisWeekScreen mode="demo" weekOffset={weekOffset} />;
+    return <ThisWeekScreen mode="demo" weekOffset={weekOffset} greeting={greeting} />;
   }
 
   return (
-    <ThisWeekScreen mode="live" weekOffset={weekOffset} payload={payload} />
+    <ThisWeekScreen
+      mode="live"
+      weekOffset={weekOffset}
+      payload={payload}
+      greeting={greeting}
+    />
   );
 }
