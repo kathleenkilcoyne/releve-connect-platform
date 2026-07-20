@@ -21,6 +21,7 @@ import {
   sendApplicationMoreInfo,
   sendApplicationDeclined,
 } from "@/lib/notifications";
+import { grantFoundingMembership } from "@/lib/membership/founding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   // Load the application (service role sees all).
   const { data: appData, error: loadErr } = await db
     .from("applications")
-    .select("application_id, email, first_name, roles, state")
+    .select("application_id, user_id, email, first_name, roles, state")
     .eq("application_id", id)
     .single();
   if (loadErr || !appData) {
@@ -63,6 +64,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
   const app = appData as unknown as {
     application_id: string;
+    user_id: string | null;
     email: string;
     first_name: string | null;
     roles: string[] | null;
@@ -97,9 +99,43 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const { error } = await db.from("applications").update(update).eq("application_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+      // FREE FOUNDING PERIOD: approval grants a complimentary first year outright.
+      // Without this the member is accepted but still locked out of the Roster and
+      // the profile builder, which are gated on an active membership.
+      let foundingUntil: string | null = null;
+      let comp: Awaited<ReturnType<typeof grantFoundingMembership>> | null = null;
+      if (app.user_id) {
+        comp = await grantFoundingMembership(db, app.user_id, app.roles);
+        if (comp.granted) {
+          foundingUntil = new Date(comp.renewalDate).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          });
+        } else if (comp.reason === "error") {
+          // Do not fail the approval — the decision is recorded and the comp can
+          // be granted again by re-approving. But make it loud.
+          console.error(
+            `[admin] approved ${id} but the founding membership was NOT granted:`,
+            comp.detail,
+          );
+        }
+      }
+
       await fireMailerLiteTag(app.email, "application_approved");
-      await sendApplicationApproved({ to: app.email, firstName: app.first_name, tierLabel });
-      return NextResponse.json({ ok: true, state: "approved" });
+      await sendApplicationApproved({
+        to: app.email,
+        firstName: app.first_name,
+        tierLabel,
+        foundingUntil,
+      });
+      return NextResponse.json({
+        ok: true,
+        state: "approved",
+        foundingMembership: comp?.granted
+          ? { tier: comp.tier, until: comp.renewalDate }
+          : (comp?.reason ?? null),
+      });
     }
 
     // ---------------------------------------------------------------------

@@ -1,18 +1,12 @@
-// Where the applicant lands after paying the $30 application fee. The webhook
-// (kind: 'application_fee') is what actually moves the application into review
-// and sends the confirmation email — this page is just the friendly "done".
+// Where the applicant lands after submitting. During the FREE FOUNDING PERIOD
+// there is no fee step, so submitApplication has already put the application into
+// review and sent the confirmation email — this page is just the friendly "done".
 
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApplicationSubmittedPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ session_id?: string; waived?: string }>;
-}) {
-  const { waived } = await searchParams;
-
+export default async function ApplicationSubmittedPage() {
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-lg flex-col justify-center px-6 py-16">
       <div className="rounded-2xl border border-green-200 bg-green-50 p-8">
@@ -23,9 +17,8 @@ export default async function ApplicationSubmittedPage({
           email you as soon as there&apos;s a decision.
         </p>
         <p className="mt-4 text-sm text-green-700">
-          {waived
-            ? "As a Founding honoree, no application fee was charged."
-            : "Your $30 is held as a commitment — credited in full toward your membership when you're accepted, or refunded if you're not accepted."}
+          Check your inbox — we&apos;ve sent a confirmation. If you&apos;re accepted during the
+          founding period, your first year of membership is free.
         </p>
       </div>
 

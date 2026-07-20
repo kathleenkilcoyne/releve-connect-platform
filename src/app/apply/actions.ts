@@ -5,14 +5,20 @@
 // their OWN application row. The full role-branched answers live in `answers`
 // (JSONB); the routing fields the admin queue filters on are promoted to columns.
 //
-// This does NOT charge anyone. On success it returns the application id; the form
-// then sends the applicant to the $30 fee checkout (/api/applications/[id]/fee-checkout).
+// This does NOT charge anyone. FREE FOUNDING PERIOD (2026-07-20): the $30
+// application fee is switched off, so submitting puts the application straight
+// into review and sends the two automatic emails from here. The fee-checkout
+// route still exists, unreferenced, for when payment is switched back on.
 //
 // Auto-save + the 14-day resume link are a deliberate FAST-FOLLOW (see DECISIONS.md)
 // and are REQUIRED before the intake opens to real applicants — a long essay form
 // with no save will lose good people. This pass is submit-only.
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  sendAdminNewApplicationAlert,
+  sendApplicationReceived,
+} from "@/lib/notifications";
 
 export type ApplyState = { ok: boolean; message: string; applicationId?: string };
 
@@ -190,7 +196,10 @@ export async function submitApplication(
     primary_role: primaryRole,
     city,
     state_province: stateProvince,
-    state: "submitted" as const,
+    // FREE FOUNDING PERIOD: with no $30 fee to wait on, a submitted application
+    // IS ready for review. (When the fee returns, this goes back to "submitted"
+    // and the fee-paid webhook resumes the move to "in-review".)
+    state: "in-review" as const,
     answers,
     consents,
     submitted_at: new Date().toISOString(),
@@ -210,6 +219,24 @@ export async function submitApplication(
     if (error) return { ok: false, message: `Couldn't submit your application: ${error.message}` };
     applicationId = (data as { application_id: string }).application_id;
   }
+
+  // ---- The two automatic emails (EMAILS.md #1 + #2, Guardrail #5) -----------
+  // Exactly one confirmation to the applicant and one alert to the admin. These
+  // used to fire from the $30 fee-paid webhook; with the fee off during the free
+  // founding period, submission is the moment the application enters review — so
+  // they fire here instead. Nothing else is sent, and nobody is subscribed to
+  // any list.
+  //
+  // Both are best-effort: sendEmail never throws, so a mail failure cannot lose
+  // an application that is already safely saved.
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
+  await sendApplicationReceived({ to: email, firstName });
+  await sendAdminNewApplicationAlert({
+    applicantEmail: email,
+    applicantName: `${firstName} ${lastName}`.trim(),
+    roles,
+    reviewUrl: `${site}/admin/applications`,
+  });
 
   return { ok: true, message: "Application saved.", applicationId };
 }

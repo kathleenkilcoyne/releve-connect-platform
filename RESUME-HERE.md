@@ -1,5 +1,37 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ EMAIL SENDER + FREE FOUNDING LAUNCH (2026-07-20)
+>
+> ### Email actually sends now
+> `src/lib/email/send.ts` — one `sendEmail()` that POSTs to **Resend** over `fetch` (no SDK dependency; swap vendors by editing that one file). All **10** emails in `EMAILS.md` are implemented; none are stubs any more.
+> - **Proven with a real HTTP call:** with a dummy key the log shows `REJECTED … HTTP 401 {"message":"API key is invalid"}` — that response can only come from Resend's servers, so the network path is real. With a valid key it sends.
+> - **Never throws** (a failed email must not fail a paid webhook) — verified: the approve action returned `ok:true` and still granted the membership while the email was failing.
+> - **Never goes quiet** — unconfigured, it logs the full message. (The old seam logged *less* once env vars were set.)
+> - **Still needs, to actually deliver:** `EMAIL_API_KEY`, `EMAIL_FROM_ADDRESS`, `ADMIN_ALERT_EMAIL`, and a **verified sending domain in Resend**.
+>
+> ### Free founding launch — LIVE in the code
+> **Applying is free. Approval grants a complimentary membership for ONE YEAR** (founder decision: free one year).
+> - `submitApplication` now puts an application straight into **`in-review`** and fires emails #1 + #2 itself (they used to fire only from the fee webhook — so going free without this would have meant **you were never told anyone applied**).
+> - Approval grants a comp membership via `grantFoundingMembership()` (`src/lib/membership/founding.ts`): `price_cents: 0`, `source: 'founding_comp'`, **no Stripe ids**, `renewal_date = +12 months`.
+> - **Why a comp ROW, not a "free mode" flag:** zero gating logic was touched. Turning payment on is "stop calling that function" — the Stripe path was never disabled. Every comp is a queryable, auditable row (`where source = 'founding_comp'`).
+> - Tier is role-derived: studio-only → `studio_connect`; everyone else → `professional` (the tier that opens the profile builder). A studio owner who *also* teaches gets `professional`.
+> - Fee code is **left in place, unreferenced**. The approved fee wording is preserved in `APPLICATION_FEE_NOTE`. Copy updated on `/apply`, the form, and `/apply/submitted`.
+>
+> **Verified end-to-end on the live DB** with a throwaway applicant (since deleted): submitted via the real form → row landed `in-review` → confirmation email fired with correct fee-free copy → admin-alert warned loudly that `ADMIN_ALERT_EMAIL` is unset → approved → comp membership `professional`, $0, free until **2027-07-20** → `/roster`, `/profile/edit`, `/this-week` all returned **200** for that member → re-approving returned `already_active` with **no duplicate row**.
+>
+> **Tests: 117 passing** (12 new in `founding.test.ts`, incl. that a comped row satisfies the real `hasAnyActiveMembership` / `hasActiveProfileTier` gates).
+>
+> ### ▶️ To switch payment back on later
+> 1. In `ApplyForm.tsx`, restore the POST to `/api/applications/[id]/fee-checkout` and redirect to `url`.
+> 2. In `apply/actions.ts`, set `state: "submitted"` and remove the two email calls (the webhook resumes them).
+> 3. Stop calling `grantFoundingMembership` in the approve route.
+> 4. Decide what happens to founding members at their `renewal_date` — they were promised **one free year**, so they need a real renewal path before 2027-07-20.
+>
+> ### ⚠️ Still open / found along the way
+> - **MailerLite auto-subscribes every $499 buyer with no opt-in and no unsubscribe surface.** Inert only because the env vars are unset — **setting them turns it on.** Needs a consent decision before launch. Flagged loudly in code + `EMAILS.md`.
+> - **The Stripe test key in `.env.local` is EXPIRED** (`api_key_expired`) — the rolled key from 2026-07-15. No Stripe flow works locally until it's replaced.
+> - Auto-save + 14-day resume link (#3) still unbuilt — the remaining launch blocker before real applicants.
+
 > ## ✅ COMPENSATION — teaching_engagements + teaching_earnings (2026-07-20)
 >
 > **Pay is now relationship-based, exactly as directed.** A class defines *schedule, location, structure* and says nothing about money. Compensation lives on the engagement between a teacher and a studio. Migration `20260720150000`, applied + registered.

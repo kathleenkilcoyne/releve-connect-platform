@@ -25,6 +25,7 @@ import {
   sendAdminNewApplicationAlert,
   sendMembershipActive,
   sendRenewalReminder,
+  APPLICATION_FEE_NOTE,
 } from "@/lib/notifications";
 import { siteUrl } from "@/lib/stripe/config";
 import { getTier, dollars } from "@/lib/membership/tiers";
@@ -249,12 +250,17 @@ async function handleApplicationFeePaid(session: Stripe.Checkout.Session) {
       .eq("application_id", fee.application_id);
   }
 
-  // 3) The two automatic emails (EMAILS.md #1 + #2) — best-effort seams.
+  // 3) The two automatic emails (EMAILS.md #1 + #2).
+  //
+  // DORMANT during the free founding period: with no fee, this handler never
+  // runs, and the same two emails are sent from submitApplication instead. Kept
+  // wired (with the approved fee wording) so switching payment back on is a
+  // one-line change in the form rather than a rebuild of this branch.
   if (appData) {
     await sendApplicationReceived({
       to: appData.email as string,
       firstName: (appData.first_name as string | null) ?? null,
-      feeWaived: false,
+      feeNote: APPLICATION_FEE_NOTE,
     });
     await sendAdminNewApplicationAlert({
       applicantEmail: appData.email as string,

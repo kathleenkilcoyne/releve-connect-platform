@@ -121,19 +121,10 @@ export default function ApplyForm({
         setBusy(false);
         return;
       }
-      // Saved — now the $30 fee (or waived → straight to the thank-you page).
-      const pay = await fetch(`/api/applications/${res.applicationId}/fee-checkout`, {
-        method: "POST",
-      });
-      const data = (await pay.json()) as { url?: string; waived?: boolean; error?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else if (data.waived) {
-        window.location.href = "/apply/submitted?waived=1";
-      } else {
-        setError(data.error || "Couldn't start the application fee. Please try again.");
-        setBusy(false);
-      }
+      // FREE FOUNDING PERIOD: no application fee, so a saved application goes
+      // straight to the thank-you page. (When the fee returns, POST to
+      // /api/applications/<id>/fee-checkout here and redirect to `url`.)
+      window.location.href = "/apply/submitted";
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -346,16 +337,16 @@ export default function ApplyForm({
 
       <div className="mt-6 rounded-xl border border-neutral-200 p-4">
         <p className="text-sm text-neutral-600">
-          Next: a <span className="font-medium">$30 application fee</span> — your commitment to the
-          council&apos;s review. <span className="font-medium">Credited in full toward your membership
-          when you&apos;re accepted; refunded if you&apos;re not.</span>
+          <span className="font-medium">Applying is free.</span> A member of the Relevé council
+          reads every application personally, and we&apos;ll email you as soon as there&apos;s a
+          decision.
         </p>
         <button
           type="submit"
           disabled={busy}
           className="mt-4 w-full rounded-lg bg-neutral-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-40"
         >
-          {busy ? "Submitting…" : "Submit application & continue to the $30 commitment"}
+          {busy ? "Submitting…" : "Submit application"}
         </button>
       </div>
     </form>

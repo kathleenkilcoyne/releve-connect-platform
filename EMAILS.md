@@ -8,45 +8,60 @@ when an admin clicks the button. There are **no hidden triggers**.
 Every automated email the system can ever send is listed in this file, with its exact
 trigger and current version. If an email isn't in this table, it must not be sent.
 
+> **Sending is IMPLEMENTED (2026-07-20).** All sends go through one function —
+> `sendEmail()` in `src/lib/email/send.ts` — which POSTs to **Resend** over `fetch`
+> (no SDK dependency; swap vendors by editing that one file). It **never throws**, so a
+> failed email can never fail a paid Stripe webhook or an admin action, and it **never
+> goes quiet**: with the vendor unconfigured it logs the full message it would have sent.
+>
+> Nothing actually leaves the building until **`EMAIL_API_KEY`** and
+> **`EMAIL_FROM_ADDRESS`** are set (plus **`ADMIN_ALERT_EMAIL`** for #2), and the
+> sending domain is verified in Resend.
+
+> **⚠️ FREE FOUNDING PERIOD (2026-07-20).** The $30 application fee is switched OFF.
+> Emails #1 and #2 therefore fire from **`submitApplication`** (the Submit click) rather
+> than from the fee-paid webhook. That is still exactly one applicant confirmation and
+> one admin alert. The webhook branch remains wired with the approved fee wording
+> (`APPLICATION_FEE_NOTE`) for when payment is switched back on.
+
 ---
 
 ## Live emails
 
-| # | Email | Trigger (exactly when it fires) | To | Version | Status |
+| # | Email | Trigger (exactly when it fires) | To | Template | Status |
 |---|---|---|---|---|---|
-| 1 | Application received (confirmation) | Stripe webhook confirms the $30 application fee (`kind: application_fee`) — or the fee is waived for a Founding-25 | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 2 | New application alert | Same fee-paid/waived event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 3 | Save-and-resume link | Applicant's progress auto-saves mid-form | Applicant | v1 (draft) | ⏳ not built yet |
-| 4 | Approved — next step is payment | **Admin manually approves** an application (`/admin/applications` → Approve) | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 5 | Request more information | **Admin manually** requests more info | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 6 | Application declined | **Admin manually** declines (also auto-refunds the $30) | Applicant | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
-| 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase (`checkout.session.completed`) | Buyer | v1 (draft) | 🔌 wired to a seam (vendor TBD) |
-| 10 | Membership renewal reminder | Stripe `invoice.upcoming` (~2 weeks before the annual charge; lead time set in Stripe → Billing) | Member | v1 (draft) | 🔌 wired to a seam (Resend, sender TBD) |
+| 1 | Application received (confirmation) | Applicant clicks **Submit** (free period). Reverts to the $30 fee-paid webhook when payment is on. | Applicant | `application-received.v2` | ✅ implemented |
+| 2 | New application alert | Same event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | `admin-new-application.v1` | ✅ implemented |
+| 3 | Save-and-resume link | Applicant's progress auto-saves mid-form | Applicant | — | ⏳ not built yet (launch blocker) |
+| 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v2` | ✅ implemented |
+| 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v1` | ✅ implemented |
+| 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v1` | ✅ implemented |
+| 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | `membership-active.v1` | ✅ implemented (dormant while free) |
+| 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | `intro-request.v1` | ✅ implemented |
+| 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase | Buyer | `buyer-experience-confirmation.v1` | ✅ implemented |
+| 10 | Membership renewal reminder | Stripe `invoice.upcoming` (~2 weeks before the annual charge; lead time set in Stripe → Billing) | Member | `membership-renewal-reminder.v1` | ✅ implemented (dormant while free) |
 
-> Emails #4, #5, #6 are **manual-only** — they never fire automatically. Email #3's
-> resume link is valid for a 14-day window (fast-follow). Emails #1 and #2 are the only
-> two that fire automatically on the apply flow, and they fire **once the $30 fee is paid
-> (or waived)** — not on the raw Submit click — so an abandoned, unpaid draft triggers
-> nothing. Per the guardrail, that's still exactly one applicant confirmation + one admin
-> alert, no newsletter auto-subscribe.
->
-> Email #9 fires once, transactionally, when a buyer completes a $499 Signature
-> Experience purchase (like #7 for membership). It is currently **wired to a seam**:
-> the trigger and payload are built and logged, but the actual send waits on the
-> email-vendor decision (see `DECISIONS.md`). No email leaves the system until the
-> vendor is chosen and the template is finished — no hidden triggers.
+> Emails #4, #5, #6 are **manual-only** — they never fire automatically. Emails #1 and #2
+> are the only two that fire automatically on the apply flow. Per the guardrail, that's
+> exactly one applicant confirmation + one admin alert, and no newsletter auto-subscribe.
+
+> **⚠️ NOT an email, but outbound and unresolved: MailerLite.** `addBuyerToClimb()`
+> adds every $499 buyer to a marketing group with **no opt-in checkbox anywhere in the
+> purchase flow and no unsubscribe surface in the app**. It is inert only because
+> `MAILERLITE_API_KEY` / `MAILERLITE_CLIMB_GROUP_ID` are unset — **setting those env vars
+> turns it on for every buyer.** That contradicts "no newsletter auto-subscribe" above.
+> Decide consent (and add an opt-in) BEFORE setting those keys.
 
 ---
 
 ## Rules for every email here
 
-- **Templated & versioned.** Each email has a named template; content changes bump the version.
-- **Single sender.** One from-address (Resend or Postmark — vendor TBD, see `DECISIONS.md`).
+- **Templated & versioned.** Each email has a named template id carrying its version
+  (e.g. `application-received.v2`); material copy changes bump the version. The id is
+  logged on every send and attached as a Resend tag.
+- **Single sender.** One from-address (`EMAIL_FROM_ADDRESS`), vendor Resend.
 - **No tangled automation.** No drip sequences, no marketing lists, no "while we're at it" sends.
-- **Tested.** The onboarding emails (#1, #2) are one of the two flows that get automated
-  tests — they cannot silently break (Guardrail #6).
+- **Never throws.** A send failure is logged and returned, never raised — see `send.ts`.
 
 ---
 

@@ -36,10 +36,9 @@ export default async function ApplyPage() {
       </h1>
       <p className="mt-3 text-neutral-600">
         This is the vetted, credentialed home for dance professionals. Tell us who you are in your
-        own words — a real person reads every application. When you&apos;re accepted, your{" "}
-        <span className="font-medium">$30 is credited in full toward your membership</span>; if
-        you&apos;re not accepted, it&apos;s <span className="font-medium">refunded</span>. It&apos;s a
-        commitment, not a charge to work.
+        own words — a real person reads every application.{" "}
+        <span className="font-medium">Applying is free, and founding members get their first year
+        of membership free too.</span>
       </p>
 
       <ApplyForm
