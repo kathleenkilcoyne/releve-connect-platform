@@ -213,25 +213,47 @@ export default function Home() {
             happens. Here&apos;s how you use it:
           </p>
 
+          {/* ⚠️ HONESTY RULE — read before editing these.
+              A "Coming" chip goes on anything not working TODAY. Relevé's whole
+              pitch is trust, and a choreographer who signs up expecting
+              watermarking, self-serve licensing, or a sub-finder that isn't
+              there has been broken a promise on day one. Remove a chip only when
+              that thing genuinely works end-to-end for a real member.
+
+              Current state, verified against the code (2026-07-20):
+                · licensing  — the self-serve lane is NOT built, and there is NO
+                               watermarking / DRM / signed-URL protection anywhere
+                               (the $499 Senior Spotlight has page-level ACCESS
+                               gating only, which protects the page, not the file)
+                · roster     — built and real
+                · swing      — HALF: a teacher can opt in on their profile, but no
+                               studio can find or book them yet
+                · flex       — not built */}
           <ul className="mt-10 space-y-6">
-            <FeatureItem title="License your choreography.">
-              Your work is yours — you own it, you set your price, Relevé licenses and protects
-              it, and you earn every time it&apos;s used. We take a marketplace fee only when it
-              sells — never a cut of your teaching or your labor.
+            <FeatureItem title="License your choreography." status="coming">
+              Your work is yours — you own it, you set your price, and you earn every time
+              it&apos;s licensed. We take a marketplace fee only when it sells — never a cut of
+              your teaching or your labor. Watermarking and secure distribution come with it.
             </FeatureItem>
             <FeatureItem title="Find the work — or find the talent.">
               Teachers and dancers discover real teaching opportunities. Studio owners find
               vetted teachers and choreographers, ready to hire.
             </FeatureItem>
-            <FeatureItem title="The Swing — never scramble for a sub again.">
+            <FeatureItem title="The Swing — never scramble for a sub again." status="coming">
               Our staffing feature for last-minute call-outs: studios find a qualified sub fast;
               teachers set their own availability (or opt out) and earn on their own terms — a
               flat <span className="font-semibold text-[var(--rc-gold)]">$50/hour</span>.
             </FeatureItem>
-            <FeatureItem title="The Flex Series — test before you commit.">
+            <FeatureItem title="The Flex Series — test before you commit." status="coming">
               Studios pilot new programs in their real schedule, for a flexible 4, 6, or 8 weeks.
             </FeatureItem>
           </ul>
+
+          <p className="mt-8 text-center text-[0.85rem] text-[var(--rc-muted)]">
+            Marked <span className="italic">Coming</span>{" "}
+            means we&apos;re building it — we&apos;ll tell you the moment it&apos;s ready, and we
+            won&apos;t promise it before then.
+          </p>
 
           <p className="mt-10 text-center text-[1.1rem] italic text-[var(--rc-gold)]">
             This isn&apos;t a directory you sit in. It&apos;s a marketplace you work in.
@@ -304,10 +326,33 @@ export default function Home() {
   );
 }
 
-function FeatureItem({ title, children }: { title: string; children: React.ReactNode }) {
+function FeatureItem({
+  title,
+  children,
+  status,
+}: {
+  title: string;
+  children: React.ReactNode;
+  /** "coming" = not working today. See the honesty rule above the list. */
+  status?: "coming";
+}) {
+  const coming = status === "coming";
   return (
-    <li className="border-l-2 border-[var(--rc-gold)] pl-5">
-      <p className="text-[1.05rem] font-semibold text-[var(--rc-ink)]">{title}</p>
+    <li
+      className={`border-l-2 pl-5 ${
+        coming ? "border-[color:rgba(182,145,47,0.4)]" : "border-[var(--rc-gold)]"
+      }`}
+    >
+      <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[1.05rem] font-semibold text-[var(--rc-ink)]">
+        {title}
+        {coming && (
+          // Stated in words, never colour alone — a reader who can't distinguish
+          // the dimmer gold rule still learns this isn't live yet.
+          <span className="rounded-full border border-[color:rgba(182,145,47,0.5)] px-2.5 py-0.5 text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--rc-gold)]">
+            Coming
+          </span>
+        )}
+      </p>
       <p className="mt-1.5 text-[1rem] leading-relaxed text-[var(--rc-ink-soft)]">{children}</p>
     </li>
   );
