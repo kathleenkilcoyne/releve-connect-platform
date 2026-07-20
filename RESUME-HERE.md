@@ -1,5 +1,26 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ "THIS WEEK" — PERSONAL EVENTS: "one calendar, every role" is now literally true (2026-07-20)
+>
+> **The professional week now merges TWO sources.** The studio's schedule (what she's booked to teach) and her own entries (what she takes, auditions for, owes). Verified in-browser: Monday shows Company Class 10:00 AM (personal) above Ballet III 4:30 PM (studio) — interleaved by real instant, not grouped by source.
+>
+> **`personal_events`** (migration `20260720140000`, applied + registered): `taking · rehearsing · auditioning · coaching · performance · personal · deadline · availability`. Owner-scoped to a `talent_profile`, carries its own `timezone` per row (a member on tour isn't in one zone).
+> - **RLS is owner-only for ALL commands — deliberately narrower than anything else in the schedule layer.** No studio, teacher, or guardian read path. A personal calendar can expose an audition she hasn't told her studio about. **Verified:** another signed-in member reads **0 rows** AND their write is **rejected by RLS** ("new row violates row-level security policy"), with 0 injected rows left behind.
+> - **Not in this table:** teaching/taking a studio class (that's `class_sessions` — one source of truth), and the standing Swing toggle/radius (that's the existing `swing_availability` profile setting). A dated availability *window* IS here; the card reads "within 25 miles" from the profile setting, so the radius is never duplicated.
+> - A `deadline` renders with **no end time** — it's a moment, not a span.
+>
+> **Tests: 93 passing** (10 new in `adapters.test.ts` covering viewer-relative category, intrinsic-kind precedence, and the two-source merge order).
+>
+> **⚠️ SQL gotcha, cost me a wrong-hour bug:** `AT TIME ZONE` binds tighter than `+`, so `date + time at time zone 'America/New_York'` builds a `timetz` and silently stores 10:00 as 06:00. **Wrap the whole sum in parentheses.** Caught only because the seeded times were read back and checked — noted in the seed file.
+>
+> ### 💰 PAY — the rule, ratified by Kathleen 2026-07-20 (NOT yet built)
+> - **The Swing → $50/hr, always.** A platform constant set by Relevé. Same for every teacher, every Swing engagement.
+> - **Everything else → the teacher sets their own rate.**
+>
+> Implication for the build: rate needs a **provenance** (`platform_set` vs `teacher_set`), not just an amount, and the Swing rate must be **non-editable at the data layer**, not merely in the UI. Do **not** hardcode `$50` in components — put it in `app_config` beside `adult_transition_age` so it changes without a deploy. Recommended home: a **`teaching_engagements`** table (teacher × class × term, carrying rate + payment status) rather than a column on the class — pay is a relationship that changes per term, not a property of a class. *(Kathleen's message ended mid-sentence at "D" — confirm nothing was cut off before building this.)*
+>
+> **▶️ NEXT:** build the pay layer per the rule above. Remaining smaller gaps: attachments have no column; `talent_profiles` has only `primary_role` (no multi-role list), so the header reads "Kathleen — Teacher" not "Dancer · Teacher"; `subbing` has no source yet (it arrives with Swing engagements).
+
 > ## ✅ "THIS WEEK" — SEAMS WIRED TO LIVE DATA (2026-07-20)
 >
 > **The calendar now reads real rows.** `/this-week` resolves the viewer from the authenticated session and serves their actual week through RLS. Verified in-browser signed in as `kathleen@releveconnect.com`. Branch: `feature/this-week-calendar-pass-one`.

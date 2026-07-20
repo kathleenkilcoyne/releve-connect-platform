@@ -10,7 +10,11 @@
 // looks at it and "taking" when Ava does — same row, same session, different
 // card. `categoryFor()` is where that decision lives.
 
-import type { CommunicationRow, SessionWithClass } from "./queries";
+import type {
+  CommunicationRow,
+  PersonalEventRow,
+  SessionWithClass,
+} from "./queries";
 import type {
   CalendarEvent,
   Communication,
@@ -115,6 +119,78 @@ export function toCalendarEvents(
     items.map((i) => toCalendarEvent(i, relation, timeZone)),
     items,
   );
+}
+
+/* ───────────────────────────  Personal events  ───────────────────────────── */
+
+/**
+ * A self-entered entry → a card.
+ *
+ * Two things differ from a class session:
+ *   · the row carries its OWN timezone (a member on tour is not in one zone),
+ *     so times render in the event's zone, not the viewer's default;
+ *   · category is stored, not derived — nobody else's relationship to a private
+ *     entry exists, so there is nothing to derive it from.
+ */
+export function toPersonalCalendarEvent(
+  row: PersonalEventRow,
+  swingRadiusMiles: number | null,
+): CalendarEvent {
+  const tz = row.timezone || "America/New_York";
+  const startsAt = new Date(row.starts_at);
+  const endsAt = row.ends_at ? new Date(row.ends_at) : null;
+
+  const detail = [...(row.detail ?? [])];
+  if (row.location) detail.unshift(row.location);
+
+  // An availability window is only meaningful with its reach attached — the
+  // radius lives on the profile (swing_availability), not on the window.
+  if (row.category === "availability" && swingRadiusMiles != null) {
+    detail.push(`within ${swingRadiusMiles} miles`);
+  }
+  if (row.note) detail.push(row.note);
+
+  return {
+    id: row.event_id,
+    day: weekdayKeyOf(tz, startsAt),
+    category: row.category,
+    title: row.title,
+    time: {
+      start: formatTime(tz, startsAt),
+      // A deadline is a moment; a window is a span. Only spans show an end.
+      ...(endsAt && row.category !== "deadline"
+        ? { end: formatTime(tz, endsAt) }
+        : {}),
+    },
+    detail,
+  };
+}
+
+/**
+ * Merge studio sessions and personal entries into ONE week, ordered by real
+ * start time — the "one calendar, every role" promise. Sorting on the underlying
+ * instants (not the formatted strings) is what keeps a 9:00 AM entry above a
+ * 10:00 AM one regardless of which source it came from.
+ */
+export function mergeWeek(
+  sessions: SessionWithClass[],
+  relation: ViewerRelation,
+  timeZone: string,
+  personal: PersonalEventRow[],
+  swingRadiusMiles: number | null,
+): CalendarEvent[] {
+  const withInstants: { event: CalendarEvent; at: number }[] = [
+    ...sessions.map((s) => ({
+      event: toCalendarEvent(s, relation, timeZone),
+      at: new Date(s.session.starts_at).getTime(),
+    })),
+    ...personal.map((p) => ({
+      event: toPersonalCalendarEvent(p, swingRadiusMiles),
+      at: new Date(p.starts_at).getTime(),
+    })),
+  ];
+
+  return withInstants.sort((a, b) => a.at - b.at).map((x) => x.event);
 }
 
 /* ────────────────────────────  Communications  ───────────────────────────── */

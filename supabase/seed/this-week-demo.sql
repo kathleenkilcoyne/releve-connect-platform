@@ -183,12 +183,60 @@ values
    now() - interval '4 hours')
 on conflict (communication_id) do nothing;
 
+-- ── 6. The professional's OWN entries (personal_events) ─────────────────────
+-- The other half of "one calendar, every role": what Kathleen takes, auditions
+-- for, and owes — none of which belongs to any studio. Private to her by RLS.
+--
+-- ⚠️ Note the PARENTHESES around (date + time) before AT TIME ZONE. That
+-- operator binds tighter than +, so writing `date + time at time zone …` builds
+-- a timetz and silently stores the wrong hour. Wrap the whole sum.
+
+insert into public.personal_events
+  (event_id, profile_id, category, title, starts_at, ends_at, timezone, location, detail, note)
+values
+  -- Mon 10:00 — a class she TAKES. Sorts above her 4:30 teaching slot, proving
+  -- the two sources merge by real instant rather than by source.
+  ('99999999-9999-4999-8999-999999999901','2ec75e64-4980-4d9a-8df9-abfee39b550d','taking',
+   'Company Class',
+   ((date_trunc('week', current_date)::date + 0) + time '10:00') at time zone 'America/New_York',
+   ((date_trunc('week', current_date)::date + 0) + time '11:30') at time zone 'America/New_York',
+   'America/New_York','Steps on Broadway, NYC', '{"travel 55 min from home"}', null),
+
+  -- Tue 1:00 PM
+  ('99999999-9999-4999-8999-999999999904','2ec75e64-4980-4d9a-8df9-abfee39b550d','auditioning',
+   'Audition — Regional Tour',
+   ((date_trunc('week', current_date)::date + 1) + time '13:00') at time zone 'America/New_York',
+   ((date_trunc('week', current_date)::date + 1) + time '15:00') at time zone 'America/New_York',
+   'America/New_York','Pearl Studios, NYC', '{"bring heels"}', null),
+
+  -- Thu 4–9 PM — a dated availability WINDOW. "within 25 miles" is NOT stored
+  -- here; it is read from swing_availability below.
+  ('99999999-9999-4999-8999-999999999902','2ec75e64-4980-4d9a-8df9-abfee39b550d','availability',
+   'Available for The Swing',
+   ((date_trunc('week', current_date)::date + 3) + time '16:00') at time zone 'America/New_York',
+   ((date_trunc('week', current_date)::date + 3) + time '21:00') at time zone 'America/New_York',
+   'America/New_York', null, '{}', null),
+
+  -- Fri 11:59 PM — a DEADLINE: no ends_at, and the card shows no end time.
+  ('99999999-9999-4999-8999-999999999903','2ec75e64-4980-4d9a-8df9-abfee39b550d','deadline',
+   'Deadline — Marymount prescreen',
+   ((date_trunc('week', current_date)::date + 4) + time '23:59') at time zone 'America/New_York',
+   null,'America/New_York', null, '{"submission due"}', null)
+on conflict (event_id) do nothing;
+
+-- The standing Swing profile setting that supplies the window's radius.
+insert into public.swing_availability (profile_id, is_available, home_location, travel_radius_miles)
+values ('2ec75e64-4980-4d9a-8df9-abfee39b550d', true, 'Ridgewood, NJ', 25)
+on conflict (profile_id) do update
+  set is_available = true, travel_radius_miles = 25;
+
 commit;
 
 -- ============================================================================
 -- TEARDOWN — removes the entire fixture. Cascades handle the children
 -- (students, guardianships, classes, sessions, enrollments, communications).
 --
+--   delete from public.personal_events   where event_id::text like '99999999-9999-4999-8999-9999999999%';
 --   delete from public.affiliations      where employer_id = '22222222-2222-4222-8222-222222222222';
 --   delete from public.family_accounts   where family_id   = '33333333-3333-4333-8333-333333333333';
 --   delete from public.employer_profiles where employer_id = '22222222-2222-4222-8222-222222222222';

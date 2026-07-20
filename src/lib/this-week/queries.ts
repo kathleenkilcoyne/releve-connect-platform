@@ -308,6 +308,81 @@ export async function fetchStudentWeek(
   return joinSessions(sessions, classes);
 }
 
+/* ─────────────────────────────  Personal events  ─────────────────────────── */
+
+/** A self-entered calendar entry (see the personal_events migration). */
+export interface PersonalEventRow {
+  event_id: string;
+  category:
+    | "taking"
+    | "rehearsing"
+    | "auditioning"
+    | "coaching"
+    | "performance"
+    | "personal"
+    | "deadline"
+    | "availability";
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  timezone: string;
+  location: string | null;
+  detail: string[] | null;
+  note: string | null;
+}
+
+/**
+ * The member's own entries for the week.
+ *
+ * Owner-only by RLS — there is no studio, teacher or guardian read path to this
+ * table, so this returns rows only for the caller's own profile.
+ */
+export async function fetchPersonalEvents(
+  supabase: Client,
+  profileId: string,
+  week: ResolvedWeek,
+): Promise<PersonalEventRow[]> {
+  const { data, error } = await supabase
+    .from("personal_events")
+    .select(
+      "event_id, category, title, starts_at, ends_at, timezone, location, detail, note",
+    )
+    .eq("profile_id", profileId)
+    .gte("starts_at", week.startsAt.toISOString())
+    .lt("starts_at", week.endsAtExclusive.toISOString())
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    console.error("[this-week] personal events read failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as PersonalEventRow[];
+}
+
+/**
+ * The standing Swing settings for a profile — the travel radius that a dated
+ * 'availability' window is annotated with ("within 25 miles").
+ *
+ * Kept separate from the event on purpose: the radius is a PROFILE setting the
+ * member manages once, not something re-entered per window.
+ */
+export async function fetchSwingRadius(
+  supabase: Client,
+  profileId: string,
+): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("swing_availability")
+    .select("travel_radius_miles")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[this-week] swing availability read failed:", error.message);
+    return null;
+  }
+  return (data?.travel_radius_miles as number | null) ?? null;
+}
+
 /* ────────────────────────────  Communications  ───────────────────────────── */
 
 /** The studio <-> family thread for a student, newest first. */

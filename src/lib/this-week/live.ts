@@ -13,13 +13,16 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { toCalendarEvents, toCommunications } from "./adapters";
+import { mergeWeek, toCalendarEvents, toCommunications } from "./adapters";
 import {
   fetchCommunicationRows,
   fetchFamilySubscription,
   fetchGuardedStudents,
+  fetchPersonalEvents,
   fetchStudentWeek,
+  fetchSwingRadius,
   fetchTeachingWeek,
+  type PersonalEventRow,
   type SessionWithClass,
 } from "./queries";
 import type {
@@ -110,17 +113,32 @@ export async function buildLiveWeek(
     console.error("[this-week] talent profile read failed:", profileError.message);
   }
 
-  const [teaching, guarded] = await Promise.all([
-    profileRow
-      ? fetchTeachingWeek(supabase, admin, profileRow.profile_id as string, week)
+  const profileId = profileRow?.profile_id as string | undefined;
+
+  // The professional week has TWO sources — the studio's schedule (what they are
+  // booked to teach) and their own entries (what they take, audition for, owe).
+  // "One calendar, every role" is the merge of the two.
+  const [teaching, personal, swingRadius, guarded] = await Promise.all([
+    profileId
+      ? fetchTeachingWeek(supabase, admin, profileId, week)
       : Promise.resolve<SessionWithClass[]>([]),
+    profileId
+      ? fetchPersonalEvents(supabase, profileId, week)
+      : Promise.resolve<PersonalEventRow[]>([]),
+    profileId ? fetchSwingRadius(supabase, profileId) : Promise.resolve(null),
     fetchGuardedStudents(supabase),
   ]);
 
   /* ── The professional week ───────────────────────────────────────────── */
   let professional: WeekBundle | null = null;
   if (profileRow) {
-    const events = toCalendarEvents(teaching, "teacher", DEFAULT_TIMEZONE);
+    const events = mergeWeek(
+      teaching,
+      "teacher",
+      DEFAULT_TIMEZONE,
+      personal,
+      swingRadius,
+    );
     professional = {
       viewer: {
         kind: "professional",
