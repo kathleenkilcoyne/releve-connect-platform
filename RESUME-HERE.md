@@ -1,5 +1,41 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ "THIS WEEK" — SEAMS WIRED TO LIVE DATA (2026-07-20)
+>
+> **The calendar now reads real rows.** `/this-week` resolves the viewer from the authenticated session and serves their actual week through RLS. Verified in-browser signed in as `kathleen@releveconnect.com`. Branch: `feature/this-week-calendar-pass-one`.
+>
+> **What one login proves.** Kathleen is a *teacher* at Bergen Ballet and *Ava's guardian*, and the two halves of her page are served by two DIFFERENT RLS policies:
+> - **Professional view** → `teaches_class` → Ballet III + Winter Showcase. **Not Jazz II** — she doesn't teach it.
+> - **Child's week** → `guardian_calendar_for_class` → all three of Ava's classes, *including* Jazz II.
+> - Same Ballet III row renders **TEACHING** in one view and **TAKING** in the other. Teaching-vs-taking is **viewer-relative and derived, never stored** (`adapters.ts` → `categoryFor()`).
+> - **Negative test passed:** an unaffiliated signed-in user (`johndoe@gmail.com`) sees **0 rows** in students, class_sessions, studio_classes, enrollments, communications, family_accounts, guardianships — and Ava's DOB is unreachable.
+>
+> **New code** — `src/lib/this-week/`:
+> - `week.ts` — real Mon→Sun week framing, timezone-aware, **no date library** (built on `Intl`). Replaces the pinned fake Jan-12 week.
+> - `recurrence.ts` — RRULE expander. Supports `FREQ=WEEKLY · BYDAY · INTERVAL · COUNT · UNTIL` + one-offs. **Refuses loudly** (`UnsupportedRecurrenceError`) on anything else rather than rendering a plausible-but-wrong calendar.
+> - `queries.ts` — Supabase reads. **All reads go through the CALLER's client**, so RLS decides visibility; the admin client appears once, only to *write* materialised sessions.
+> - `adapters.ts` — rows → the display shapes the UI already used.
+> - `live.ts` — builds the payload; `data.ts` is now explicitly the **sample week** (demo mode).
+> - `recurrence.test.ts` — **22 tests**, incl. both DST transition weeks, year boundaries, and viewer-timezone bucketing. Full suite: **83 passing**.
+>
+> **Sessions are materialised, not computed.** First time a week is opened, the rule writes `class_sessions` rows (idempotent via `ON CONFLICT`) — so a studio can later move or cancel ONE occurrence without fighting the rule that made it. Verified: paging to next week materialised Ballet III + Jazz II and correctly did **not** carry the one-off showcase forward; repeated loads produced **no duplicates**.
+>
+> **Demo mode kept (your call).** Signed out, or signed in with an empty calendar → the pass-one sample week, labelled **"Sample week — not a real schedule."** So the feature stays showable to a studio without pretending the data is theirs.
+>
+> **3 migrations applied live + registered:**
+> - `20260720120000` — `studio_classes.series_start/series_end` (anchors INTERVAL/COUNT; the date of a one-off) + `unique (class_id, starts_at)` on `class_sessions` (makes materialisation idempotent).
+> - `studio_classes.kind` enum (`class|rehearsal|performance`) — the *intrinsic* nature only.
+> - `20260720130000` — **`employer_profiles` affiliated-read policy.** Found a real gap: the table had an owner-only select policy, so a teacher couldn't read the name of the studio they teach at, and a parent couldn't read their child's studio. Calendar said "Your studio". Fixed with a `SECURITY DEFINER` helper (`is_affiliated_with_studio`) — an inline check would have recursed, since `is_studio_admin`→`owns_employer` reads that same table. **Read only; owner-only write policies untouched.**
+>
+> **⚠️ FIXTURE DATA IS IN THE LIVE DB** — `supabase/seed/this-week-demo.sql` (Bergen Ballet). Not in `migrations/`, so it never runs on deploy. Teardown block is at the bottom of that file. Fixed ids: studio owner `1111…`, employer `2222…`, family `3333…`, Ava `4444…`, classes `5555…/6666…/7777…`, comms `8888…0801-0804`. The studio owner is a `public.users` row with **no auth user** — deliberate, so Kathleen is only a *teacher* there and the class-scoped policy is what actually gets exercised.
+>
+> **▶️ NEXT — the two gaps that block the full professional week:**
+> 1. **Pay has no home.** `$65/hr · paid` badges have no source column — `studio_classes`/`class_sessions` carry no rate or payment status. Deliberately rendered as *absent* rather than faked. Needs a decision: a column on the class, or a `teaching_engagements` table (teacher×class×term with rate + status)? The latter is more honest — pay is a relationship, not a property of a class.
+> 2. **No home for non-class events.** Company Class (taking), The Swing availability, deadlines, auditions — the mockup's professional week — have no table. Needs a `personal_events` table (owner-scoped RLS) before "one calendar, every role" is literally true.
+> 3. Smaller: `talent_profiles` has only `primary_role` (no multi-role list), so the header reads "Kathleen — Teacher" not "Dancer · Teacher". Attachments also have no column yet.
+>
+> **Gotcha found the hard way:** `buildLiveWeek` originally selected a `roles` column that doesn't exist; the error was swallowed by destructuring only `data`, which looked *exactly* like "this member has no profile" and silently hid the whole professional view. Errors are logged now — worth copying that habit into other seams.
+
 > ## ✅ "THIS WEEK" CALENDAR — PASS ONE + PASS TWO SCHEMA DONE (2026-07-17)
 >
 > **What shipped this session:** the **"This Week"** calendar — the daily-use feature that is (1) the *passport* bringing minors + families onto the platform, (2) the studio↔family *coordination* tool, and (3) the family-subscription *revenue* on-ramp. Built in two passes, both on branch **`feature/this-week-calendar-pass-one`** (pushed to `origin`; **PR is open**; **NOT yet merged to `main`**). Commits: **`68dcb2a`** (Pass One UI) + **`3206e23`** (Pass Two migration).

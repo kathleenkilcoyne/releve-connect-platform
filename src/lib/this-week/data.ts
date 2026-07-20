@@ -1,12 +1,22 @@
-// "This Week" — mock data + the three data/access SEAMS.
+// "This Week" — THE SAMPLE WEEK (demo mode).
 //
 //   getThisWeek(viewer)      → the week bundle for a viewer
 //   getCommunications(viewer)→ the studio<->family comms for a viewer
 //   hasFamilyAccess(account) → the single entitlement/access check
 //
-// Pass one: these return hardcoded values. Pass two: same signatures, Supabase
-// queries behind them, and the UI does not change. That is the whole point of
-// keeping every screen behind these functions.
+// ⚠️ This file is no longer the live data path. Pass two wired the seams to
+// Supabase in `live.ts` + `queries.ts`, and `/this-week` uses those for any
+// signed-in member with a calendar.
+//
+// What remains here is the SAMPLE WEEK: what a signed-out visitor (or a member
+// whose calendar is still empty) sees, always labelled "Sample week" in the UI.
+// It is genuinely useful — it keeps the feature demonstrable to a studio without
+// requiring an account — but nothing here is anyone's real schedule, and no live
+// code path reads it.
+//
+// Keep it in sync with the real shapes: it doubles as the worked example of what
+// a fully-populated week looks like, including the fields (attachments, pay)
+// that do not have database columns yet.
 
 import type {
   Communication,

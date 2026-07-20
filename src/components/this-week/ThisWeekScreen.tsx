@@ -1,14 +1,22 @@
 "use client";
 
-// The client root for "This Week". Owns the small amount of interactive state
-// (which viewer, which category filter, which week offset) and composes the
-// presentational pieces. Everything it renders comes through the data seams, so
-// pass two swaps `getThisWeek`'s body and this screen is unchanged.
+// The client root for "This Week".
+//
+// Pass one fetched its own (mock) data here. It no longer fetches: the server
+// component resolves the viewer and reads the real week, and this screen renders
+// what it is handed. That was the whole point of routing everything through the
+// seams — the components below are untouched.
+//
+// It still owns the genuinely interactive bits: which view is showing and which
+// category filter is active. Week navigation moved to the URL, because changing
+// weeks is now a real query the server has to run.
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { AVA_VIEWER, KATHLEEN, getThisWeek } from "@/lib/this-week/data";
-import type { ProfessionalViewer } from "@/lib/this-week/types";
+import type { LiveWeekPayload } from "@/lib/this-week/live";
+import type { ProfessionalViewer, WeekBundle } from "@/lib/this-week/types";
 import { ChildWeek } from "./ChildWeek";
 import { DashboardRollup } from "./DashboardRollup";
 import { FilterBar, type FilterValue } from "./FilterBar";
@@ -16,35 +24,53 @@ import { ViewSwitch, type ViewKey } from "./ViewSwitch";
 import { WeekNav } from "./WeekNav";
 import { WeekView } from "./WeekView";
 
-export function ThisWeekScreen() {
-  const [view, setView] = useState<ViewKey>("professional");
+export function ThisWeekScreen({
+  mode,
+  weekOffset,
+  payload,
+}: {
+  mode: "live" | "demo";
+  weekOffset: number;
+  payload?: LiveWeekPayload;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // In demo mode the sample bundles come from the mock seams, exactly as in
+  // pass one. In live mode they arrive as props.
+  const demoPro = useMemo(() => getThisWeek(KATHLEEN), []);
+  const demoStudent = useMemo(() => getThisWeek(AVA_VIEWER), []);
+
+  const proBundle: WeekBundle | null =
+    mode === "live" ? (payload?.professional ?? null) : demoPro;
+
+  const liveStudent = payload?.students[0] ?? null;
+  const studentBundle: WeekBundle | null =
+    mode === "live" ? (liveStudent?.bundle ?? null) : demoStudent;
+
+  // Open on whichever view the member actually has. A guardian with no talent
+  // profile should land on their child's week, not an empty professional one.
+  const [view, setView] = useState<ViewKey>(
+    proBundle ? "professional" : "student",
+  );
   const [filter, setFilter] = useState<FilterValue>("all");
-  const [offset, setOffset] = useState(0); // 0 = the seeded current week
 
-  // The professional bundle (always fetched so the header stays stable).
-  const proBundle = useMemo(() => getThisWeek(KATHLEEN), []);
-  const studentBundle = useMemo(() => getThisWeek(AVA_VIEWER), []);
+  const goToWeek = (next: number) => {
+    router.push(next === 0 ? pathname : `${pathname}?week=${next}`);
+  };
 
-  const pro = proBundle.viewer as ProfessionalViewer;
+  const pro = proBundle?.viewer as ProfessionalViewer | undefined;
 
-  // Pass one seeds only the current week; other offsets are the empty state.
   const proEvents =
-    offset === 0
-      ? filter === "all"
-        ? proBundle.events
-        : proBundle.events.filter((e) => e.category === filter)
-      : [];
+    proBundle && filter !== "all"
+      ? proBundle.events.filter((e) => e.category === filter)
+      : (proBundle?.events ?? []);
 
-  const shiftedRangeLabel =
-    offset === 0
-      ? proBundle.week.label
-      : offset < 0
-        ? `${Math.abs(offset)} week${Math.abs(offset) > 1 ? "s" : ""} earlier`
-        : `${offset} week${offset > 1 ? "s" : ""} ahead`;
+  const showSwitch = Boolean(proBundle && studentBundle);
+  const activeView: ViewKey = view === "student" && !studentBundle ? "professional" : view;
 
   return (
     <main className="this-week-scope mx-auto min-h-screen w-full max-w-2xl flex-1 px-5 py-8 sm:px-6 sm:py-10">
-      {/* Wordmark + contextual pill (mockup chrome, in black/cream/gold). */}
       <div className="flex items-center justify-between">
         <span className="rc-serif text-sm font-semibold uppercase tracking-[0.2em] text-[var(--rc-ink)]">
           Relevé Connect
@@ -54,17 +80,35 @@ export function ThisWeekScreen() {
         </span>
       </div>
 
-      {/* Preview-only: whose week to show (see ViewSwitch note). */}
-      <div className="mt-6">
-        <ViewSwitch
-          value={view}
-          onChange={setView}
-          professionalLabel={`${pro.displayName} · ${pro.roles.join(" · ")}`}
-          studentLabel={`${studentBundle.viewer.kind === "student" ? studentBundle.viewer.student.displayName : "Student"} · Student`}
-        />
-      </div>
+      {/* Demo mode says so plainly. Showing sample data unlabelled next to a
+          real member's name would be the one genuinely misleading outcome. */}
+      {mode === "demo" && (
+        <p
+          role="status"
+          className="mt-4 rounded-lg border border-dashed border-[var(--rc-hairline)] bg-[var(--rc-ivory)] px-4 py-2.5 text-xs text-[var(--rc-muted)]"
+        >
+          <strong className="font-semibold text-[var(--rc-ink)]">Sample week.</strong>{" "}
+          This is example data showing how This Week works — not a real schedule.
+          Sign in and add classes to see your own.
+        </p>
+      )}
 
-      {view === "professional" ? (
+      {showSwitch && (
+        <div className="mt-6">
+          <ViewSwitch
+            value={activeView}
+            onChange={setView}
+            professionalLabel={`${pro?.displayName ?? "You"} · ${pro?.roles.join(" · ") ?? ""}`}
+            studentLabel={`${
+              studentBundle?.viewer.kind === "student"
+                ? studentBundle.viewer.student.displayName
+                : "Student"
+            } · Student`}
+          />
+        </div>
+      )}
+
+      {activeView === "professional" && proBundle && pro ? (
         <div className="mt-8 space-y-7">
           <header>
             <h1 className="rc-serif text-4xl font-semibold text-[var(--rc-ink)]">
@@ -76,12 +120,12 @@ export function ThisWeekScreen() {
           </header>
 
           <WeekNav
-            rangeLabel={shiftedRangeLabel}
+            rangeLabel={proBundle.week.label}
             timezone={proBundle.week.timezone}
-            offset={offset}
-            onPrev={() => setOffset((o) => o - 1)}
-            onNext={() => setOffset((o) => o + 1)}
-            onToday={() => setOffset(0)}
+            offset={weekOffset}
+            onPrev={() => goToWeek(weekOffset - 1)}
+            onNext={() => goToWeek(weekOffset + 1)}
+            onToday={() => goToWeek(0)}
           />
 
           <FilterBar value={filter} onChange={setFilter} />
@@ -90,14 +134,13 @@ export function ThisWeekScreen() {
             week={proBundle.week}
             events={proEvents}
             emptyHint={
-              offset === 0
-                ? "No cards match this filter — try All."
-                : "Nothing scheduled yet. Pass two loads real weeks here."
+              proBundle.events.length === 0
+                ? "Nothing scheduled this week."
+                : "No cards match this filter — try All."
             }
           />
 
-          {/* Role dashboards stack below the personal week. */}
-          {offset === 0 && filter === "all" && proBundle.rollups.length > 0 && (
+          {filter === "all" && proBundle.rollups.length > 0 && (
             <div className="space-y-4 pt-1">
               {proBundle.rollups.map((r) => (
                 <DashboardRollup key={r.id} rollup={r} />
@@ -105,15 +148,22 @@ export function ThisWeekScreen() {
             </div>
           )}
         </div>
-      ) : (
+      ) : studentBundle ? (
         <div className="mt-8">
-          <ChildWeek bundle={studentBundle} />
+          <ChildWeek
+            bundle={studentBundle}
+            communications={liveStudent?.communications}
+            access={liveStudent?.access}
+            weekOffset={weekOffset}
+            onWeekChange={goToWeek}
+          />
         </div>
-      )}
+      ) : null}
 
       <footer className="mt-12 border-t border-[var(--rc-hairline)] pt-4 text-xs text-[var(--rc-muted)]">
-        Pass-one static prototype · data flows through getThisWeek ·
-        getCommunications · hasFamilyAccess. No backend wired.
+        {mode === "live"
+          ? "Your week, read live from your studio's schedule."
+          : "Sample data · getThisWeek · getCommunications · hasFamilyAccess."}
       </footer>
     </main>
   );

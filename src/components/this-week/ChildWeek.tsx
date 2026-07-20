@@ -12,8 +12,10 @@
 
 import { getCommunications, hasFamilyAccess } from "@/lib/this-week/data";
 import type {
+  AccessResult,
   AnnouncementComm,
   ChangeAlertComm,
+  Communication,
   MessageComm,
   NoteComm,
   StudentViewer,
@@ -25,12 +27,29 @@ import {
   MessageBubble,
   NoteChip,
 } from "./comms";
+import { WeekNav } from "./WeekNav";
 import { WeekView } from "./WeekView";
 
-export function ChildWeek({ bundle }: { bundle: WeekBundle }) {
+export function ChildWeek({
+  bundle,
+  communications,
+  access: liveAccess,
+  weekOffset = 0,
+  onWeekChange,
+}: {
+  bundle: WeekBundle;
+  /** Live comms. Omitted in demo mode, where the mock seam supplies them. */
+  communications?: Communication[];
+  /** Live entitlement. Omitted in demo mode, where the mock seam decides. */
+  access?: AccessResult;
+  weekOffset?: number;
+  onWeekChange?: (next: number) => void;
+}) {
   const viewer = bundle.viewer as StudentViewer;
   const { student, guardian } = viewer;
-  const access = hasFamilyAccess(guardian);
+  // Live data wins when present; otherwise fall back to the pass-one seams so
+  // the sample week keeps working unchanged.
+  const access = liveAccess ?? hasFamilyAccess(guardian);
 
   // REVENUE ON-RAMP: the entire view is gated by the single access seam.
   if (!access.allowed) {
@@ -53,7 +72,7 @@ export function ChildWeek({ bundle }: { bundle: WeekBundle }) {
     );
   }
 
-  const comms = getCommunications(viewer);
+  const comms = communications ?? getCommunications(viewer);
   const alerts = comms.filter((c): c is ChangeAlertComm => c.kind === "alert");
   const announcements = comms.filter(
     (c): c is AnnouncementComm => c.kind === "announcement",
@@ -93,6 +112,19 @@ export function ChildWeek({ bundle }: { bundle: WeekBundle }) {
             <ChangeAlert key={c.id} comm={c} />
           ))}
         </div>
+      )}
+
+      {/* A parent needs to look ahead as much as a professional does. Only
+          rendered when the page can actually change weeks (live mode). */}
+      {onWeekChange && (
+        <WeekNav
+          rangeLabel={bundle.week.label}
+          timezone={bundle.week.timezone}
+          offset={weekOffset}
+          onPrev={() => onWeekChange(weekOffset - 1)}
+          onNext={() => onWeekChange(weekOffset + 1)}
+          onToday={() => onWeekChange(0)}
+        />
       )}
 
       {/* The child's week itself. */}
