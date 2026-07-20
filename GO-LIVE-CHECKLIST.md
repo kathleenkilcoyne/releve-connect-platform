@@ -200,14 +200,25 @@ hand. A deploy can ship code ahead of schema. Keep applying deliberately.
 
 ---
 
-## 9. 🔨 Queued builds (the beauty layer)
+## 9. Queued builds (the beauty layer)
 
-- **Homepage** — replace the grey placeholder with the real hero, mission,
-  courage line and ecosystem section. Source files on disk:
-  `~/Downloads/releve_homepage_mockup.html`, `~/Downloads/releve-ecosystem.png`.
-- **"This Week" additions** — the daily "You Matter Here" rotation (30 lines;
-  source appears to be `~/Downloads/releve_connect_you_matter_here.html`) plus
-  music-player wiring. Spec: `~/Downloads/Releve_ThisWeek_Calendar_Build_Spec_20260717_FINAL.md`.
+- ✅ **Homepage — DONE.** Real hero, courage line, promise section, and the gold
+  ecosystem artwork. Black · cream · gold only. Nav renders **only links that
+  exist**: The Roster, For Studios, Sign in, Apply.
+  - 🧍 **The mockup listed 4 more nav items with no pages yet** — *Teachers*,
+    *Choreographers*, *Dancers* (these could point at `/roster?role=…`, which
+    works but is membership-gated), and **The Beat · The Climb · The Green Room**
+    (no route at all). Say the word once those pages exist and each is a one-line
+    add.
+- 🔨 **"This Week" additions — BLOCKED on content, not code:**
+  - The daily **"You Matter Here"** rotation. The file on disk
+    (`~/Downloads/releve_connect_you_matter_here.html`) has **8 lines, not 30** —
+    Kathleen is sending the rest. ⚠️ That mockup is **plum/aubergine**; it must be
+    rebuilt in black · cream · gold.
+  - **Music player** — not specified anywhere. The July-17 calendar spec has no
+    player; its only "music" references are attachment chips (♪ class music),
+    which are links to a resource, not playback. Needs a sentence on what it
+    should actually do before it can be built.
 
 ---
 

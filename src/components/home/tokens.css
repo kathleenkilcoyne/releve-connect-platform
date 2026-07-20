@@ -1,0 +1,44 @@
+/* Homepage design tokens — BLACK · CREAM · GOLD.
+ *
+ * Relevé's palette is always these three (founder, 2026-07-20). Several source
+ * mockups float around in plum/berry; those are translated into this palette,
+ * never reproduced. Colour appears nowhere else on this page.
+ *
+ * Scoped to `.home-scope` on purpose — exactly like the This Week feature's
+ * tokens — so the homepage can carry the full brand treatment (cream ground,
+ * serif headings) without touching any other page's styling.
+ */
+
+.home-scope {
+  --rc-cream: #f5eee1; /* page ground */
+  --rc-cream-2: #efe6d5; /* banded section, one step down */
+  --rc-ink: #1e1a17; /* body text on cream */
+  --rc-ink-soft: #3c3630;
+  --rc-muted: #6d6459;
+  --rc-gold: #b6912f; /* the working gold: buttons, rules, accents */
+  --rc-gold-bright: #d9b85f; /* on black only — b6912f is too dim there */
+  --rc-black: #0e0b0a; /* the ecosystem band + footer */
+
+  /* Serif is the brand voice. Georgia leads because it ships everywhere and
+   * renders consistently; the Palatino family is the preferred look where
+   * available. Matches --font-rc-serif in the This Week tokens. */
+  --font-rc-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+
+  background: var(--rc-cream);
+  color: var(--rc-ink);
+  font-family: var(--font-rc-serif);
+}
+
+/* The wordmark's É carries the gold — the one place the brand mark is coloured. */
+.home-scope .rc-gold {
+  color: var(--rc-gold);
+}
+
+/* Respect a reader who has asked for less motion: the hero fade is decorative. */
+@media (prefers-reduced-motion: reduce) {
+  .home-scope * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
