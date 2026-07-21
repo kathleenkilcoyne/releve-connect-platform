@@ -35,7 +35,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 3 | Save-and-resume link | **Once**, and only when the applicant LEAVES (tab hidden/closed — the form flags that save). Never on a routine autosave, and never twice (guarded by `resume_email_sent_at`). | Applicant | `application-resume-link.v1` | ✅ implemented |
 | 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v3` | ✅ implemented |
 | 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v1` | ✅ implemented |
-| 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v1` | ✅ implemented |
+| 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v2` | ✅ implemented |
 | 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | `membership-active.v1` | ✅ implemented (dormant while free) |
 | 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | `intro-request.v1` | ✅ implemented |
 | 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase | Buyer | `buyer-experience-confirmation.v1` | ✅ implemented |

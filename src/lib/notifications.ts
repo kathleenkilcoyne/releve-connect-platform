@@ -302,18 +302,25 @@ export async function sendApplicationDeclined(input: {
   firstName: string | null;
   refunded: boolean;
 }): Promise<void> {
-  const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
-
   await sendEmail({
     to: input.to,
-    template: "application-declined.v1",
-    subject: "An update on your Relevé application",
+    // v2 — Kathleen's "not yet" letter, verbatim. This is the email most worth
+    // getting right: it is the last thing a rejected applicant reads, and it
+    // decides whether they ever come back.
+    template: "application-declined.v2",
+    subject: "Your Relevé Connect application",
     text: body(
-      hello,
-      "Thank you for applying to Relevé Connect. We're not able to move forward " +
-        "with your application at this time.",
-      "This is a not-right-now, not a judgment of your work. The industry changes, " +
-        "and so do careers — you're welcome to apply again.",
+      input.firstName ? `Dear ${input.firstName},` : "Dear applicant,",
+      "Thank you for submitting your application to join Relevé Connect — and for the passion and " +
+        "the work you shared with us.",
+      "After careful review, we aren't able to move your application forward at this time. Please " +
+        "know this reflects only where things stand in this moment — not your worth, and not your " +
+        "potential.",
+      'A "not yet" is never a "no." It\'s never about falling — we all do — it\'s about how we rise ' +
+        "after the fall. We truly hope you'll build, grow, and reapply when the time feels right. " +
+        "We would love to see you come through our doors again.",
+      "Until then, stay steadfast — and keep dancing.",
+      "Warmly,\nThe Relevé Connect Team",
       ...(input.refunded
         ? ["Your $30 application fee has been refunded in full — allow a few days for it to appear."]
         : []),
