@@ -1,7 +1,7 @@
 "use client";
 
-// The role-branched intake (CLAUDE.md §3A). Full form + consents + a minimum
-// word count on the Story.
+// The role-branched intake (CLAUDE.md §3A). Full form + consents. No word counts:
+// nobody is told how many words their own story is short by.
 //
 // AUTO-SAVE (the fast-follow DECISIONS.md called a launch blocker) is now here:
 // the form saves a flat snapshot of itself a couple of seconds after you stop
@@ -15,7 +15,7 @@
 // primary role, story word count) are seeded from the draft up front so the
 // role-branched sections exist before the rest is restored into them.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { submitApplication } from "./actions";
 import { saveApplicationDraft } from "./draft";
 
@@ -59,7 +59,6 @@ function hydrateForm(form: HTMLFormElement, draft: DraftFields) {
   }
 }
 
-const STORY_MIN_WORDS = 50;
 /** The employer role slug — the one path that is NOT an artist. */
 const STUDIO_ROLE = "studio_owner";
 type ApplicantPath = "artist" | "studio" | null;
@@ -72,10 +71,6 @@ const AUDITION_FOR = [
   "Cruise/Theme Park", "Industrial", "Film/TV", "Other",
 ];
 
-function wc(s: string): number {
-  const t = s.trim();
-  return t ? t.split(/\s+/).length : 0;
-}
 
 // Small building blocks that match the app's neutral styling.
 // Deliberately unnumbered. Numbered steps advertised a length ("6 of 13") and,
@@ -204,7 +199,6 @@ export default function ApplyForm({
   /** Set once the form is submitted, so a queued autosave can't fire afterwards. */
   const submitted = useRef(false);
 
-  const storyWords = useMemo(() => wc(story), [story]);
   const has = (slug: string) => roles.has(slug);
 
   // ---- Restore a saved draft, once ----------------------------------------
@@ -215,11 +209,17 @@ export default function ApplyForm({
   }, []);
 
   // ---- Auto-save -----------------------------------------------------------
-  const persist = useCallback(async () => {
+  /**
+   * @param leaving true only when the applicant is walking away (tab hidden or
+   *   closed). The server sends the save-and-resume email on that signal alone —
+   *   see the note in draft.ts. Routine saves while they type stay silent.
+   */
+  const persist = useCallback(async (leaving = false) => {
     const form = formRef.current;
     if (!form || submitted.current) return;
 
     const data = new FormData(form);
+    if (leaving) data.append("__leaving", "1");
 
     // Don't create a draft (and don't email a resume link) for someone who has
     // merely opened the page. Wait until they've actually written something.
@@ -253,9 +253,10 @@ export default function ApplyForm({
   // someone walks away mid-sentence.
   useEffect(() => {
     const flush = () => {
-      if (document.visibilityState === "hidden" && saveTimer.current) {
-        clearTimeout(saveTimer.current);
-        void persist();
+      if (document.visibilityState === "hidden") {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        // `leaving` — this is the one moment a resume link is worth emailing.
+        void persist(true);
       }
     };
     document.addEventListener("visibilitychange", flush);
@@ -299,9 +300,11 @@ export default function ApplyForm({
     e.preventDefault();
     setError(null);
 
-    if (storyWords < STORY_MIN_WORDS) {
-      // Stated once, on submit — never as a running countdown while they write.
-      setError(`Please share at least ${STORY_MIN_WORDS} words about your journey before submitting.`);
+    if (!story.trim()) {
+      // The ONLY story requirement: that they wrote something. No word counts
+      // anywhere (founder decision 2026-07-21) — counting words at a dancer
+      // telling you their life story is the opposite of the invitation.
+      setError("Please tell us a little about your journey before submitting.");
       return;
     }
     setBusy(true);
@@ -448,7 +451,7 @@ export default function ApplyForm({
       <Section title="Your story">
         <Field
           label="Tell us about your journey, and what you hope to contribute to Relevé"
-          hint={`Please share at least ${STORY_MIN_WORDS} words`}
+          hint="However much or little you want to say."
         >
           <Area
             name="story_bio"

@@ -79,6 +79,14 @@ export async function saveApplicationDraft(
   const fields = flatten(formData);
   const now = new Date();
 
+  // Set by the form only when the applicant is actually walking away (tab hidden
+  // or closed). The resume link used to be emailed on the FIRST autosave, which
+  // meant an email landed ~30 seconds in, while they were still typing — it read
+  // as surveillance, not help. A resume link is only useful to someone who has
+  // left, so we wait until they do.
+  const leaving = String(fields.__leaving ?? "") === "1";
+  delete fields.__leaving; // never persist our own marker into the draft
+
   // Find any application of mine that is still editable.
   const { data: existing } = await supabase
     .from("applications")
@@ -127,12 +135,14 @@ export async function saveApplicationDraft(
       .eq("application_id", current.application_id);
     if (error) return { ok: false, message: error.message };
 
-    await maybeSendResumeLink(supabase, current.application_id, {
-      email: email || (user.email ?? ""),
-      firstName,
-      token: current.resume_token,
-      alreadySent: Boolean(current.resume_email_sent_at),
-    });
+    if (leaving) {
+      await maybeSendResumeLink(supabase, current.application_id, {
+        email: email || (user.email ?? ""),
+        firstName,
+        token: current.resume_token,
+        alreadySent: Boolean(current.resume_email_sent_at),
+      });
+    }
 
     return { ok: true, savedAt: now.toISOString(), applicationId: current.application_id };
   }
@@ -180,12 +190,14 @@ export async function saveApplicationDraft(
   if (error) return { ok: false, message: error.message };
   const applicationId = (data as { application_id: string }).application_id;
 
-  await maybeSendResumeLink(supabase, applicationId, {
-    email: email || (user.email ?? ""),
-    firstName,
-    token,
-    alreadySent: false,
-  });
+  if (leaving) {
+    await maybeSendResumeLink(supabase, applicationId, {
+      email: email || (user.email ?? ""),
+      firstName,
+      token,
+      alreadySent: false,
+    });
+  }
 
   return { ok: true, savedAt: now.toISOString(), applicationId };
 }

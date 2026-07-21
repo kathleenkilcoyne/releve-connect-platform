@@ -22,15 +22,12 @@ import {
 
 export type ApplyState = { ok: boolean; message: string; applicationId?: string };
 
-/** Count words in a narrative field (whitespace-separated, trimmed). */
-function wordCount(s: string): number {
-  const t = s.trim();
-  return t ? t.split(/\s+/).length : 0;
-}
-
-// Lowered from 150 on 2026-07-21: the higher bar, plus a running "you are N
-// short" counter, made the form feel like a test rather than an invitation.
-const STORY_MIN_WORDS = 100;
+// NO WORD MINIMUM (founder decision, 2026-07-21). There was one here, and it
+// disagreed with the client's — the form invited 50 words and the server then
+// refused under 100, so an applicant was told a different number after writing.
+// Counting words at someone describing their own life is the opposite of the
+// invitation this form is meant to be. The only requirement is that they wrote
+// something; length is theirs to choose.
 
 const VALID_ROLES = ["teacher", "studio_owner", "choreographer", "working_dancer"];
 
@@ -69,15 +66,12 @@ export async function submitApplication(
   // ---- Validation ----------------------------------------------------------
   if (!firstName || !lastName) return { ok: false, message: "Please enter your first and last name." };
   if (!email) return { ok: false, message: "Please enter your email." };
-  if (roles.length === 0) return { ok: false, message: "Choose at least one professional role." };
+  if (roles.length === 0) return { ok: false, message: "Please tell us how you're joining Relevé." };
   if (!primaryRole || !roles.includes(primaryRole)) primaryRole = roles[0];
 
   const story = str("story_bio");
-  if (wordCount(story) < STORY_MIN_WORDS) {
-    return {
-      ok: false,
-      message: `Please share at least ${STORY_MIN_WORDS} words about your journey before submitting.`,
-    };
+  if (!story) {
+    return { ok: false, message: "Please tell us a little about your journey before submitting." };
   }
 
   for (const c of REQUIRED_CONSENTS) {
