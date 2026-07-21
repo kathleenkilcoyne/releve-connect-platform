@@ -12,11 +12,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * NO DARK MODE. Removed 2026-07-21 after Kathleen filled in the application on
+ * a phone set to dark and could not see what she was typing.
+ *
+ * This was the Next.js starter's `prefers-color-scheme: dark` block. It flipped
+ * the page background to near-black, but every component states its own colours
+ * explicitly (text-neutral-900, border-neutral-300, white inputs) — so on any
+ * device in dark mode the form became near-black text on a near-black page, and
+ * the input fields had no background at all. The questions were "barely there"
+ * and typing was invisible.
+ *
+ * Relevé's palette is black, cream and gold on a LIGHT page. There is no dark
+ * design to fall back to, so we declare that plainly instead of half-inheriting
+ * one from the OS. `color-scheme: light` also forces native controls — selects,
+ * date pickers, autofill — to render light, which the media query alone did not.
+ */
+:root {
+  color-scheme: light;
 }
 
 body {

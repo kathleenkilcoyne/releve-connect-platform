@@ -93,8 +93,10 @@ function Field({ label, children, hint }: { label: string; children: React.React
     </label>
   );
 }
+// bg-white and text are stated explicitly, not inherited: a transparent field
+// over an OS-darkened page is how the questions became invisible on a phone.
 const inputCls =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
+  "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none";
 
 function Text(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={inputCls} />;
