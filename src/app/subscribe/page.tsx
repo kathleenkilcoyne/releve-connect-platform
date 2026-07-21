@@ -1,13 +1,23 @@
-// Activate membership — the end of the spine (approved → subscribe → active).
-// Signed-in only. Shows the right state: apply first · under review · approved
-// (pick a tier) · already a member (manage/cancel).
+// Membership page — the end of the spine (approved → member).
+//
+// FREE FOUNDING PERIOD (launch, 2026-07-20): membership is COMPLIMENTARY and is
+// granted automatically on acceptance (see grantFoundingMembership in the admin
+// approve route). There is no paid checkout here right now, so this page shows
+// state, not a price list:
+//   · already a member       → complimentary founding membership + build profile
+//   · approved (edge case)    → welcome + build profile
+//   · applied, under review   → reassure
+//   · not applied             → invite to apply
+//   · declined                → gentle "not now"
+//
+// The paid-tier chooser, the $30-credit copy, and the Stripe manage/cancel
+// button were removed for the free period. The prior paid version is in git
+// history; RESUME-HERE lists exactly what to restore when payment is switched on.
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { TIERS, dollars } from "@/lib/membership/tiers";
-import SubscribeButtons from "./SubscribeButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +30,6 @@ export default async function SubscribePage() {
 
   const db = createAdminClient();
 
-  // Latest application state for this user.
   const { data: appRows } = await db
     .from("applications")
     .select("state, created_at")
@@ -29,92 +38,105 @@ export default async function SubscribePage() {
     .limit(1);
   const appState = (appRows?.[0] as { state: string } | undefined)?.state ?? null;
 
-  // Any active membership?
   const { data: memRows } = await db
     .from("memberships")
-    .select("tier, membership_status")
+    .select("tier, membership_status, renewal_date")
     .eq("user_id", user.id)
     .eq("membership_status", "active");
-  const activeTiers = ((memRows ?? []) as Array<{ tier: string }>).map((m) => m.tier);
-  const hasActiveProfileTier =
-    activeTiers.includes("professional") || activeTiers.includes("professional_full");
+  const member =
+    ((memRows ?? []) as Array<{ renewal_date: string | null }>)[0] ?? null;
 
   const shell = (children: React.ReactNode) => (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">Relevé · Membership</p>
+      <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+        Relevé · Membership
+      </p>
       {children}
-      <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">← Back to Relevé</Link>
+      <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
+        ← Back to Relevé
+      </Link>
     </main>
   );
 
-  // Already a member → manage / cancel.
-  if (hasActiveProfileTier) {
+  const buildProfile = (
+    <Link
+      href="/profile/edit"
+      className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
+    >
+      Build your profile →
+    </Link>
+  );
+
+  // Active member — complimentary during the founding period.
+  if (member) {
+    const until = member.renewal_date
+      ? new Date(member.renewal_date).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
     return shell(
       <>
-        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re a member 🎉</h1>
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
+          You&apos;re a founding member 🎉
+        </h1>
         <p className="mt-3 text-neutral-600">
-          Your membership is active and renews annually. You can update your card or cancel anytime —
-          one click.
+          Your membership is complimentary{until ? ` through ${until}` : ""} — nothing to pay,
+          nothing to enter. Thank you for being here at the start.
         </p>
-        <div className="mt-6"><SubscribeButtons mode="manage" /></div>
-        <p className="mt-6 text-sm text-neutral-500">
-          Next: <Link href="/profile/edit" className="underline">build your profile →</Link>
-        </p>
+        {buildProfile}
       </>,
     );
   }
 
-  // Not approved yet → guide them.
-  if (appState !== "approved") {
-    const message =
-      appState === null
-        ? { h: "Start with your application", p: "A Relevé profile is vetted. Apply first — a real person reviews every application." , cta: { href: "/apply", label: "Apply now" } }
-        : appState === "declined"
-        ? { h: "Application not accepted", p: "Your application wasn't accepted this round, and your $30 was refunded in full. You're welcome to reapply in the future.", cta: null }
-        : { h: "Your application is under review", p: "Thanks for applying — we'll email you the moment there's a decision. Membership opens as soon as you're approved.", cta: null };
+  // Approved but no membership row yet (rare edge case — approval normally grants
+  // one). Reassure and point them onward rather than showing a paywall.
+  if (appState === "approved") {
     return shell(
       <>
-        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{message.h}</h1>
-        <p className="mt-3 text-neutral-600">{message.p}</p>
-        {message.cta && (
-          <Link href={message.cta.href} className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white">
-            {message.cta.label}
-          </Link>
-        )}
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re in — welcome 🎉</h1>
+        <p className="mt-3 text-neutral-600">
+          During our founding period your membership is complimentary. You can start building your
+          profile right now.
+        </p>
+        {buildProfile}
       </>,
     );
   }
 
-  // Approved → choose a tier.
-  const pro = TIERS.professional;
-  const full = TIERS.professional_full;
+  // Everyone else — guide by application state.
+  const message =
+    appState === null
+      ? {
+          h: "Membership is by acceptance",
+          p: "Relevé is a vetted community — and during our founding period, membership is free. Apply to join; a real person reads every application.",
+          cta: { href: "/apply", label: "Apply now" },
+        }
+      : appState === "declined"
+        ? {
+            h: "Application not accepted",
+            p: "Your application wasn't accepted this round. This is a not-right-now, not a judgment of your work — you're welcome to apply again.",
+            cta: null,
+          }
+        : {
+            h: "Your application is under review",
+            p: "Thanks for applying — we'll email you the moment there's a decision. Your complimentary founding membership opens as soon as you're accepted.",
+            cta: null,
+          };
+
   return shell(
     <>
-      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re approved — activate your membership</h1>
-      <p className="mt-3 text-neutral-600">
-        Your <span className="font-medium">$30 is credited in full</span> toward your first year. Choose your tier:
-      </p>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-200 p-5">
-          <h2 className="text-lg font-semibold text-neutral-900">{pro.label}</h2>
-          <p className="mt-1 text-2xl font-semibold">{dollars(pro.priceCents)}<span className="text-sm font-normal text-neutral-500">/year</span></p>
-          <p className="mt-2 text-sm text-neutral-600">Your vetted Roster profile, set your own rate at/above the $50/hr floor.</p>
-          <div className="mt-4"><SubscribeButtons mode="subscribe" tier="professional" label={`Activate ${pro.label}`} /></div>
-        </div>
-        <div className="rounded-2xl border border-neutral-200 p-5">
-          <h2 className="text-lg font-semibold text-neutral-900">{full.label}</h2>
-          <p className="mt-1 text-2xl font-semibold">{dollars(full.priceCents)}<span className="text-sm font-normal text-neutral-500">/year</span></p>
-          <p className="mt-2 text-sm text-neutral-600">Everything in Professional, plus multi-role and the Marketplace + Audition Library.</p>
-          <div className="mt-4"><SubscribeButtons mode="subscribe" tier="professional_full" label={`Activate ${full.label}`} /></div>
-        </div>
-      </div>
-
-      <p className="mt-6 rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600">
-        <span className="font-medium">Annual, auto-renewing.</span> Your card is charged today and once a
-        year after that. We&apos;ll email you about 2 weeks before each renewal, and you can cancel anytime
-        in one click. The $30 application fee is credited to this first year.
-      </p>
+      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{message.h}</h1>
+      <p className="mt-3 text-neutral-600">{message.p}</p>
+      {message.cta && (
+        <Link
+          href={message.cta.href}
+          className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
+        >
+          {message.cta.label}
+        </Link>
+      )}
     </>,
   );
 }
