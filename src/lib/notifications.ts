@@ -121,19 +121,21 @@ export async function sendApplicationReceived(input: {
   firstName: string | null;
   feeNote?: string | null;
 }): Promise<void> {
-  const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
 
   await sendEmail({
     to: input.to,
-    template: "application-received.v2",
+    // v3 — Kathleen's wording, 2026-07-21. Note there is no invitation to reply:
+    // this address is not monitored, and telling an applicant to "just reply"
+    // sent their update into a void. Anything they need to change, they change
+    // in the application itself while it is still a draft.
+    template: "application-received.v3",
     subject: "We've received your Relevé application",
     text: body(
-      hello,
-      "Thank you for applying to Relevé Connect. Your application is in review.",
-      "Every application is read by a person, not a filter. We'll be in touch " +
-        "once it has been reviewed — there's nothing else you need to do right now.",
+      input.firstName ? `Dear ${input.firstName},` : "Dear applicant,",
+      "Your Relevé Connect application has been received. You can expect to hear back within 7 business days.",
+      "Until then, know that your submission is a vote for the person you are, and the artist you are becoming.",
       ...(input.feeNote ? [input.feeNote] : []),
-      "If anything in your application changes in the meantime, just reply to this email.",
+      "Together we rise.",
     ),
   });
 }

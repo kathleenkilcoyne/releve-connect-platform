@@ -30,9 +30,9 @@ trigger and current version. If an email isn't in this table, it must not be sen
 
 | # | Email | Trigger (exactly when it fires) | To | Template | Status |
 |---|---|---|---|---|---|
-| 1 | Application received (confirmation) | Applicant clicks **Submit** (free period). Reverts to the $30 fee-paid webhook when payment is on. | Applicant | `application-received.v2` | ✅ implemented |
+| 1 | Application received (confirmation) | Applicant clicks **Submit** (free period). Reverts to the $30 fee-paid webhook when payment is on. | Applicant | `application-received.v3` | ✅ implemented |
 | 2 | New application alert | Same event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | `admin-new-application.v1` | ✅ implemented |
-| 3 | Save-and-resume link | **Once**, the first time a draft auto-saves. Never again for that application (guarded by `resume_email_sent_at`) — autosave runs every few seconds, so "once" is load-bearing. | Applicant | `application-resume-link.v1` | ✅ implemented |
+| 3 | Save-and-resume link | **Once**, and only when the applicant LEAVES (tab hidden/closed — the form flags that save). Never on a routine autosave, and never twice (guarded by `resume_email_sent_at`). | Applicant | `application-resume-link.v1` | ✅ implemented |
 | 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v2` | ✅ implemented |
 | 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v1` | ✅ implemented |
 | 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v1` | ✅ implemented |
@@ -57,7 +57,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 ## Rules for every email here
 
 - **Templated & versioned.** Each email has a named template id carrying its version
-  (e.g. `application-received.v2`); material copy changes bump the version. The id is
+  (e.g. `application-received.v3`); material copy changes bump the version. The id is
   logged on every send and attached as a Resend tag.
 - **Single sender.** One from-address (`EMAIL_FROM_ADDRESS`), vendor Resend.
 - **No tangled automation.** No drip sequences, no marketing lists, no "while we're at it" sends.
