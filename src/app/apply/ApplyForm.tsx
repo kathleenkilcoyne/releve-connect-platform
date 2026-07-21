@@ -29,7 +29,9 @@ function toArray(v: string | string[] | undefined): string[] {
 }
 
 /** How long after the last keystroke we save. Long enough not to spam. */
-const AUTOSAVE_DEBOUNCE_MS = 2_500;
+// Long enough that the status line never flickers mid-sentence. A shorter delay
+// made the form feel like it was interrupting you while you were still typing.
+const AUTOSAVE_DEBOUNCE_MS = 6_000;
 
 /**
  * Write a saved draft back into the live form.
@@ -57,7 +59,10 @@ function hydrateForm(form: HTMLFormElement, draft: DraftFields) {
   }
 }
 
-const STORY_MIN_WORDS = 150;
+const STORY_MIN_WORDS = 50;
+/** The employer role slug — the one path that is NOT an artist. */
+const STUDIO_ROLE = "studio_owner";
+type ApplicantPath = "artist" | "studio" | null;
 const AGE_RANGES = ["18-24", "25-34", "35-50", "50+"];
 const YEARS_BANDS = ["1-2", "3-5", "6-10", "11-20", "20+"];
 const UNIONS = ["AEA", "SAG-AFTRA", "AGMA", "None", "Other"];
@@ -73,12 +78,13 @@ function wc(s: string): number {
 }
 
 // Small building blocks that match the app's neutral styling.
-function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+// Deliberately unnumbered. Numbered steps advertised a length ("6 of 13") and,
+// because whole sections are role-branched, the numbers skipped — which read as
+// "you missed something." The form is long enough without counting at people.
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-10 border-t border-neutral-200 pt-8">
-      <h2 className="text-lg font-semibold text-neutral-900">
-        <span className="text-neutral-400">{n}.</span> {title}
-      </h2>
+      <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
       <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
@@ -179,6 +185,15 @@ export default function ApplyForm({
   // when hydrateForm() runs — otherwise their fields wouldn't exist yet to fill.
   const [roles, setRoles] = useState<Set<string>>(() => new Set(toArray(initial?.roles)));
   const [primaryRole, setPrimaryRole] = useState(() => String(initial?.primary_role ?? ""));
+  // Which of the two paths they're on. Derived from a restored draft so someone
+  // returning mid-application lands back in the right branch.
+  const [path, setPath] = useState<ApplicantPath>(() =>
+    toArray(initial?.roles).includes(STUDIO_ROLE)
+      ? "studio"
+      : toArray(initial?.roles).length > 0
+        ? "artist"
+        : null,
+  );
   const [story, setStory] = useState(() => String(initial?.story_bio ?? ""));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -208,9 +223,13 @@ export default function ApplyForm({
 
     // Don't create a draft (and don't email a resume link) for someone who has
     // merely opened the page. Wait until they've actually written something.
-    const meaningful = ["first_name", "last_name", "story_bio"].some((f) =>
-      String(data.get(f) ?? "").trim(),
-    );
+    //
+    // The bar is deliberately higher than "any one field has a character in it":
+    // saving on the first letter of a first name made the form feel like it was
+    // watching you type. Wait for a whole name, or for real narrative text.
+    const field = (f: string) => String(data.get(f) ?? "").trim();
+    const meaningful =
+      Boolean(field("story_bio")) || Boolean(field("first_name") && field("last_name"));
     if (!meaningful) return;
 
     setSaveState({ kind: "saving" });
@@ -246,6 +265,26 @@ export default function ApplyForm({
     };
   }, [persist]);
 
+  /**
+   * Switching paths clears the other side's roles outright. Leaving a stale
+   * `studio_owner` behind is exactly how someone ended up facing required
+   * Studio Owner questions while applying as a teacher.
+   */
+  function choosePath(next: Exclude<ApplicantPath, null>) {
+    setPath(next);
+    if (next === "studio") {
+      setRoles(new Set([STUDIO_ROLE]));
+      setPrimaryRole(STUDIO_ROLE);
+    } else {
+      setRoles((prev) => {
+        const kept = new Set(prev);
+        kept.delete(STUDIO_ROLE);
+        return kept;
+      });
+      if (primaryRole === STUDIO_ROLE) setPrimaryRole("");
+    }
+  }
+
   function toggleRole(slug: string, on: boolean) {
     setRoles((prev) => {
       const next = new Set(prev);
@@ -261,7 +300,8 @@ export default function ApplyForm({
     setError(null);
 
     if (storyWords < STORY_MIN_WORDS) {
-      setError(`Your story needs at least ${STORY_MIN_WORDS} words (you have ${storyWords}).`);
+      // Stated once, on submit — never as a running countdown while they write.
+      setError(`Please share at least ${STORY_MIN_WORDS} words about your journey before submitting.`);
       return;
     }
     setBusy(true);
@@ -290,6 +330,8 @@ export default function ApplyForm({
   }
 
   const selectedRoles = roleOptions.filter((r) => roles.has(r.slug));
+  /** The three artist roles — everything that isn't the employer side. */
+  const artistRoleOptions = roleOptions.filter((r) => r.slug !== STUDIO_ROLE);
 
   return (
     <form
@@ -305,7 +347,7 @@ export default function ApplyForm({
         <SaveIndicator state={saveState} />
       </div>
       {/* 1 — Identity & Contact */}
-      <Section n={1} title="Identity & contact">
+      <Section title="Identity & contact">
         <div className="grid grid-cols-2 gap-4">
           <Field label="First name"><Text name="first_name" required /></Field>
           <Field label="Last name"><Text name="last_name" required /></Field>
@@ -328,40 +370,86 @@ export default function ApplyForm({
       </Section>
 
       {/* 2 — Professional roles */}
-      <Section n={2} title="Professional roles">
-        <p className="text-sm text-neutral-500">Select every role that applies — the form adapts to what you pick.</p>
-        <div className="flex flex-wrap gap-2">
-          {roleOptions.map((r) => (
-            <label key={r.slug} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm">
+      {/*
+        Two paths, not four checkboxes. Asking "select every role that applies"
+        made artists tick three boxes and then face three required sections;
+        studio owners are the employer side entirely. One choice up front means
+        nobody is ever asked to answer for a role they don't hold.
+      */}
+      <Section title="How are you joining Relevé Connect?">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              { key: "artist", label: "Dance Professional", hint: "You dance, teach, or choreograph." },
+              { key: "studio", label: "Studio Owner", hint: "You hire and run a studio." },
+            ] as const
+          ).map((p) => (
+            <label
+              key={p.key}
+              className={`cursor-pointer rounded-xl border px-4 py-3 text-sm ${
+                path === p.key ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
+              }`}
+            >
               <input
-                type="checkbox"
-                name="roles"
-                value={r.slug}
-                checked={roles.has(r.slug)}
-                onChange={(e) => toggleRole(r.slug, e.target.checked)}
+                type="radio"
+                name="applicant_path"
+                value={p.key}
+                checked={path === p.key}
+                onChange={() => choosePath(p.key)}
+                className="mr-2"
               />
-              {r.label}
+              <span className="font-medium text-neutral-900">{p.label}</span>
+              <span className="mt-1 block text-xs text-neutral-500">{p.hint}</span>
             </label>
           ))}
         </div>
-        {selectedRoles.length > 0 && (
-          <Field label="Primary role">
-            <select
-              name="primary_role"
-              className={inputCls}
-              value={primaryRole}
-              onChange={(e) => setPrimaryRole(e.target.value)}
-            >
-              <option value="">Choose your primary role…</option>
-              {selectedRoles.map((r) => <option key={r.slug} value={r.slug}>{r.label}</option>)}
-            </select>
-          </Field>
+
+        {path === "artist" && (
+          <>
+            <p className="text-sm text-neutral-500">
+              Tick everything you do — many artists wear more than one hat.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {artistRoleOptions.map((r) => (
+                <label key={r.slug} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    name="roles"
+                    value={r.slug}
+                    checked={roles.has(r.slug)}
+                    onChange={(e) => toggleRole(r.slug, e.target.checked)}
+                  />
+                  {r.label}
+                </label>
+              ))}
+            </div>
+            {selectedRoles.length > 1 && (
+              <Field label="Which comes first for you?">
+                <select
+                  name="primary_role"
+                  className={inputCls}
+                  value={primaryRole}
+                  onChange={(e) => setPrimaryRole(e.target.value)}
+                >
+                  <option value="">Choose…</option>
+                  {selectedRoles.map((r) => <option key={r.slug} value={r.slug}>{r.label}</option>)}
+                </select>
+              </Field>
+            )}
+          </>
+        )}
+
+        {path === "studio" && (
+          <input type="hidden" name="roles" value={STUDIO_ROLE} />
         )}
       </Section>
 
       {/* 3 — Your story */}
-      <Section n={3} title="Your story">
-        <Field label="Tell us who you are, in your own words" hint={`${storyWords} words · minimum ${STORY_MIN_WORDS}`}>
+      <Section title="Your story">
+        <Field
+          label="Tell us about your journey, and what you hope to contribute to Relevé"
+          hint={`Please share at least ${STORY_MIN_WORDS} words`}
+        >
           <Area
             name="story_bio"
             value={story}
@@ -378,7 +466,7 @@ export default function ApplyForm({
       </Section>
 
       {/* 4 — Industry experience */}
-      <Section n={4} title="Industry experience">
+      <Section title="Industry experience">
         <Field label="Studios / companies you've worked with"><Area name="studios_companies" /></Field>
         <Field label="Notable credits"><Area name="notable_credits" /></Field>
         <Field label="Union affiliations"><CheckGroup name="unions" options={UNIONS.map((u) => ({ slug: u, label: u }))} /></Field>
@@ -388,7 +476,7 @@ export default function ApplyForm({
 
       {/* 5 — Teaching philosophy (Teacher) */}
       {has("teacher") && (
-        <Section n={5} title="Teaching (because you selected Teacher)">
+        <Section title="Teaching">
           <Field label="Your teaching philosophy"><Area name="teaching_philosophy" /></Field>
           <Field label="Levels you'll teach"><CheckGroup name="teaching_levels" options={levelOptions} /></Field>
           <Field label="Styles you teach"><CheckGroup name="teaching_styles" options={styleOptions} /></Field>
@@ -404,14 +492,14 @@ export default function ApplyForm({
 
       {/* 6 — Studio owner */}
       {has("studio_owner") && (
-        <Section n={6} title="Your studio (because you selected Studio Owner)">
+        <Section title="Your studio">
           <Field label="Tell us about your studio" hint="Name, location, size, what you're known for."><Area name="studio_owner_details" /></Field>
         </Section>
       )}
 
       {/* 7 — Choreographer */}
       {has("choreographer") && (
-        <Section n={7} title="Choreography (because you selected Choreographer)">
+        <Section title="Choreography">
           <Field label="Focus areas"><CheckGroup name="choreographer_focus" options={focusOptions} /></Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Years choreographing"><Text name="choreographer_years" /></Field>
@@ -431,33 +519,26 @@ export default function ApplyForm({
 
       {/* 8 — Working dancer */}
       {has("working_dancer") && (
-        <Section n={8} title="Performing (because you selected Working Dancer)">
+        <Section title="Performing">
           <Field label="Training summary"><Area name="dancer_training" /></Field>
           <Field label="Performance experience"><Area name="dancer_performance" /></Field>
           <Field label="Currently auditioning for"><CheckGroup name="auditioning_for" options={AUDITION_FOR.map((a) => ({ slug: a, label: a }))} /></Field>
         </Section>
       )}
 
-      {/* 9 — Professionalism & references */}
-      <Section n={9} title="Professionalism & references">
-        <p className="text-sm text-neutral-500">References are private — used only for vetting, never shown on your profile.</p>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Reference 1 — name"><Text name="ref1_name" /></Field>
-          <Field label="Email or phone"><Text name="ref1_contact" /></Field>
-          <Field label="Relationship"><Text name="ref1_relationship" /></Field>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Reference 2 — name"><Text name="ref2_name" /></Field>
-          <Field label="Email or phone"><Text name="ref2_contact" /></Field>
-          <Field label="Relationship"><Text name="ref2_relationship" /></Field>
-        </div>
+      {/*
+        References removed 2026-07-21 (founder decision). Asking a stranger to
+        hand over two colleagues' names and contact details before we've told
+        them anything is invasive, and we don't need it to vet.
+      */}
+      <Section title="Work authorization">
         <Field label="Work authorization (US)">
           <select name="work_authorization" className={inputCls} defaultValue=""><option value="">—</option><option>Authorized to work in the US</option><option>Not authorized / other</option></select>
         </Field>
       </Section>
 
       {/* 10 — Digital presence */}
-      <Section n={10} title="Digital presence (all optional)">
+      <Section title="Digital presence (all optional)">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Website"><Text name="website" placeholder="https://…" /></Field>
           <Field label="Instagram"><Text name="instagram" placeholder="@handle" /></Field>
@@ -473,18 +554,18 @@ export default function ApplyForm({
       </Section>
 
       {/* 11 — Relevé alignment */}
-      <Section n={11} title="Relevé alignment">
+      <Section title="Relevé alignment">
         <Field label="Why does Relevé's mission resonate with you?"><Area name="alignment_1" /></Field>
         <Field label="What would you bring to this community?"><Area name="alignment_2" /></Field>
       </Section>
 
       {/* 12 — Open-to badges */}
-      <Section n={12} title="Open to… (select at least one)">
+      <Section title="Open to… (select at least one)">
         <CheckGroup name="open_to" options={openToOptions} />
       </Section>
 
       {/* 13 — Review & consent */}
-      <Section n={13} title="Review & consent">
+      <Section title="Review & consent">
         <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
           {[
             ["consent_terms", "I agree to the Terms of Service."],
@@ -506,9 +587,8 @@ export default function ApplyForm({
 
       <div className="mt-6 rounded-xl border border-neutral-200 p-4">
         <p className="text-sm text-neutral-600">
-          <span className="font-medium">Applying is free.</span> A member of the Relevé council
-          reads every application personally, and we&apos;ll email you as soon as there&apos;s a
-          decision.
+          A member of the Relevé council reads every application personally, and we&apos;ll email
+          you as soon as there&apos;s a decision.
         </p>
         <button
           type="submit"

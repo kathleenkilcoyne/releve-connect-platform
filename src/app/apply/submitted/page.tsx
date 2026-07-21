@@ -17,8 +17,7 @@ export default async function ApplicationSubmittedPage() {
           email you as soon as there&apos;s a decision.
         </p>
         <p className="mt-4 text-sm text-green-700">
-          Check your inbox — we&apos;ve sent a confirmation. If you&apos;re accepted during the
-          founding period, your first year of membership is free.
+          Check your inbox — we&apos;ve sent a confirmation.
         </p>
       </div>
 

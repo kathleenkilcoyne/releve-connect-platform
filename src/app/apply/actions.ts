@@ -28,7 +28,9 @@ function wordCount(s: string): number {
   return t ? t.split(/\s+/).length : 0;
 }
 
-const STORY_MIN_WORDS = 150; // CLAUDE.md §3A.3: aim 150–250, enforced minimum
+// Lowered from 150 on 2026-07-21: the higher bar, plus a running "you are N
+// short" counter, made the form feel like a test rather than an invitation.
+const STORY_MIN_WORDS = 100;
 
 const VALID_ROLES = ["teacher", "studio_owner", "choreographer", "working_dancer"];
 
@@ -74,7 +76,7 @@ export async function submitApplication(
   if (wordCount(story) < STORY_MIN_WORDS) {
     return {
       ok: false,
-      message: `Your story needs at least ${STORY_MIN_WORDS} words — it's the heart of vetting. You have ${wordCount(story)}.`,
+      message: `Please share at least ${STORY_MIN_WORDS} words about your journey before submitting.`,
     };
   }
 
@@ -134,10 +136,8 @@ export async function submitApplication(
           auditioning_for: list("auditioning_for"),
         }
       : null,
-    references: [
-      { name: str("ref1_name"), contact: str("ref1_contact"), relationship: str("ref1_relationship") },
-      { name: str("ref2_name"), contact: str("ref2_contact"), relationship: str("ref2_relationship") },
-    ],
+    // References were removed from the intake on 2026-07-21 — we no longer ask a
+    // stranger for two colleagues' contact details before telling them anything.
     work_authorization: str("work_authorization"),
     digital_presence: {
       website: str("website"),

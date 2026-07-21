@@ -69,21 +69,17 @@ export default async function SubscribePage() {
 
   // Active member — complimentary during the founding period.
   if (member) {
-    const until = member.renewal_date
-      ? new Date(member.renewal_date).toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })
-      : null;
+    // No end date is shown, deliberately (founder decision 2026-07-21): naming a
+    // date turns a gift into a countdown, and the market will signal when to
+    // charge. The membership row still carries `renewal_date` internally.
     return shell(
       <>
         <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
           You&apos;re a founding member 🎉
         </h1>
         <p className="mt-3 text-neutral-600">
-          Your membership is complimentary{until ? ` through ${until}` : ""} — nothing to pay,
-          nothing to enter. Thank you for being here at the start.
+          Your membership is complimentary — nothing to pay, nothing to enter. Thank you for being
+          here at the start.
         </p>
         {buildProfile}
       </>,
@@ -110,7 +106,7 @@ export default async function SubscribePage() {
     appState === null
       ? {
           h: "Membership is by acceptance",
-          p: "Relevé is a vetted community — and during our founding period, membership is free. Apply to join; a real person reads every application.",
+          p: "Relevé is a vetted community. Apply to join; a real person reads every application.",
           cta: { href: "/apply", label: "Apply now" },
         }
       : appState === "declined"

@@ -241,9 +241,9 @@ export async function sendApplicationApproved(input: {
   const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
   const site = emailSiteUrl();
 
+  // No end date, by design (2026-07-21). See the note in /subscribe.
   const foundingLine = input.foundingUntil
-    ? `As a founding member, your membership is complimentary for your first year — through ${input.foundingUntil}. ` +
-      "There's nothing to pay and nothing to enter."
+    ? "As a founding member, your membership is complimentary. There's nothing to pay and nothing to enter."
     : null;
 
   await sendEmail({

@@ -68,7 +68,7 @@ export default async function AdminApplicationsPage() {
       <p className="mt-3 text-neutral-600">
         A real person reads every application. Approve, approve a choreographer at a marketplace tier,
         confer honorifics, ask for more, or decline. During the founding period, approving also
-        grants a <span className="font-medium">complimentary one-year membership</span> and sends the
+        grants a <span className="font-medium">complimentary membership</span> and sends the
         welcome email. Actions need your{" "}
         <code className="mx-1 rounded bg-neutral-100 px-1">ADMIN_TOKEN</code>.
       </p>

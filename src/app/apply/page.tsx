@@ -141,15 +141,25 @@ export default async function ApplyPage({
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
         Relevé · Apply to the Roster
       </p>
-      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        Apply for a vetted Relevé profile
-      </h1>
-      <p className="mt-3 text-neutral-600">
-        This is the vetted, credentialed home for dance professionals. Tell us who you are in your
-        own words — a real person reads every application.{" "}
-        <span className="font-medium">Applying is free, and founding members get their first year
-        of membership free too.</span>
-      </p>
+      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Apply to Relevé</h1>
+      <p className="mt-2 text-lg italic text-neutral-500">This is your stage. Take your time.</p>
+
+      <div className="mt-5 space-y-3 text-neutral-600">
+        <p>
+          You&apos;ll notice this application asks a lot. That&apos;s on purpose.{" "}
+          <span className="font-medium text-neutral-900">
+            Every application is personally reviewed.
+          </span>{" "}
+          It is lengthy because we are thorough — so that one day we can stand behind your name and
+          say, <em>this is one of ours.</em>
+        </p>
+        <p>
+          <span className="font-medium text-neutral-900">Your progress saves as you go</span>, so
+          you can step away and come back whenever you need to. Answer honestly — there are no wrong
+          answers here, only your true ones.
+        </p>
+        <p className="font-medium text-neutral-900">You belong here. You matter here.</p>
+      </div>
 
       {existing?.draft_saved_at && (
         <p className="mt-5 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">

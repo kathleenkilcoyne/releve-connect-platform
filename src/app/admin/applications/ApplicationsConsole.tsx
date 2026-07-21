@@ -224,12 +224,8 @@ function describeOutcome(action: string | undefined, data: Record<string, unknow
   if (action === "approve") {
     const fm = data.foundingMembership;
     if (fm && typeof fm === "object" && "until" in fm) {
-      const until = new Date(String((fm as { until: string }).until)).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      return `Approved ✓ — complimentary membership through ${until}. Welcome email sent.`;
+      // No date, matching the member-facing copy (2026-07-21).
+      return "Approved ✓ — complimentary membership granted. Welcome email sent.";
     }
     if (fm === "already_active") return "Approved ✓ — they already had an active membership.";
     return "Approved ✓ — but NO membership was granted. Check the server log.";

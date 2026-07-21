@@ -102,6 +102,14 @@ Rotates one per day (chosen by day-of-year). 30 lines — cycles roughly monthly
 
 ---
 
+## 4b. Founder line (brand truth — place where it fits)
+
+> **You don't rise to the level of your true potential. You fall to the level of your standards.**
+
+*A truth Kathleen wants kept — and it rhymes with the whole brand ("a new professional **standard** for the dance world"). Swapping "systems" for "standards" steps fully away from the James Clear / Archilochus lineage and makes the line unmistakably hers. Use where it fits — the About page, a mission moment, or the daily bank.*
+
+---
+
 ## 5. Weekly "Letter from Kathleen"
 
 A longer note in your voice, signed, delivered weekly. The safe space, made into words. **Only you can write this.**
