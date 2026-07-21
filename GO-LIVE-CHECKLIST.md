@@ -1,12 +1,25 @@
 # 🚀 GO-LIVE CHECKLIST — releveconnect.com
 
 **What this is:** the single punch-list between the current build and this build
-being the live site at releveconnect.com. Last updated **2026-07-20**.
+being the live site at releveconnect.com. Last updated **2026-07-20 (night, post-launch-day)**.
 
-**Where things stand right now:** `releveconnect.com` still serves **Brent's old
-Netlify site**. Real applications from it are **not** landing in our Supabase
-project (`applications` table = 0 rows, confirmed). The new build is not live
-anywhere — there is no hosting configured yet at all.
+> ### 🌙 END OF LAUNCH DAY — status
+> The build is now **DEPLOYED AND LIVE on a Vercel staging URL**:
+> **https://releve-connect-platform.vercel.app** (verified working: homepage,
+> DB connection, login redirect, zero console errors). Vercel is connected to
+> GitHub `main` and **auto-deploys on every push**.
+> - ✅ Code merged to `main` + pushed · ✅ Env vars loaded (Supabase, email) ·
+>   ✅ Supabase redirect/site URLs set to the Vercel URL · ✅ **Database cleaned**
+>   (only `kathleen@releveconnect.com` admin remains; all test/fixture/Stripe-test
+>   rows removed) · ✅ `/subscribe` rewritten for the free launch.
+> - ⏳ Resend domain verification was **pending** overnight (finishes on its own).
+> - ❗ **NOT done — the DNS cutover.** `releveconnect.com` still serves Brent's
+>   old site. Pointing the domain at Vercel is the next-session task (§3, §7).
+> **Tomorrow's plan is in `START-HERE-TOMORROW.md`.**
+
+**Original context (still true until cutover):** `releveconnect.com` still serves
+**Brent's old Netlify site**. Real applications from it are **not** landing in our
+Supabase project. The new build is live only on the Vercel staging URL above.
 
 **Legend:** ✅ done · 🔨 needs building · ⚙️ config/ops (no code) · 🧍 needs a
 decision from Kathleen · 🛑 blocker
@@ -18,13 +31,15 @@ decision from Kathleen · 🛑 blocker
 | Phase | State |
 |---|---|
 | Security holes | ✅ both closed |
-| Email sending | ✅ implemented (needs keys) |
+| Email sending | ✅ implemented; keys set in Vercel; Resend domain ⏳ verifying |
 | Free founding launch | ✅ live in code |
 | Apply flow (auto-save, re-entry, admin feedback) | ✅ done |
-| Hosting / DNS | 🔨 **nothing configured** |
-| Production env vars | ⚙️ mostly test/placeholder |
-| Database cleanup | 🧍 decision needed |
-| Homepage + calendar polish | 🔨 queued |
+| Hosting | ✅ **deployed to Vercel staging** (auto-deploys from `main`) |
+| DNS cutover to releveconnect.com | ❗ **not done — next session** |
+| Production env vars | ✅ loaded in Vercel (site-URL → real domain at cutover) |
+| Database cleanup | ✅ **done — only the admin account remains** |
+| `/subscribe` reflects free launch | ✅ done |
+| Homepage + calendar polish | ✅ done |
 
 **Nothing is half-finished in the code.** What's missing is infrastructure,
 config, and two content builds.
