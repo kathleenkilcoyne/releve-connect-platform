@@ -34,7 +34,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 2 | New application alert | Same event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | `admin-new-application.v1` | ✅ implemented |
 | 3 | Save-and-resume link | **Once**, and only when the applicant LEAVES (tab hidden/closed — the form flags that save). Never on a routine autosave, and never twice (guarded by `resume_email_sent_at`). | Applicant | `application-resume-link.v1` | ✅ implemented |
 | 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v3` | ✅ implemented |
-| 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v1` | ✅ implemented |
+| 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v2` | ✅ implemented |
 | 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v2` | ✅ implemented |
 | 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | `membership-active.v1` | ✅ implemented (dormant while free) |
 | 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | `intro-request.v1` | ✅ implemented |

@@ -281,17 +281,24 @@ export async function sendApplicationMoreInfo(input: {
   firstName: string | null;
   note: string | null;
 }): Promise<void> {
-  const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
-
   await sendEmail({
     to: input.to,
-    template: "application-more-info.v1",
-    subject: "One more thing on your Relevé application",
+    // v2 — Kathleen's letter, verbatim. `note` is the {{requested_items}} slot:
+    // whatever the reviewer typed in the admin console. If it is somehow empty
+    // we fall back to a general ask rather than send a letter whose central
+    // sentence — "we need a little more from you:" — is followed by nothing.
+    template: "application-more-info.v2",
+    subject: "A little more from you — your Relevé Connect application",
     text: body(
-      hello,
-      "Thanks for your application — we'd like a little more before we finish reviewing it.",
-      ...(input.note ? [input.note] : ["Just reply to this email and we'll pick it up from there."]),
-      "Your application stays open in the meantime.",
+      input.firstName ? `Dear ${input.firstName},` : "Dear applicant,",
+      "Thank you for applying to Relevé Connect. We've read your application, and we're glad you're here.",
+      "Before we can move it forward, we need a little more from you:",
+      input.note?.trim() ||
+        "Could you tell us a little more about your experience and the work you've been doing?",
+      "Once we have that, your application goes right back into active review. If anything is " +
+        "unclear, just reply to this email — it reaches us directly.",
+      "We're grateful you've stepped into this work with us.",
+      "Together, we rise.\nThe Relevé Connect Team",
     ),
   });
 }
