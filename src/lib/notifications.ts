@@ -240,7 +240,6 @@ export async function sendApplicationApproved(input: {
   /** Set when a complimentary founding membership was granted. */
   foundingUntil?: string | null;
 }): Promise<void> {
-  const hello = input.firstName ? `Hi ${input.firstName},` : "Hi,";
   const site = emailSiteUrl();
 
   // No end date, by design (2026-07-21). See the note in /subscribe.
@@ -250,17 +249,28 @@ export async function sendApplicationApproved(input: {
 
   await sendEmail({
     to: input.to,
-    template: "application-approved.v2",
-    subject: "You're in — welcome to Relevé",
+    // v3 — "Welcome BraveHeart", Kathleen's founder letter, verbatim. The letter
+    // is the email; the practical lines follow it, separated, so the welcome is
+    // never interrupted by housekeeping. A branded HTML version can be added
+    // later without touching this text — it stays the plain-text part.
+    template: "application-approved.v3",
+    subject: "Welcome, BraveHeart",
     text: body(
-      hello,
-      "You've been accepted to Relevé Connect. Welcome.",
+      "My fellow brave heart,",
+      "From the deepest part of me, thank you for joining Relevé. This is my labor of love — " +
+        "built on thirty years inside this industry. I see you, I hear you, and I know that what " +
+        "you have done — and what you will do — matters. Every step of your process holds value, " +
+        "and every dream you chassé toward is just on the other side.",
+      "We stand behind you, with you, and most importantly, for you. It is my intention that you " +
+        "use this platform as an opportunity — and as a co-creator of our craft.",
+      "At Relevé, this is not your rehearsal. This is your stage. Together, we rise.",
+      "With loyalty, reverence, and respect,\nKathleen McAree\nFounder, Relevé Connect LLC",
+      "—",
       ...(foundingLine ? [foundingLine] : []),
       ...(input.tierLabel
         ? [`Your choreographer standing has been set to ${input.tierLabel}.`]
         : []),
       `Start here — build your profile: ${site}/profile/edit`,
-      "Your profile is the product. The fuller it is, the more findable you are.",
     ),
   });
 }
