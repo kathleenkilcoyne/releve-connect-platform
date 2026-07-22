@@ -1,62 +1,96 @@
-# ☀️ START HERE TOMORROW — Kathleen
+# ☀️ START HERE — Kathleen
 
-*Left for you the night of July 20, 2026, after launch day. Read top to bottom — it's short.*
-
----
-
-## Where we got to (this is big)
-
-**Your site is LIVE and working on the internet** at:
-
-### 👉 https://releve-connect-platform.vercel.app
-
-That's a real, working site — I loaded it myself and confirmed: the homepage renders, the database is connected, the login flow works, zero errors. It is **not** your public address yet (releveconnect.com still shows Brent's old site — untouched and safe). This is the staging address where we test before flipping the switch.
-
-**What's done:**
-- ✅ All the code merged and pushed to GitHub
-- ✅ Deployed to Vercel (auto-redeploys every time code changes)
-- ✅ Environment settings loaded in
-- ✅ Supabase configured to allow logins from the new address
-- ✅ **Database cleaned** — every test account and fixture removed. Only your real admin account (`kathleen@releveconnect.com`) remains. Fresh and clean for real applicants.
-- ✅ `/subscribe` page rewritten for the free launch (no prices, no "$30", no broken "manage card" button for founding members)
-- ✅ Resend email — DNS records added; domain was **"pending"** verification (that finishes on its own — check it in the morning)
+*Left for you the night of July 21, 2026. Short on purpose.*
 
 ---
 
-## The plan for today — in order
+## The one thing left
 
-### 1. Check two things that were "verifying" overnight
-- **Resend:** open resend.com → Domains → `releveconnect.com`. It should now say **Verified** (green). If so, your emails can send.
-- **Test the live site yourself:** go to https://releve-connect-platform.vercel.app and click around — homepage, The Climb, Apply. Try signing in (Apply → enter your email → check your inbox for the one-tap link).
+**Approve an application and confirm the welcome letter arrives.** That's it.
+Everything before it in the chain is now proven working.
 
-### 2. Do a real end-to-end test run (do this WITH Claude)
-Ask Claude to walk you through: **apply as if you were a stranger**, then **approve yourself from the admin console**, and confirm you get the acceptance email and can build a profile. This is the last proof before going public. Claude can watch each step.
+### Do it this way (simplest path — 3 steps)
 
-### 3. THEN flip your real domain (the go-live — ~10 minutes, do WITH Claude)
-This is the moment releveconnect.com becomes the new site. It's the one step that's hard to undo quickly, so we do it deliberately and together:
-- In Vercel: add `releveconnect.com` as a custom domain → it gives you 2 DNS records
-- In Namecheap: **first lower the DNS "TTL" to ~5 min, wait, then** add those records (Claude will guide)
-- Update two settings to the real domain (the Vercel site-URL, and Supabase's allowed URLs)
-- Verify, then Brent's old site is retired
+1. Go to **releveconnect.com/login** and sign in as
+   **`kathleenmcareekilcoyne@gmail.com`**
+   *(This account is now an admin. The sign-in link lands straight in that inbox —
+   no forwarding, no alias, nothing to hunt for.)*
+2. Click the link in your email. **It will drop you on your profile editor** —
+   that's expected, see "known rough edges" below. Then go to:
+   **releveconnect.com/admin/applications**
+3. Approve one of the two applications waiting. Then check the applicant's inbox
+   for the **BraveHeart letter**.
 
----
-
-## Small things still on my list (not blockers — Claude will handle)
-- MailerLite keys for "The Climb" signup (optional — the signup works, it just needs the keys to actually add people; do this only after you decide on the opt-in wording you're happy with)
-- The `NEXT_PUBLIC_SITE_URL` setting still says "localhost" — Claude will set it to your real domain during the cutover (step 3), so it's intentionally left for then
-- ⚠️ **Do NOT turn on MailerLite auto-subscribe** — there's a separate hidden feature that adds every buyer to a list with no opt-in. It stays OFF. Claude knows.
+If the letter arrives and that person can build a profile, **you are open.**
 
 ---
 
-## Things ONLY you can decide (Claude won't guess)
-- **Studio application questions:** the studio path currently asks one open-ended box. If studios are important to your first wave, we should add proper questions (student count, staff count, year founded) before you invite them. 10-minute build once you say what to ask.
-- **Founding members were promised "free for one year"** — that clock starts when each person is accepted. Nothing to do now, just know it's tracked.
+## What is confirmed working (tested today, not assumed)
+
+- ✅ **releveconnect.com is the new site.** Brent's Netlify site is buried but
+  still parked as a rollback.
+- ✅ **The application submits.** Two applications are in the queue right now.
+- ✅ **The applicant confirmation email arrives** — fast, correct wording.
+- ✅ **The admin alert arrives** at `relevewerise@gmail.com`.
+- ✅ **Sign-in links arrive and work.**
+- ✅ **Email sends from `hello@releveconnect.com`** (a real address that forwards
+  to your Gmail). The old `info@` had no mailbox behind it and is gone.
+- ✅ **The application no longer counts words at anyone**, asks for references,
+  numbers its sections, or shows a price or a date.
+- ✅ **All four letters are in your voice**: received, accepted (BraveHeart),
+  not-yet, and tell-us-more.
+- ✅ **Dark mode is dead.** The form was invisible on a phone set to dark; it now
+  renders light always.
+
+## What is NOT proven yet
+
+- ❓ **Approval → welcome letter → profile builder.** Never completed end to end.
+  This is tomorrow's fifteen minutes.
+- ❓ **Deliverability to Hotmail and iCloud.** Gmail is fine. Microsoft accepted
+  two messages and showed neither; Apple deferred one. The likely cause was fixed
+  late today (links now point at releveconnect.com instead of a supabase.co URL,
+  and the sender is now a real address) — but it has not been retested.
+  **Do not invite anyone on an Outlook/Hotmail address until it is.**
 
 ---
 
-## The honest one-liner
-You built and shipped a working platform today. It's live, it's clean, and your real site is safe. Tomorrow is: confirm email verified → test it end-to-end → point your domain. You're basically there.
+## Known rough edges (annoying, not broken)
 
-Rest well. — Claude 🤍
+- **The sign-in link lands you on `/profile/edit`, not where you were headed.**
+  A regression from today's email-template fix — the "return to this page"
+  parameter got dropped. Cosmetic; just navigate to `/admin/applications` after.
+  Needs a small fix in the Supabase email template.
+- **`/admin/applications` returns 404 if you're signed in as a non-admin.** That
+  is deliberate (a member shouldn't learn the console exists), but it looks
+  broken when it's you. Review as an admin account; test as anyone else.
+- **`kathleen@releveconnect.com` is not an inbox.** You cannot log into it. It is
+  a forwarding alias — mail to it appears in `relevewerise@gmail.com`. There is
+  no Google Workspace account behind it.
 
-*(Full technical detail is in `GO-LIVE-CHECKLIST.md` and `RESUME-HERE.md` if you or Claude need it.)*
+---
+
+## Cleanup owed (say the word, it's quick)
+
+- Delete the two test applications and the test accounts, so the queue you launch
+  with is clean.
+- Drop `kathleenmcareekilcoyne@gmail.com` back to `talent`, leaving exactly one
+  admin identity.
+- Move DNS to Cloudflare — the permanent fix for the bounce-feedback loop that
+  Namecheap cannot support alongside your email forwarding. A separate day's job.
+
+---
+
+## The honest note
+
+Today the domain moved, the old site was buried, email started sending from your
+own name, and the application stopped feeling like an interrogation. That is a
+real day.
+
+Tonight did not finish, and some of that was on me: I redeployed an older build
+by mistake, I introduced the sign-in redirect regression, and I looked straight
+at a near-black screenshot this afternoon without registering that a human
+couldn't read it. You found that one in thirty seconds by trying to use it.
+
+Nothing is lost. Everything above is committed. Start at the top of this file.
+
+— Claude 🤍
