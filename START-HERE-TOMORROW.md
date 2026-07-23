@@ -1,164 +1,82 @@
 # ☀️ START HERE — Kathleen
 
-*Left for you the night of July 22, 2026. Short on purpose.*
+*Left for you the small hours of July 23, 2026.*
 
 ---
 
-## Two things, in this order
+## 🎉 It works. The whole chain. You proved it yourself last night.
 
-### 1. The fifteen minutes still owed from last night
+The one thing that had never been done end to end — since Monday — is done:
 
-**Approve an application and confirm the welcome letter arrives.** This is
-unchanged from yesterday's note — I did **not** get to it today, so it is still
-the one link in the chain never proven end to end.
+**apply → lands in the vetting queue → a real admin reviews → membership granted → the right letter arrives.**
 
-1. **releveconnect.com/login** → sign in as `kathleenmcareekilcoyne@gmail.com`
-2. Click the emailed link. It drops you on your profile editor (known rough
-   edge, see below). Navigate to **releveconnect.com/admin/applications**
-3. Approve one of the applications waiting → check that inbox for the
-   **BraveHeart letter**.
+You ran all three paths at 12:01–12:05am and confirmed every email by eye:
 
-If the letter arrives and that person can build a profile, **you are open.**
+| Application | Outcome | Membership granted | Letter you confirmed |
+| --- | --- | --- | --- |
+| `info@serenitypremiercare.com` (Studio Owner) | **Approved** | Studio Connect · $0 · to Jul 2027 | "We've received your application", then **BraveHeart** |
+| `serenitypremiercare@gmail.com` (Teacher/Choreo) | **Approved** — Established tier | Professional · $0 · to Jul 2027 | BraveHeart |
+| `kathleenmcareekilcoyne@gmail.com` | **Declined** | — | The "not yet" letter |
 
-### 2. Look at today's change and tell me if it ships
+It picked the right tier for each role on its own — Studio Connect for the studio owner, Professional for the teacher — without being told. And `reviewed_by` is now stamped on all three, so every decision carries your name. That column had been empty since it was built.
 
-Today was a **positioning change**: The Swing and The Flex Series came off the
-public site, and **licensing became the headline**.
-
-⚠️ **It is not live.** It sits on a branch (`feature/licensing-first-positioning`),
-not pushed, not merged. **releveconnect.com still shows the old homepage** with
-The Swing, the $50/hour line, and The Flex Series. Nothing you can break by
-waiting.
-
-To see it:
-
-```bash
-npm run dev
-```
-
-Then open **localhost:3000** and **localhost:3000/studio**. If you like it, say
-so and I'll merge and deploy. If you don't, it reverts in one command.
+**You are open.**
 
 ---
 
-## What actually changed today
+## The one thing that still blocks inviting people
 
-- **The Swing is off the front door** — the homepage block and its `$50/hour`
-  line are gone.
-- **The Flex Series is gone** from the homepage.
-- **Licensing is now the first thing after the hero** — its own full section,
-  not one card in a list of four. The copy leads with *rights you control*
-  ("you decide how a piece may be used, by whom, and for how long"), not with
-  selling a video.
-- **It still says "Coming"**, because licensing genuinely isn't built. Its
-  button is an email capture — *"tell me when it opens"* — not a promise. I did
-  not invent a licensing flow that doesn't exist.
-- **/studio was rebuilt.** That whole page used to be The Swing ("Never
-  scramble for a sub again"). It now stands on the two things a studio can
-  really do today: browse the Roster, set up a studio account.
-- **Nothing was deleted behind the sign-in.** The Swing opt-in on your profile,
-  the database tables, This Week — all untouched. The feature still exists; it
-  is only off the shop window. Putting it back is uncommenting a block.
-- **No pricing anywhere.** Still free / waitlist, exactly as you asked.
+### 🛑 Outlook and Hotmail users cannot sign in — so they cannot apply
+
+Not "sometimes." At all. Microsoft scans links in incoming mail by *opening* them, which spends a one-time sign-in link before a human can tap it. Barry's account is the proof: created 03:09:04, "signed in" 03:09:21 — seventeen seconds. That was a scanner, not a person.
+
+**The fix: email a 6-digit code instead of a clickable link.** A scanner can't type a number into a box. It's the standard answer to this exact problem.
+
+Two parts, and one of them is yours:
+1. I change the sign-in page and the code that verifies it.
+2. **You** add the code to the sign-in email template in the Supabase dashboard — I can't reach email templates from code. About two minutes, I'll walk you through it.
+
+**Do this before inviting anyone.** A large share of dance teachers are on Outlook or Hotmail, and right now every one of them hits a silent wall.
 
 ---
 
-## The one thing only you can do
+## Ready to build when you say go
 
-There is a checkbox on the application form that reads **"Substituting via The
-Swing."** It lives in the database, not the code, so I can't remove it — this is
-yours:
+**The student-count question** (you asked for this at midnight). The studio section of the application is currently one free-text box — which is why your studio application only captured "Bergen pac englewood."
 
-```bash
-psql "$DATABASE_URL" -c "update open_to_badges set is_active = false where slug = 'substituting';"
-```
+Your bands had a gap and an overlap (a studio with 175 students had nowhere to click; one with exactly 100 had two). Waiting on your yes for these:
 
-*While you're in there:* the checkbox beside it says **"Auditioning via The
-Beat"** — also a feature that isn't built. Your call, I left it alone.
+- Under 50 · 50–99 · 100–199 · 200+
 
----
+Three more columns are already built and never asked: **staff count**, **studio rooms**, **year founded**. Say which you want.
 
-## Still true from last night (nothing here got better today)
-
-- **Sign-in links land you on `/profile/edit`**, not where you were headed.
-  Cosmetic; just navigate on. Needs a small fix in the Supabase email template.
-- **`/admin/applications` 404s for a non-admin.** Deliberate, but it looks
-  broken when it's you. Review as the admin account.
-- **`kathleen@releveconnect.com` is not an inbox** — it forwards to
-  `relevewerise@gmail.com`. You cannot log into it.
-- **Deliverability to Hotmail and iCloud is still unproven.** Gmail is fine.
-  **Do not invite anyone on an Outlook/Hotmail address until it is.**
-
-## Cleanup still owed (say the word, it's quick)
-
-- Delete the test applications and test accounts so you launch with a clean queue.
-- Drop `kathleenmcareekilcoyne@gmail.com` back to `talent`, leaving one admin.
-- Move DNS to Cloudflare — the permanent fix for the bounce-feedback loop
-  Namecheap can't support alongside your email forwarding. A separate day's job.
+**Cleanup before real people arrive.** The database now holds 3 test applications, 2 test memberships, and 6 test accounts — all yours. Worth clearing so you launch with a clean queue. One command, say the word.
 
 ---
 
-## The Swing question — you answered it
+## Fixed last night, already live
 
-You said it plainly: **The Swing is the staffing agency behind Relevé Connect,
-the biggest studio feature there is, and we're currently free. Give away the
-best studio feature for free and there's nothing left to charge for.**
+- **Admins land on the vetting queue when they sign in.** You were being routed to a members-only page and trapped there — your own membership wall was locking you out of your own console. That was the "it will not let me in" problem, and it was ours.
+- **The membership page now shows admins a door to the queue**, plus "Signed in as ___" so you can tell which account you're on. Nothing in the app answered that before.
+- **A dead sign-in link now says so** instead of returning you to a blank form in silence.
+- **No more admin token.** Approving needs nothing but being signed in as an admin.
 
-I checked that against the ratified pricing and it's not just instinct — it's
-structural. Swing and Flex *are* the studio ladder:
+---
 
-- Studio Connect $249 → 3 Swing uses
-- Studio Growth $499 → **Swing included**, Flex $250/run
-- Studio Accelerator $1,499 → **unlimited Swing**, 4 Flex runs
+## Known rough edges (annoying, not broken)
 
-Take Swing and Flex out and all three tiers become the same thing: a directory
-listing. There'd be no reason for a studio to move up, and no moment to charge.
-
-**So The Swing isn't paused — it's withheld.** Same roadmap position, still the
-studio product, still getting built. It just isn't being advertised or given
-away first. Recorded in `DECISIONS.md`.
-
-### One thing this changes on your to-do list
-
-**Do NOT run that Supabase command I gave you.** I told you to disable the
-"Substituting via The Swing" checkbox on the application form. **That was wrong
-given what you just explained**, and I'm withdrawing it.
-
-Here's why: every teacher who ticks that box is *supply you own before you
-charge anyone a dollar*. A staffing agency with no staff can't sell a shift.
-Collecting available teachers while the platform is free is exactly how the
-paid studio product works on day one. Leave it on. Same for "Auditioning via
-The Beat."
-
-The split to hold in your head:
-
-- **Teacher side — free, and keep it running.** Opting in, availability, the
-  application question. That's inventory.
-- **Studio side — the product.** Finding, matching, booking a sub. That's what
-  a studio pays for, and it stays behind the paywall.
-
-### One risk worth watching
-
-Teachers can opt into The Swing today, but no studio can book them yet — and
-now that'll be true for a while. The current wording ("opt in to be matched
-when a studio needs a last-minute substitute") doesn't promise a date, so it's
-honest. But if teachers start opting in and nothing ever comes, that erodes
-trust quietly. A small "not live yet" note on that section would fix it. Say
-the word.
+- **iPhone Safari hides the URL path** — it shows only `releveconnect.com`, so you can't see which page you're on. Tap the address bar to see the full address. This is Safari, not us.
+- **Typing a URL on a phone triggers autocomplete** to the last page you visited. Select-all and delete first.
+- **`kathleen@releveconnect.com` is a forwarding alias, not an inbox.** Mail to it lands in `relevewerise@gmail.com`.
 
 ---
 
 ## The honest note
 
-Today was positioning, not plumbing. The front door tells a much simpler, truer
-story now — one product, clearly explained, nothing promised that isn't there.
+Last night looked like four hours of the site being broken. It wasn't. You found four real defects by being the first person to walk through your own front door as a stranger would — and three are already fixed. The fourth is Outlook, and it's first on the list this morning.
 
-But the approval → welcome letter chain is exactly where you left it last night.
-I spent the day on the shop window and none of it on the thing you were told to
-test in fifteen minutes. That's worth naming, not burying: **the site says a
-better thing now, and it is no closer to being proven open than it was
-yesterday.** Item 1 above is still the whole game.
+Nobody could have found those from the inside. They needed someone to actually try to use the thing.
 
-Start at the top.
+The platform works. Go to bed proud of that.
 
 — Claude 🤍

@@ -15,6 +15,7 @@
 // with no save will lose good people. This pass is submit-only.
 
 import { createClient } from "@/lib/supabase/server";
+import { STUDENT_COUNT_BANDS, parseEnum } from "@/lib/studio/profile";
 import {
   sendAdminNewApplicationAlert,
   sendApplicationReceived,
@@ -113,7 +114,16 @@ export async function submitApplication(
         }
       : null,
     studio_owner: roles.includes("studio_owner")
-      ? { details: str("studio_owner_details") }
+      ? {
+          details: str("studio_owner_details"),
+          // Stored as the BAND KEY (e.g. "100_199"), not the label, so it can be
+          // copied straight into employer_profiles.student_count_band when the
+          // studio builds its profile. parseEnum drops anything unrecognised.
+          student_count_band: parseEnum(
+            str("studio_student_count_band"),
+            STUDENT_COUNT_BANDS,
+          ),
+        }
       : null,
     choreographer: roles.includes("choreographer")
       ? {

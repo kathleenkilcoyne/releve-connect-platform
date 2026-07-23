@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { submitApplication } from "./actions";
 import { saveApplicationDraft } from "./draft";
+import { STUDENT_COUNT_BANDS, STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
 
 type Option = { slug: string; label: string };
 type DraftFields = Record<string, string | string[]>;
@@ -495,10 +496,24 @@ export default function ApplyForm({
         </Section>
       )}
 
-      {/* 6 — Studio owner */}
+      {/* 6 — Studio owner
+          Student count added 2026-07-23 (founder). Studio size is the single
+          most useful fact about an employer — it drives who they need and how
+          often — and until now the whole studio branch was one free-text box,
+          so a real studio application captured almost nothing structured.
+          Bands are contiguous with no gaps or overlaps; see STUDENT_COUNT_BANDS
+          in lib/studio/profile.ts before changing them. */}
       {has("studio_owner") && (
         <Section title="Your studio">
-          <Field label="Tell us about your studio" hint="Name, location, size, what you're known for."><Area name="studio_owner_details" /></Field>
+          <Field label="Tell us about your studio" hint="Name, location, what you're known for."><Area name="studio_owner_details" /></Field>
+          <Field label="How many students do you currently have?">
+            <select name="studio_student_count_band" className={inputCls} defaultValue="">
+              <option value="">Choose…</option>
+              {STUDENT_COUNT_BANDS.map((b) => (
+                <option key={b} value={b}>{STUDENT_COUNT_LABELS[b]}</option>
+              ))}
+            </select>
+          </Field>
         </Section>
       )}
 

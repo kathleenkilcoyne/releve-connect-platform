@@ -1,5 +1,33 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## 🎉 THE SPINE IS PROVEN END TO END (2026-07-23, ~00:05 ET) — and four defects found doing it
+>
+> **apply → vetting queue → admin review → membership granted → correct letter delivered.** Never completed before this. Kathleen ran all three outcomes herself and confirmed every email by eye.
+>
+> | Application | Outcome | Membership | Emails confirmed by Kathleen |
+> | --- | --- | --- | --- |
+> | `info@serenitypremiercare.com` (studio_owner) | approved | `studio_connect` · $0 · `founding_comp` · → 2027-07-23 | #1 received, then **BraveHeart** |
+> | `serenitypremiercare@gmail.com` (teacher+choreographer) | approved, tier `established` | `professional` · $0 · `founding_comp` · → 2027-07-23 | BraveHeart |
+> | `kathleenmcareekilcoyne@gmail.com` | declined | — | the "not yet" letter |
+>
+> Role→tier derivation worked unaided (studio_owner → `studio_connect`; teacher/choreo → `professional`). **`reviewed_by` is populated on all three** — the first decisions in the project's history that name who made them. Deliverability also proven to a **non-Gmail custom domain** (`info@serenitypremiercare.com`), not just Gmail.
+>
+> ### 🛑 THE ONE REMAINING LAUNCH BLOCKER — Outlook/Hotmail cannot sign in, so cannot apply
+> Microsoft pre-fetches links in incoming mail to scan them, which **spends the single-use magic link before the human taps it**. Proof: `barrykilcoyne@hotmail.com` created `03:09:04`, `last_sign_in_at` `03:09:21` — 17 seconds, which is a scanner, not a person on a phone. The human's click then hit a used code.
+> **Fix = 6-digit OTP (`verifyOtp`) instead of a clickable link.** Needs BOTH a code change AND Kathleen editing the Supabase auth email template to include `{{ .Token }}` (not reachable from code / the SQL API). **Do before inviting anyone** — a large share of dance teachers are on Outlook/Hotmail.
+>
+> ### Fixed and deployed during the same session
+> 1. **The founder was locked out of her own vetting queue.** `/auth/callback` defaulted to `/profile/edit` → requires an ACTIVE MEMBERSHIP → she has none (nobody had approved her) → redirect to `/subscribe` → "Your application is under review", a dead end with no admin link anywhere on the site. Every sign-in, every device. iOS Safari hides the URL path, so she couldn't see which page she was on. **Now: admins land on `/admin/applications`; `/subscribe` shows admins a link to the queue.**
+> 2. **Nothing in the app said who you were signed in as.** Signed in as three different accounts across three devices, indistinguishable from a broken site. **Now: "Signed in as {email}" on `/subscribe`.** Should be extended app-wide.
+> 3. **A dead sign-in link failed silently** — `/auth/callback` redirected to `/login?error=link` and nothing read that param, so the person got a blank form and looped forever. **Now surfaced, and names the Outlook cause.**
+> 4. **The shared `ADMIN_TOKEN` blocked the founder from her own console** (see the separate entry below). Retired; session-based now.
+>
+> ### ▶️ Next, in order
+> 1. **Sign-in codes** (the blocker above).
+> 2. **Studio application fields** — Kathleen asked for *"How many students do you currently have?"*. `employer_profiles.student_count_band` already exists but the application never asks; the whole studio branch is ONE free-text box (hence her studio application captured only "Bergen pac englewood"). **Her proposed bands had a gap + overlaps** (0-50, 50-100, 100-150, 200-above → 175 has no home; 100 fits two). Proposed instead: **Under 50 · 50–99 · 100–199 · 200+** — awaiting her yes. Existing DB check constraint allows only `Under 100 / 100–299 / 300+`, so a migration is needed either way. Also still unasked and already built: `staff_count`, `room_count`, `year_founded`. *(This finally answers the long-standing open question "what should the studio/employer path ask?")*
+> 3. **Purge test data** before real applicants: 3 applications, 2 memberships, 6 auth users — all Kathleen's.
+>
+
 > ## 🔀 POSITIONING CHANGE — Swing + Flex off the public site; licensing leads (2026-07-22)
 >
 > **Founder decision: launch lean on licensing + community.** The Swing and The Flex Series come off the front door before they are paid, working products. This is a **positioning change, not a feature deletion** — nothing behind the sign-in was removed.

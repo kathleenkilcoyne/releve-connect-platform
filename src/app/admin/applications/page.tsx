@@ -3,6 +3,7 @@
 // /api/admin/applications/[id] route (signed-in admin required). Mirrors the Signature-Works
 // admin console pattern.
 
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
 import ApplicationsConsole from "./ApplicationsConsole";
@@ -71,6 +72,25 @@ export default async function AdminApplicationsPage() {
         grants a <span className="font-medium">complimentary membership</span> and sends the
         welcome email.
       </p>
+
+      {/* Way OUT of the console (2026-07-23). Signing in as an admin now lands
+          here, which is right for reviewing — but this page had no links at all,
+          so an admin who wanted her own profile was stuck in the queue with
+          nowhere to go. Every page needs a door on both sides. */}
+      <nav aria-label="Admin" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t border-neutral-200 pt-4 text-sm">
+        <Link href="/profile/edit" className="text-neutral-700 underline">
+          Build your profile
+        </Link>
+        <Link href="/roster" className="text-neutral-700 underline">
+          The Roster
+        </Link>
+        <Link href="/studio/edit" className="text-neutral-700 underline">
+          Your studio
+        </Link>
+        <Link href="/" className="text-neutral-500 underline">
+          ← Back to Relevé
+        </Link>
+      </nav>
 
       <ApplicationsConsole applications={applications} />
     </main>

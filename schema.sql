@@ -255,7 +255,7 @@ create table employer_profiles (
   geocoded_at   timestamptz,
   -- Studio facts a sub needs (§7).
   year_founded       int check (year_founded is null or (year_founded between 1800 and (extract(year from now())::int + 1))),
-  student_count_band text check (student_count_band is null or student_count_band in ('under_100','100_299','300_plus')),
+  student_count_band text check (student_count_band is null or student_count_band in ('under_50','50_99','100_199','200_plus')),
   staff_count        int check (staff_count is null or staff_count >= 0),
   room_count         int check (room_count is null or room_count >= 0),
   -- Accessibility / "getting there" block (§7) — the differentiator.

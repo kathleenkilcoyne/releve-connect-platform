@@ -12,6 +12,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
 import type { ApplicationRow } from "./page";
 
 // Editorial honorifics (build spec §13) — conferred by the admin, never self-selected.
@@ -39,7 +40,7 @@ type Ans = {
   story?: { bio?: string; years_experience?: string };
   industry?: { studios_companies?: string; notable_credits?: string; unions?: string[]; certifications?: string; degrees?: string[] };
   teaching?: { philosophy?: string; levels?: string[]; styles?: string[]; adaptive_experience?: string; available_to_sub?: string; currently_teaching?: string } | null;
-  studio_owner?: { details?: string } | null;
+  studio_owner?: { details?: string; student_count_band?: string } | null;
   choreographer?: { focus_areas?: string[]; years?: string; available_to_license?: string; work_links?: string[] } | null;
   working_dancer?: { training?: string; performance?: string; auditioning_for?: string[] } | null;
   references?: Array<{ name?: string; contact?: string; relationship?: string }>;
@@ -296,6 +297,22 @@ function ApplicationCard({
             <>
               <Detail label="Choreographs">{(ans.choreographer.focus_areas ?? []).join(", ")}</Detail>
               <LinkList links={(ans.choreographer.work_links ?? []).map((u, i) => [`Work ${i + 1}`, u])} />
+            </>
+          )}
+          {/* Studio owners were TYPED but never rendered here — Kathleen
+              approved a studio application on 2026-07-23 without being shown a
+              single word of what they wrote. An employer is exactly who you
+              most need to read before saying yes. */}
+          {ans.studio_owner && (
+            <>
+              <Detail label="Their studio">{ans.studio_owner.details}</Detail>
+              <Detail label="Students">
+                {ans.studio_owner.student_count_band
+                  ? STUDENT_COUNT_LABELS[
+                      ans.studio_owner.student_count_band as keyof typeof STUDENT_COUNT_LABELS
+                    ] ?? ans.studio_owner.student_count_band
+                  : undefined}
+              </Detail>
             </>
           )}
           {ans.working_dancer && <Detail label="Performance">{ans.working_dancer.performance}</Detail>}

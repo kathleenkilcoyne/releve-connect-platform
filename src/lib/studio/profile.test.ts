@@ -7,6 +7,7 @@ import {
   buildEmployerProfileRow,
   addressChanged,
   STUDENT_COUNT_BANDS,
+  STUDENT_COUNT_LABELS,
   PARKING_KINDS,
   type StudioInput,
   type StudioRow,
@@ -53,7 +54,25 @@ describe("parseEnum", () => {
     expect(parseEnum(" street ", PARKING_KINDS)).toBe("street");
     expect(parseEnum("valet", PARKING_KINDS)).toBeNull();
     expect(parseEnum("", PARKING_KINDS)).toBeNull();
-    expect(parseEnum("300_plus", STUDENT_COUNT_BANDS)).toBe("300_plus");
+    expect(parseEnum("200_plus", STUDENT_COUNT_BANDS)).toBe("200_plus");
+    // The bands were re-banded 2026-07-23; the retired keys must not sneak back
+    // in through an old form post or a stale draft.
+    expect(parseEnum("under_100", STUDENT_COUNT_BANDS)).toBeNull();
+    expect(parseEnum("300_plus", STUDENT_COUNT_BANDS)).toBeNull();
+  });
+});
+
+describe("STUDENT_COUNT_BANDS", () => {
+  it("covers every studio size with no gap and no overlap", () => {
+    // The founder's first draft (0-50, 50-100, 100-150, 200-above) left a
+    // 151–199 hole and double-counted 50 and 100. Guard against a repeat.
+    expect([...STUDENT_COUNT_BANDS]).toEqual(["under_50", "50_99", "100_199", "200_plus"]);
+    expect(Object.values(STUDENT_COUNT_LABELS)).toEqual([
+      "Under 50",
+      "50–99",
+      "100–199",
+      "200+",
+    ]);
   });
 });
 
@@ -116,7 +135,7 @@ describe("buildEmployerProfileRow", () => {
         postalCode: "07042",
         country: "USA",
         yearFounded: "2005",
-        studentCountBand: "100_299",
+        studentCountBand: "100_199",
         staffCount: "8",
         roomCount: "3",
         nearestTransit: "Walnut St (Montclair-Boonton Line); bus 28",
@@ -140,7 +159,7 @@ describe("buildEmployerProfileRow", () => {
         postal_code: "07042",
         country: "USA",
         year_founded: 2005,
-        student_count_band: "100_299",
+        student_count_band: "100_199",
         staff_count: 8,
         room_count: 3,
         nearest_transit: "Walnut St (Montclair-Boonton Line); bus 28",

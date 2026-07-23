@@ -7,7 +7,12 @@
 // dispatch loop and radius search can query them later.
 
 /** Controlled bands / enums (mirror the DB check constraints in migration 20260713000000). */
-export const STUDENT_COUNT_BANDS = ["under_100", "100_299", "300_plus"] as const;
+// Student-count bands, re-banded 2026-07-23 (founder). The old set was
+// under_100 / 100_299 / 300_plus. Kathleen's first draft — 0-50, 50-100,
+// 100-150, 200-above — had a HOLE (175 students fits nothing) and OVERLAPS
+// (exactly 100 fits two), so these were ratified instead: contiguous, no gaps,
+// every studio lands in exactly one. Keep them that way.
+export const STUDENT_COUNT_BANDS = ["under_50", "50_99", "100_199", "200_plus"] as const;
 export type StudentCountBand = (typeof STUDENT_COUNT_BANDS)[number];
 
 export const PARKING_KINDS = ["onsite", "street", "none"] as const;
@@ -15,9 +20,10 @@ export type ParkingKind = (typeof PARKING_KINDS)[number];
 
 /** Human labels for the bands/enums (used by the editor + display). */
 export const STUDENT_COUNT_LABELS: Record<StudentCountBand, string> = {
-  under_100: "Under 100",
-  "100_299": "100–299",
-  "300_plus": "300+",
+  under_50: "Under 50",
+  "50_99": "50–99",
+  "100_199": "100–199",
+  "200_plus": "200+",
 };
 export const PARKING_LABELS: Record<ParkingKind, string> = {
   onsite: "On-site",
