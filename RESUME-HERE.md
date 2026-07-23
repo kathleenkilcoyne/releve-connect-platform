@@ -1,5 +1,39 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## 🔀 POSITIONING CHANGE — Swing + Flex off the public site; licensing leads (2026-07-22)
+>
+> **Founder decision: launch lean on licensing + community.** The Swing and The Flex Series come off the front door before they are paid, working products. This is a **positioning change, not a feature deletion** — nothing behind the sign-in was removed.
+>
+> **Branch `feature/licensing-first-positioning` — 2 commits, NOT pushed, NOT merged. Production still shows the old homepage.**
+>
+> ### Removed from the public site
+> - **Homepage** (`src/app/page.tsx`): the `The Swing — never scramble for a sub again.` block and its **`$50/hour`** copy (the only `$50` in the codebase); the `The Flex Series — test before you commit.` block; the two `Coming` chips that existed only for them.
+> - **`/studio`**: the entire page was the sub-finder (h1 *"Never scramble for a sub again"*, bullet *"The sub-finder (The Swing)"*). Rebuilt around what a studio can actually do today — browse the Roster, set up a studio account. Kathleen chose "slim it" over "delete it" or "placeholder"; `/studio/edit` is real and working, so the CTA is not a promise.
+>
+> ### Licensing promoted to the primary draw
+> Was one of four feature cards; now its **own full section directly beneath the hero** — first thing after the promise. Copy leads with **rights control** ("you decide how a piece may be used, by whom, and for how long"), per the ratified rights-management framing, *not* with selling a video.
+> - **The `Coming` chip stays.** Licensing IS NOT BUILT — no self-serve lane, no watermarking / DRM / signed-URL protection anywhere. **No "start licensing" button was invented.**
+> - **CTA is an email capture** (Kathleen's choice of the three offered). Reuses `ClimbSignup` via a new `variant="licensing"`; its consent line **names The Climb out loud**, because that is the list it joins — nobody lands on a list they didn't agree to (guardrail #5).
+> - New **optional** `MAILERLITE_LICENSING_GROUP_ID`: if set, licensing signups join that group **AS WELL AS** The Climb, never instead of it. Documented in `README.md` + `.env.example`.
+> - **Homepage `<meta name="description">`** re-centred on licensing.
+>
+> ### Deliberately NOT touched (Kathleen's explicit call: "leave both")
+> The Swing opt-in in `/profile/edit` · the *"Available to substitute (The Swing)?"* question on `/apply` · `swing_availability` / `swing_styles` / `swing_levels` tables + migration · `lib/swing/availability.ts` · all This Week code (the "Available for The Swing" event card, adapters, tests) · `swing` in `reserved-slugs.ts`. **The feature is intact behind the sign-in — only off the shop window.** Restoring the homepage block is uncommenting; the honesty-rule comment in `page.tsx` records exactly what was removed and why.
+>
+> ### ⚠️ Owed by Kathleen — a DB row, not code
+> `open_to_badges` slug **`substituting`** → label **"Substituting via The Swing"** still renders as a checkbox in the *"Open to…"* section of `/apply`. It is content, not code:
+> `update open_to_badges set is_active = false where slug = 'substituting';`
+> *Also flagged, not touched:* the sibling row `auditioning` → **"Auditioning via The Beat"** names another unbuilt feature.
+>
+> ### Guardrail upheld
+> **Senior Spotlight / the $499 Signature Experience were NOT named publicly**, despite the brief saying "elevate licensing / Senior Spotlight" — the standing rule is that they are curated and invite-only and must never appear on the public homepage. The **general** licensing promise was elevated instead, and the guardrail comment was preserved in `page.tsx`. **If that rule has changed, Kathleen has to say so.**
+>
+> ### Verified
+> `npm run build` compiles · **127/127 tests pass** · ESLint clean · both pages rendered in-browser (homepage body text contains no "Swing" / "Flex" / "$50"; `/studio` clean) · **no horizontal overflow at 375px**, licensing section starts ~718px down a 812px mobile viewport (second thing you see) · zero console errors. **No pricing or tiers added anywhere — the site stays free/waitlist.**
+>
+> ### ▶️ OPEN — needs Kathleen's answer (do NOT guess)
+> **Is The Swing paused, or just quiet while it gets finished?** The pick-up point below (written 2026-07-13) says the next pillar is the **Swing dispatch loop (Slice B)**. Today's decision pulled The Swing off the public site. Those point in opposite directions. **The pick-up point below is left UNCHANGED and is now suspect** — do not start Slice B on the strength of it without asking. If The Swing is paused, the live candidates become The Beat and the licensing lane itself (which is the thing the homepage now leads with, and the thing that isn't built).
+
 > ## ✅ APPLY-FLOW FIXES from Kathleen's self-test (2026-07-20)
 >
 > She tested on **Brent's old site** and filed 7 findings. Mapped onto the new build: **3 were already impossible here**, **1 was fixed earlier today**, **3 were real** and are now done.
@@ -254,6 +288,9 @@
 ---
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
+
+> ⚠️ **STALE AS OF 2026-07-22 — read the positioning-change note at the top of this file first.**
+> Everything below was written 2026-07-13, when the plan was "finish The Swing, then organize The Beat." On 2026-07-22 The Swing was pulled off the public site (launch lean on licensing + community). **Whether that pauses the Swing dispatch loop is an OPEN QUESTION Kathleen has not answered.** Do not start Slice B on the strength of this section — ask first. The rest of it (The Beat, the deferred items, the forward dependency) is still accurate.
 
 **Two live tracks after 2026-07-13:**
 
