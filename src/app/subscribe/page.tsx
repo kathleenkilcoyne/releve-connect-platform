@@ -46,13 +46,49 @@ export default async function SubscribePage() {
   const member =
     ((memRows ?? []) as Array<{ renewal_date: string | null }>)[0] ?? null;
 
+  // ── The trap this escapes (2026-07-22) ──
+  // Signing in lands on /profile/edit, which requires an ACTIVE MEMBERSHIP and
+  // otherwise redirects here. An admin who has no membership — which is exactly
+  // the founder's situation, since nobody has approved her — therefore gets
+  // dumped on this page on EVERY sign-in, with no route onward except "Back to
+  // Relevé", and no link to the admin console existing anywhere on the site.
+  // Kathleen spent an evening locked out of her own vetting queue this way.
+  // So: if this person is an admin, always give them the door.
+  const { data: roleRow } = await db
+    .from("users")
+    .select("account_type")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isAdmin = (roleRow as { account_type?: string } | null)?.account_type === "admin";
+
   const shell = (children: React.ReactNode) => (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
         Relevé · Membership
       </p>
       {children}
-      <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
+
+      {isAdmin && (
+        <div className="mt-8 rounded-xl border border-neutral-900 bg-neutral-900 p-5">
+          <p className="text-sm font-medium text-white">You&apos;re signed in as an admin.</p>
+          <p className="mt-1 text-sm text-neutral-300">
+            This page is about membership — it isn&apos;t where you review applications.
+          </p>
+          <Link
+            href="/admin/applications"
+            className="mt-4 inline-block rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-neutral-900"
+          >
+            Go to the vetting queue →
+          </Link>
+        </div>
+      )}
+
+      {/* Who am I? Nothing else in the app answers this, and being signed in as
+          the wrong account (across a phone, a laptop and a spouse's phone) is
+          indistinguishable from the site being broken. */}
+      <p className="mt-8 text-xs text-neutral-400">Signed in as {user.email}</p>
+
+      <Link href="/" className="mt-4 inline-block text-sm text-neutral-500 underline">
         ← Back to Relevé
       </Link>
     </main>
