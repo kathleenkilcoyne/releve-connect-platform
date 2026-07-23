@@ -4,7 +4,7 @@
 // a one-tap link, and clicking it signs you in and drops you on your profile
 // editor. (The link lands on /auth/callback, which finishes the sign-in.)
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,6 +13,30 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Say something when a sign-in link fails ──
+  // /auth/callback redirects here with ?error=link when the one-time code is
+  // expired or ALREADY USED. Nothing read that parameter, so the person landed
+  // on a blank sign-in form with no explanation, typed their email again, got
+  // another link, and looped. Found the hard way on 2026-07-22.
+  //
+  // The most common cause is not a slow click: Outlook/Hotmail (and other
+  // scanners) PRE-FETCH links in a message to check them for malware. A
+  // single-use magic link gets spent by the scanner before the human ever taps
+  // it — so the link is genuinely dead on arrival, through no fault of theirs.
+  // Read from window.location rather than useSearchParams so this component
+  // doesn't need a Suspense boundary (same reason as the read in sendLink).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "link") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setError(
+        "That sign-in link had already been used or expired. Some email providers " +
+          "(especially Outlook and Hotmail) open links automatically to scan them, " +
+          "which uses the link up before you get to it. Send a fresh one below — and " +
+          "if it keeps happening, tell us and we'll switch you to a sign-in code instead.",
+      );
+    }
+  }, []);
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +96,11 @@ export default function LoginPage() {
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-700">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={busy || !email.trim()}
