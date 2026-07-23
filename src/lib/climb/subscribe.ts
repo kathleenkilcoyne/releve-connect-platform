@@ -25,6 +25,18 @@ export type ClimbSignupResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
+/**
+ * Which form the person came from. Both write to the SAME MailerLite list — the
+ * consent copy on the licensing form names The Climb explicitly, so nobody ends
+ * up on a list they didn't agree to.
+ *
+ * If MAILERLITE_LICENSING_GROUP_ID is set, licensing sign-ups are added to that
+ * group AS WELL AS The Climb (not instead of it) — so Kathleen can write to
+ * "people waiting on licensing" without breaking the promise they were shown.
+ * Leave the env var unset and everything simply lands in The Climb.
+ */
+type SignupList = "climb" | "licensing";
+
 /** Deliberately permissive — just enough to catch a typo, not to police addresses. */
 function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -43,6 +55,7 @@ export async function subscribeToClimb(
   const firstName = String(formData.get("first_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const consent = formData.get("consent") === "on";
+  const list: SignupList = formData.get("list") === "licensing" ? "licensing" : "climb";
 
   if (!firstName) return { ok: false, message: "Please add your first name." };
   if (!looksLikeEmail(email)) return { ok: false, message: "That email doesn't look right." };
@@ -56,6 +69,7 @@ export async function subscribeToClimb(
 
   const apiKey = process.env.MAILERLITE_API_KEY;
   const groupId = process.env.MAILERLITE_CLIMB_GROUP_ID;
+  const licensingGroupId = process.env.MAILERLITE_LICENSING_GROUP_ID;
 
   if (!apiKey || !groupId) {
     // Not configured yet. Say something true rather than pretending it worked —
@@ -66,6 +80,11 @@ export async function subscribeToClimb(
       message: "Sign-ups aren't switched on quite yet. Please try again shortly.",
     };
   }
+
+  // The Climb group always. The licensing group only as an ADDITION, and only if
+  // one has been configured.
+  const groups =
+    list === "licensing" && licensingGroupId ? [groupId, licensingGroupId] : [groupId];
 
   try {
     const res = await fetch(MAILERLITE_ENDPOINT, {
@@ -78,7 +97,7 @@ export async function subscribeToClimb(
       body: JSON.stringify({
         email,
         fields: { name: firstName },
-        groups: [groupId],
+        groups,
         // Records that this person opted in, and when — the audit trail behind
         // the checkbox.
         status: "active",
@@ -92,12 +111,24 @@ export async function subscribeToClimb(
       // repeat sign-up as success — telling someone "you're already on the list"
       // is fine, but making it look like a failure is not.
       if (res.status === 422) {
-        return { ok: true, message: "You're already on the list — see you on the 1st." };
+        return {
+          ok: true,
+          message:
+            list === "licensing"
+              ? "You're already on the list — we'll write the moment licensing opens."
+              : "You're already on the list — see you on the 1st.",
+        };
       }
       return { ok: false, message: "Something went wrong signing you up. Please try again." };
     }
 
-    return { ok: true, message: "You're in. Look for The Climb on the 1st." };
+    return {
+      ok: true,
+      message:
+        list === "licensing"
+          ? "You're in. We'll write the moment licensing opens."
+          : "You're in. Look for The Climb on the 1st.",
+    };
   } catch (err) {
     console.error("[climb] MailerLite subscribe error:", err);
     return { ok: false, message: "Couldn't reach the mailing list just now. Please try again." };

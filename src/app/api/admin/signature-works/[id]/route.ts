@@ -30,7 +30,7 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const gate = requireAdmin(req);
+  const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
   const { id } = await ctx.params;

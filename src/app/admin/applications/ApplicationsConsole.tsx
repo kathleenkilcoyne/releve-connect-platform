@@ -1,14 +1,18 @@
 "use client";
 
 // The vetting queue UI. Client-side; talks to the gated /api/admin/applications/[id]
-// route with the ADMIN_TOKEN header, then router.refresh() so the list updates.
-// Mirrors the Signature-Works AdminConsole token pattern.
+// route, then router.refresh() so the list updates.
+//
+// ── 2026-07-22: the admin-token box is gone ──
+// There used to be a password field here, and EVERY action button was disabled
+// until a 48-character secret from a local dotfile was pasted into it. Signed in
+// as a real admin, you could read the queue and act on none of it. The route now
+// checks the session instead (src/lib/admin-auth.ts), so if you can see this
+// page you can use it.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ApplicationRow } from "./page";
-
-const TOKEN_KEY = "releve_admin_token";
 
 // Editorial honorifics (build spec §13) — conferred by the admin, never self-selected.
 const HONORIFICS = [
@@ -47,19 +51,9 @@ type Ans = {
 
 export default function ApplicationsConsole({ applications }: { applications: ApplicationRow[] }) {
   const router = useRouter();
-  const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem(TOKEN_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setToken(saved);
-  }, []);
-  useEffect(() => {
-    if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  }, [token]);
 
   /**
    * What just happened to each application, so the console can CONFIRM an action
@@ -99,7 +93,9 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
     try {
       const res = await fetch(`/api/admin/applications/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "x-admin-token": token },
+        // No token header — the route reads the signed-in session. Same-origin
+        // fetch sends the auth cookie automatically.
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
@@ -119,18 +115,6 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
 
   return (
     <div className="mt-8 space-y-6">
-      {/* Token */}
-      <div>
-        <label className="mb-1 block text-xs font-medium text-neutral-600">Admin token</label>
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Paste your ADMIN_TOKEN"
-          className={input}
-        />
-      </div>
-
       {/* Filters */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className={input}>
@@ -172,7 +156,6 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
             open={expanded === a.application_id}
             onToggle={() => setExpanded(expanded === a.application_id ? null : a.application_id)}
             busy={busy}
-            tokenSet={!!token}
             outcome={done[a.application_id] ?? null}
             act={act}
           />
@@ -241,7 +224,6 @@ function ApplicationCard({
   open,
   onToggle,
   busy,
-  tokenSet,
   outcome,
   act,
 }: {
@@ -249,7 +231,6 @@ function ApplicationCard({
   open: boolean;
   onToggle: () => void;
   busy: boolean;
-  tokenSet: boolean;
   /** Set once this application has been acted on — replaces the buttons. */
   outcome: string | null;
   act: (id: string, body: unknown) => Promise<void>;
@@ -263,7 +244,7 @@ function ApplicationCard({
   const name = `${app.first_name ?? ""} ${app.last_name ?? ""}`.trim() || app.email;
   const feeTone = app.fee_status === "paid" ? "green" : app.fee_status === "refunded" ? "red" : app.fee_status === "waived" ? "neutral" : "amber";
   const dp = ans.digital_presence ?? {};
-  const canAct = tokenSet && !busy;
+  const canAct = !busy;
 
   return (
     <div className="p-4">

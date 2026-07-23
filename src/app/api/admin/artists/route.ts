@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const gate = requireAdmin(req);
+  const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
   let body: { displayName?: string; email?: string };

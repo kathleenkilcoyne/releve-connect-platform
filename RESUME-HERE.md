@@ -1,5 +1,49 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## 🔀 POSITIONING CHANGE — Swing + Flex off the public site; licensing leads (2026-07-22)
+>
+> **Founder decision: launch lean on licensing + community.** The Swing and The Flex Series come off the front door before they are paid, working products. This is a **positioning change, not a feature deletion** — nothing behind the sign-in was removed.
+>
+> **Branch `feature/licensing-first-positioning` — 2 commits, NOT pushed, NOT merged. Production still shows the old homepage.**
+>
+> ### Removed from the public site
+> - **Homepage** (`src/app/page.tsx`): the `The Swing — never scramble for a sub again.` block and its **`$50/hour`** copy (the only `$50` in the codebase); the `The Flex Series — test before you commit.` block; the two `Coming` chips that existed only for them.
+> - **`/studio`**: the entire page was the sub-finder (h1 *"Never scramble for a sub again"*, bullet *"The sub-finder (The Swing)"*). Rebuilt around what a studio can actually do today — browse the Roster, set up a studio account. Kathleen chose "slim it" over "delete it" or "placeholder"; `/studio/edit` is real and working, so the CTA is not a promise.
+>
+> ### Licensing promoted to the primary draw
+> Was one of four feature cards; now its **own full section directly beneath the hero** — first thing after the promise. Copy leads with **rights control** ("you decide how a piece may be used, by whom, and for how long"), per the ratified rights-management framing, *not* with selling a video.
+> - **The `Coming` chip stays.** Licensing IS NOT BUILT — no self-serve lane, no watermarking / DRM / signed-URL protection anywhere. **No "start licensing" button was invented.**
+> - **CTA is an email capture** (Kathleen's choice of the three offered). Reuses `ClimbSignup` via a new `variant="licensing"`; its consent line **names The Climb out loud**, because that is the list it joins — nobody lands on a list they didn't agree to (guardrail #5).
+> - New **optional** `MAILERLITE_LICENSING_GROUP_ID`: if set, licensing signups join that group **AS WELL AS** The Climb, never instead of it. Documented in `README.md` + `.env.example`.
+> - **Homepage `<meta name="description">`** re-centred on licensing.
+>
+> ### Deliberately NOT touched (Kathleen's explicit call: "leave both")
+> The Swing opt-in in `/profile/edit` · the *"Available to substitute (The Swing)?"* question on `/apply` · `swing_availability` / `swing_styles` / `swing_levels` tables + migration · `lib/swing/availability.ts` · all This Week code (the "Available for The Swing" event card, adapters, tests) · `swing` in `reserved-slugs.ts`. **The feature is intact behind the sign-in — only off the shop window.** Restoring the homepage block is uncommenting; the honesty-rule comment in `page.tsx` records exactly what was removed and why.
+>
+> ### ⚠️ Owed by Kathleen — a DB row, not code
+> `open_to_badges` slug **`substituting`** → label **"Substituting via The Swing"** still renders as a checkbox in the *"Open to…"* section of `/apply`. It is content, not code:
+> `update open_to_badges set is_active = false where slug = 'substituting';`
+> *Also flagged, not touched:* the sibling row `auditioning` → **"Auditioning via The Beat"** names another unbuilt feature.
+>
+> ### Guardrail upheld
+> **Senior Spotlight / the $499 Signature Experience were NOT named publicly**, despite the brief saying "elevate licensing / Senior Spotlight" — the standing rule is that they are curated and invite-only and must never appear on the public homepage. The **general** licensing promise was elevated instead, and the guardrail comment was preserved in `page.tsx`. **If that rule has changed, Kathleen has to say so.**
+>
+> ### Verified
+> `npm run build` compiles · **127/127 tests pass** · ESLint clean · both pages rendered in-browser (homepage body text contains no "Swing" / "Flex" / "$50"; `/studio` clean) · **no horizontal overflow at 375px**, licensing section starts ~718px down a 812px mobile viewport (second thing you see) · zero console errors. **No pricing or tiers added anywhere — the site stays free/waitlist.**
+>
+> ### ✅ ANSWERED by Kathleen, same day — Swing is WITHHELD, not paused
+> **The Swing is the staffing agency behind Relevé Connect — the biggest studio feature there is. Flex is the pilot alongside it. The platform is currently FREE. Giving away the single best studio feature for free makes it anticlimactic to then charge for a subscription.**
+>
+> Verified against the pricing SSOT: **Swing and Flex ARE the studio ladder** (Connect $249 = 3 Swing uses · Growth $499 = Swing included + Flex $250/run · Accelerator $1,499 = unlimited Swing + 4 Flex runs). Strip them out and the three tiers collapse into each other — no ladder, nothing to convert on.
+>
+> **So the roadmap position is unchanged; only the shop window changed.** The Swing dispatch loop (Slice B) is still real, still the studio product — it is being finished *for the paid launch*, not abandoned. **The pick-up point below is therefore NOT stale on sequencing.**
+>
+> **The rule that follows (see `DECISIONS.md` 2026-07-22 for the full reasoning):**
+> - **Teacher side stays live and free** — the opt-in, the `/apply` substitute question, `swing_availability`. Every teacher who opts in is *inventory owned before anyone is charged*. A staffing agency with no staff cannot sell a shift.
+> - **Studio side is the product** — find/match/book stays behind the paywall. That is the conversion lever.
+>
+> ⚠️ **WITHDRAWN:** my earlier instruction to disable the `open_to_badges` row *"Substituting via The Swing"* was **wrong under this strategy**. That checkbox is supply-capture. **Leave it enabled.** Same for "Auditioning via The Beat."
+
 > ## ✅ APPLY-FLOW FIXES from Kathleen's self-test (2026-07-20)
 >
 > She tested on **Brent's old site** and filed 7 findings. Mapped onto the new build: **3 were already impossible here**, **1 was fixed earlier today**, **3 were real** and are now done.
@@ -254,6 +298,9 @@
 ---
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
+
+> ✅ **STILL VALID as of 2026-07-22, with one reframe** — read the positioning-change note at the top of this file first.
+> The Swing came off the *public site* on 2026-07-22, but it was **withheld for monetization, not paused**: it is the studio conversion lever, and giving it away during the free period would spend the whole studio pricing ladder. **The dispatch loop (Slice B) below is still the studio product and still on the roadmap** — build it toward the PAID launch, and do not surface it publicly or hand it to free studio accounts when it ships.
 
 **Two live tracks after 2026-07-13:**
 

@@ -86,15 +86,23 @@ at once — each is only required when its feature is built.
 | `DEFAULT_CHECKIN_BOOKING_URL` | Artist "Check-In" link (after purchase) | Your choice |
 | `MAILERLITE_API_KEY` | Add buyers to "The Climb" (optional) | MailerLite |
 | `MAILERLITE_CLIMB_GROUP_ID` | The Climb group id (optional) | MailerLite |
-| `ADMIN_TOKEN` | Unlocks the pre-launch admin console writes | Any long random string you pick |
+| `MAILERLITE_LICENSING_GROUP_ID` | Homepage "tell me when licensing opens" signups join this group *in addition to* The Climb (optional) | MailerLite |
+| ~~`ADMIN_TOKEN`~~ | **Retired 2026-07-22** — admin writes now require a signed-in admin. Safe to delete. | — |
 | `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
 
 ### Admin console (pre-launch)
 
 `/admin/signature-works` is a simple internal page to create a test artist, create a
 `$499` Signature Work, and publish it — so you can run a test purchase without writing SQL.
-Its write actions require the `ADMIN_TOKEN` above (paste the same value into the page). This
-is a temporary gate until real admin login exists.
+Both admin pages (`/admin/signature-works` and `/admin/applications`) are gated the same way:
+**sign in with an account whose `users.account_type` is `admin`.** Nothing to paste. A signed-in
+non-admin gets a 404 rather than a "forbidden" — a member shouldn't learn the console exists.
+
+To make someone an admin:
+
+```sql
+update users set account_type = 'admin' where email = 'them@example.com';
+```
 
 **To set up the database**, follow the plain-English guide in
 [`docs/SETUP-SUPABASE.md`](docs/SETUP-SUPABASE.md).

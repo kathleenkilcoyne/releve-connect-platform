@@ -20,7 +20,7 @@ import "@/components/home/tokens.css";
 export const metadata = {
   title: "Relevé Connect — where dance professionals are found",
   description:
-    "National infrastructure for the dance industry. A vetted, searchable home for teachers, choreographers and dancers — and the studios looking for them.",
+    "The professional home for the working dance world — choreography licensing built on rights the artist controls, and a vetted, searchable roster of teachers, choreographers and dancers.",
 };
 
 /** The roles in the ecosystem artwork, in the order they appear around it. */
@@ -102,11 +102,71 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ───────────────────── Licensing — THE headline draw ─────────────────────
+          This section is the site's primary focus, and it sits directly under the
+          hero on purpose (positioning change, 2026-07-22). It replaced a list of
+          four feature cards in which licensing was merely one of them.
+
+          ⚠️ TWO RULES, both load-bearing:
+
+          1. Senior Spotlight and the $499 Signature Experience are curated and
+             invite-only, and must NEVER be named on the public homepage. What is
+             described here is the GENERAL licensing promise — you own it, you set
+             your price, Relevé takes a fee only on a sale. Do NOT wire any of this
+             to the $499 checkout.
+
+          2. Licensing is NOT BUILT. There is no self-serve lane and no
+             watermarking / DRM / signed-URL protection anywhere in the codebase.
+             So it carries a "Coming" chip and the only call to action is an email
+             capture. Do not add a "start licensing" button until the thing exists.
+             Being the headline draw does not make it live. */}
+      <section
+        aria-labelledby="licensing-heading"
+        className="bg-[var(--rc-cream-2)] px-7 py-14 sm:py-20"
+      >
+        <div className="mx-auto max-w-[760px] text-center">
+          <p className="text-[0.72rem] uppercase tracking-[0.32em] text-[var(--rc-gold)]">
+            Choreography Licensing
+          </p>
+
+          <h2
+            id="licensing-heading"
+            className="mt-3 text-[clamp(1.5rem,3.6vw,2.3rem)] font-medium leading-tight text-[var(--rc-ink)]"
+          >
+            Your choreography is yours.
+            <span className="block italic text-[var(--rc-gold)]">
+              License it — and earn every time it&apos;s danced.
+            </span>
+          </h2>
+
+          <p className="mx-auto mt-6 text-[clamp(1.02rem,2vw,1.15rem)] leading-relaxed text-[var(--rc-ink-soft)]">
+            You own your work. You set your price. You decide how a piece may be used, by whom,
+            and for how long — licensing is a set of rights you control, not a video you hand
+            over. Relevé takes a marketplace fee only when a piece sells, and never a cut of your
+            teaching or your labor. Watermarking and secure distribution come with it.
+          </p>
+
+          {/* Stated in words, never colour alone. */}
+          <p className="mt-8">
+            <span className="rounded-full border border-[color:rgba(182,145,47,0.5)] px-3 py-1 text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--rc-gold)]">
+              Coming
+            </span>
+          </p>
+
+          <p className="mx-auto mt-5 max-w-[34rem] text-[0.95rem] leading-relaxed text-[var(--rc-muted)]">
+            Licensing isn&apos;t open yet. We&apos;re building it, and we won&apos;t promise it
+            before it works. Leave your name and we&apos;ll write to you the day it does.
+          </p>
+
+          <ClimbSignup variant="licensing" />
+        </div>
+      </section>
+
       {/* ─────────────────────────── Mission ─────────────────────────── */}
       <section
         id="mission"
         aria-labelledby="mission-heading"
-        className="scroll-mt-24 bg-[var(--rc-cream-2)] px-7 py-12 text-center sm:py-20"
+        className="scroll-mt-24 px-7 py-12 text-center sm:py-20"
       >
         <h2 id="mission-heading" className="sr-only">
           Our mission
@@ -190,19 +250,27 @@ export default function Home() {
         </p>
       </section>
 
-      {/* ────────────────────── Marketplace — how you use it ──────────────────
-          NOTE: Senior Spotlight and the $499 Signature Experience are curated
-          and invite-only, and must NEVER appear on the public homepage. The
-          licensing lane described here is the GENERAL promise — you own it, you
-          set your price, Relevé takes a fee only on a sale. Do not wire any of
-          this to the $499 checkout. */}
+      {/* ────────────────────── The Roster — how you use it ──────────────────
+          ⚠️ HONESTY RULE — read before adding anything to this list.
+          A feature only appears here WITHOUT a "Coming" chip if it works
+          end-to-end for a real member today. Relevé's whole pitch is trust, and
+          someone who signs up for something that isn't there has been broken a
+          promise on day one.
+
+          Current state, verified against the code (2026-07-22):
+            · roster     — built and real (this section)
+            · licensing  — NOT built; lives in its own section above, chipped
+            · swing      — REMOVED from the public site 2026-07-22 (positioning:
+                           launching lean on licensing + community). The profile
+                           opt-in and DB tables remain behind sign-in.
+            · flex       — REMOVED from the public site 2026-07-22; never built */}
       <section
-        aria-labelledby="marketplace-heading"
+        aria-labelledby="roster-heading"
         className="bg-[var(--rc-cream-2)] px-7 py-14 sm:py-20"
       >
         <div className="mx-auto max-w-[760px]">
           <h2
-            id="marketplace-heading"
+            id="roster-heading"
             className="text-center text-[clamp(1.4rem,3.2vw,2rem)] font-medium leading-tight text-[var(--rc-ink)]"
           >
             More than a network — it&apos;s where you build your career.
@@ -210,50 +278,19 @@ export default function Home() {
           <p className="mx-auto mt-5 max-w-[42rem] text-center text-[1.05rem] leading-relaxed text-[var(--rc-ink-soft)]">
             Relevé Connect isn&apos;t just another platform for dancers and connection.
             It&apos;s your playground to build a career — the place where the work actually
-            happens. Here&apos;s how you use it:
+            happens.
           </p>
 
-          {/* ⚠️ HONESTY RULE — read before editing these.
-              A "Coming" chip goes on anything not working TODAY. Relevé's whole
-              pitch is trust, and a choreographer who signs up expecting
-              watermarking, self-serve licensing, or a sub-finder that isn't
-              there has been broken a promise on day one. Remove a chip only when
-              that thing genuinely works end-to-end for a real member.
-
-              Current state, verified against the code (2026-07-20):
-                · licensing  — the self-serve lane is NOT built, and there is NO
-                               watermarking / DRM / signed-URL protection anywhere
-                               (the $499 Senior Spotlight has page-level ACCESS
-                               gating only, which protects the page, not the file)
-                · roster     — built and real
-                · swing      — HALF: a teacher can opt in on their profile, but no
-                               studio can find or book them yet
-                · flex       — not built */}
           <ul className="mt-10 space-y-6">
-            <FeatureItem title="License your choreography." status="coming">
-              Your work is yours — you own it, you set your price, and you earn every time
-              it&apos;s licensed. We take a marketplace fee only when it sells — never a cut of
-              your teaching or your labor. Watermarking and secure distribution come with it.
-            </FeatureItem>
             <FeatureItem title="Find the work — or find the talent.">
               Teachers and dancers discover real teaching opportunities. Studio owners find
               vetted teachers and choreographers, ready to hire.
             </FeatureItem>
-            <FeatureItem title="The Swing — never scramble for a sub again." status="coming">
-              Our staffing feature for last-minute call-outs: studios find a qualified sub fast;
-              teachers set their own availability (or opt out) and earn on their own terms — a
-              flat <span className="font-semibold text-[var(--rc-gold)]">$50/hour</span>.
-            </FeatureItem>
-            <FeatureItem title="The Flex Series — test before you commit." status="coming">
-              Studios pilot new programs in their real schedule, for a flexible 4, 6, or 8 weeks.
+            <FeatureItem title="A profile that finally represents you.">
+              Headshot, story, credits, and reels in one place — searchable by style, level, and
+              region, and yours to share anywhere.
             </FeatureItem>
           </ul>
-
-          <p className="mt-8 text-center text-[0.85rem] text-[var(--rc-muted)]">
-            Marked <span className="italic">Coming</span>{" "}
-            means we&apos;re building it — we&apos;ll tell you the moment it&apos;s ready, and we
-            won&apos;t promise it before then.
-          </p>
 
           <p className="mt-10 text-center text-[1.1rem] italic text-[var(--rc-gold)]">
             This isn&apos;t a directory you sit in. It&apos;s a marketplace you work in.
@@ -326,33 +363,17 @@ export default function Home() {
   );
 }
 
-function FeatureItem({
-  title,
-  children,
-  status,
-}: {
-  title: string;
-  children: React.ReactNode;
-  /** "coming" = not working today. See the honesty rule above the list. */
-  status?: "coming";
-}) {
-  const coming = status === "coming";
+/**
+ * A live capability. Everything rendered through this is working TODAY — the
+ * "Coming" chip that used to live here went with the Swing/Flex removal, and
+ * the one unbuilt thing on the page (licensing) carries its own chip in its own
+ * section. If something unbuilt ever needs to go in this list again, bring the
+ * chip back rather than quietly listing it.
+ */
+function FeatureItem({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <li
-      className={`border-l-2 pl-5 ${
-        coming ? "border-[color:rgba(182,145,47,0.4)]" : "border-[var(--rc-gold)]"
-      }`}
-    >
-      <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[1.05rem] font-semibold text-[var(--rc-ink)]">
-        {title}
-        {coming && (
-          // Stated in words, never colour alone — a reader who can't distinguish
-          // the dimmer gold rule still learns this isn't live yet.
-          <span className="rounded-full border border-[color:rgba(182,145,47,0.5)] px-2.5 py-0.5 text-[0.62rem] font-medium uppercase tracking-[0.16em] text-[var(--rc-gold)]">
-            Coming
-          </span>
-        )}
-      </p>
+    <li className="border-l-2 border-[var(--rc-gold)] pl-5">
+      <p className="text-[1.05rem] font-semibold text-[var(--rc-ink)]">{title}</p>
       <p className="mt-1.5 text-[1rem] leading-relaxed text-[var(--rc-ink-soft)]">{children}</p>
     </li>
   );

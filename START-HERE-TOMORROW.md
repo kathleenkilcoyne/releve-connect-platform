@@ -1,96 +1,164 @@
 # ☀️ START HERE — Kathleen
 
-*Left for you the night of July 21, 2026. Short on purpose.*
+*Left for you the night of July 22, 2026. Short on purpose.*
 
 ---
 
-## The one thing left
+## Two things, in this order
 
-**Approve an application and confirm the welcome letter arrives.** That's it.
-Everything before it in the chain is now proven working.
+### 1. The fifteen minutes still owed from last night
 
-### Do it this way (simplest path — 3 steps)
+**Approve an application and confirm the welcome letter arrives.** This is
+unchanged from yesterday's note — I did **not** get to it today, so it is still
+the one link in the chain never proven end to end.
 
-1. Go to **releveconnect.com/login** and sign in as
-   **`kathleenmcareekilcoyne@gmail.com`**
-   *(This account is now an admin. The sign-in link lands straight in that inbox —
-   no forwarding, no alias, nothing to hunt for.)*
-2. Click the link in your email. **It will drop you on your profile editor** —
-   that's expected, see "known rough edges" below. Then go to:
-   **releveconnect.com/admin/applications**
-3. Approve one of the two applications waiting. Then check the applicant's inbox
-   for the **BraveHeart letter**.
+1. **releveconnect.com/login** → sign in as `kathleenmcareekilcoyne@gmail.com`
+2. Click the emailed link. It drops you on your profile editor (known rough
+   edge, see below). Navigate to **releveconnect.com/admin/applications**
+3. Approve one of the applications waiting → check that inbox for the
+   **BraveHeart letter**.
 
 If the letter arrives and that person can build a profile, **you are open.**
 
+### 2. Look at today's change and tell me if it ships
+
+Today was a **positioning change**: The Swing and The Flex Series came off the
+public site, and **licensing became the headline**.
+
+⚠️ **It is not live.** It sits on a branch (`feature/licensing-first-positioning`),
+not pushed, not merged. **releveconnect.com still shows the old homepage** with
+The Swing, the $50/hour line, and The Flex Series. Nothing you can break by
+waiting.
+
+To see it:
+
+```bash
+npm run dev
+```
+
+Then open **localhost:3000** and **localhost:3000/studio**. If you like it, say
+so and I'll merge and deploy. If you don't, it reverts in one command.
+
 ---
 
-## What is confirmed working (tested today, not assumed)
+## What actually changed today
 
-- ✅ **releveconnect.com is the new site.** Brent's Netlify site is buried but
-  still parked as a rollback.
-- ✅ **The application submits.** Two applications are in the queue right now.
-- ✅ **The applicant confirmation email arrives** — fast, correct wording.
-- ✅ **The admin alert arrives** at `relevewerise@gmail.com`.
-- ✅ **Sign-in links arrive and work.**
-- ✅ **Email sends from `hello@releveconnect.com`** (a real address that forwards
-  to your Gmail). The old `info@` had no mailbox behind it and is gone.
-- ✅ **The application no longer counts words at anyone**, asks for references,
-  numbers its sections, or shows a price or a date.
-- ✅ **All four letters are in your voice**: received, accepted (BraveHeart),
-  not-yet, and tell-us-more.
-- ✅ **Dark mode is dead.** The form was invisible on a phone set to dark; it now
-  renders light always.
+- **The Swing is off the front door** — the homepage block and its `$50/hour`
+  line are gone.
+- **The Flex Series is gone** from the homepage.
+- **Licensing is now the first thing after the hero** — its own full section,
+  not one card in a list of four. The copy leads with *rights you control*
+  ("you decide how a piece may be used, by whom, and for how long"), not with
+  selling a video.
+- **It still says "Coming"**, because licensing genuinely isn't built. Its
+  button is an email capture — *"tell me when it opens"* — not a promise. I did
+  not invent a licensing flow that doesn't exist.
+- **/studio was rebuilt.** That whole page used to be The Swing ("Never
+  scramble for a sub again"). It now stands on the two things a studio can
+  really do today: browse the Roster, set up a studio account.
+- **Nothing was deleted behind the sign-in.** The Swing opt-in on your profile,
+  the database tables, This Week — all untouched. The feature still exists; it
+  is only off the shop window. Putting it back is uncommenting a block.
+- **No pricing anywhere.** Still free / waitlist, exactly as you asked.
 
-## What is NOT proven yet
+---
 
-- ❓ **Approval → welcome letter → profile builder.** Never completed end to end.
-  This is tomorrow's fifteen minutes.
-- ❓ **Deliverability to Hotmail and iCloud.** Gmail is fine. Microsoft accepted
-  two messages and showed neither; Apple deferred one. The likely cause was fixed
-  late today (links now point at releveconnect.com instead of a supabase.co URL,
-  and the sender is now a real address) — but it has not been retested.
+## The one thing only you can do
+
+There is a checkbox on the application form that reads **"Substituting via The
+Swing."** It lives in the database, not the code, so I can't remove it — this is
+yours:
+
+```bash
+psql "$DATABASE_URL" -c "update open_to_badges set is_active = false where slug = 'substituting';"
+```
+
+*While you're in there:* the checkbox beside it says **"Auditioning via The
+Beat"** — also a feature that isn't built. Your call, I left it alone.
+
+---
+
+## Still true from last night (nothing here got better today)
+
+- **Sign-in links land you on `/profile/edit`**, not where you were headed.
+  Cosmetic; just navigate on. Needs a small fix in the Supabase email template.
+- **`/admin/applications` 404s for a non-admin.** Deliberate, but it looks
+  broken when it's you. Review as the admin account.
+- **`kathleen@releveconnect.com` is not an inbox** — it forwards to
+  `relevewerise@gmail.com`. You cannot log into it.
+- **Deliverability to Hotmail and iCloud is still unproven.** Gmail is fine.
   **Do not invite anyone on an Outlook/Hotmail address until it is.**
 
----
+## Cleanup still owed (say the word, it's quick)
 
-## Known rough edges (annoying, not broken)
-
-- **The sign-in link lands you on `/profile/edit`, not where you were headed.**
-  A regression from today's email-template fix — the "return to this page"
-  parameter got dropped. Cosmetic; just navigate to `/admin/applications` after.
-  Needs a small fix in the Supabase email template.
-- **`/admin/applications` returns 404 if you're signed in as a non-admin.** That
-  is deliberate (a member shouldn't learn the console exists), but it looks
-  broken when it's you. Review as an admin account; test as anyone else.
-- **`kathleen@releveconnect.com` is not an inbox.** You cannot log into it. It is
-  a forwarding alias — mail to it appears in `relevewerise@gmail.com`. There is
-  no Google Workspace account behind it.
+- Delete the test applications and test accounts so you launch with a clean queue.
+- Drop `kathleenmcareekilcoyne@gmail.com` back to `talent`, leaving one admin.
+- Move DNS to Cloudflare — the permanent fix for the bounce-feedback loop
+  Namecheap can't support alongside your email forwarding. A separate day's job.
 
 ---
 
-## Cleanup owed (say the word, it's quick)
+## The Swing question — you answered it
 
-- Delete the two test applications and the test accounts, so the queue you launch
-  with is clean.
-- Drop `kathleenmcareekilcoyne@gmail.com` back to `talent`, leaving exactly one
-  admin identity.
-- Move DNS to Cloudflare — the permanent fix for the bounce-feedback loop that
-  Namecheap cannot support alongside your email forwarding. A separate day's job.
+You said it plainly: **The Swing is the staffing agency behind Relevé Connect,
+the biggest studio feature there is, and we're currently free. Give away the
+best studio feature for free and there's nothing left to charge for.**
+
+I checked that against the ratified pricing and it's not just instinct — it's
+structural. Swing and Flex *are* the studio ladder:
+
+- Studio Connect $249 → 3 Swing uses
+- Studio Growth $499 → **Swing included**, Flex $250/run
+- Studio Accelerator $1,499 → **unlimited Swing**, 4 Flex runs
+
+Take Swing and Flex out and all three tiers become the same thing: a directory
+listing. There'd be no reason for a studio to move up, and no moment to charge.
+
+**So The Swing isn't paused — it's withheld.** Same roadmap position, still the
+studio product, still getting built. It just isn't being advertised or given
+away first. Recorded in `DECISIONS.md`.
+
+### One thing this changes on your to-do list
+
+**Do NOT run that Supabase command I gave you.** I told you to disable the
+"Substituting via The Swing" checkbox on the application form. **That was wrong
+given what you just explained**, and I'm withdrawing it.
+
+Here's why: every teacher who ticks that box is *supply you own before you
+charge anyone a dollar*. A staffing agency with no staff can't sell a shift.
+Collecting available teachers while the platform is free is exactly how the
+paid studio product works on day one. Leave it on. Same for "Auditioning via
+The Beat."
+
+The split to hold in your head:
+
+- **Teacher side — free, and keep it running.** Opting in, availability, the
+  application question. That's inventory.
+- **Studio side — the product.** Finding, matching, booking a sub. That's what
+  a studio pays for, and it stays behind the paywall.
+
+### One risk worth watching
+
+Teachers can opt into The Swing today, but no studio can book them yet — and
+now that'll be true for a while. The current wording ("opt in to be matched
+when a studio needs a last-minute substitute") doesn't promise a date, so it's
+honest. But if teachers start opting in and nothing ever comes, that erodes
+trust quietly. A small "not live yet" note on that section would fix it. Say
+the word.
 
 ---
 
 ## The honest note
 
-Today the domain moved, the old site was buried, email started sending from your
-own name, and the application stopped feeling like an interrogation. That is a
-real day.
+Today was positioning, not plumbing. The front door tells a much simpler, truer
+story now — one product, clearly explained, nothing promised that isn't there.
 
-Tonight did not finish, and some of that was on me: I redeployed an older build
-by mistake, I introduced the sign-in redirect regression, and I looked straight
-at a near-black screenshot this afternoon without registering that a human
-couldn't read it. You found that one in thirty seconds by trying to use it.
+But the approval → welcome letter chain is exactly where you left it last night.
+I spent the day on the shop window and none of it on the thing you were told to
+test in fifteen minutes. That's worth naming, not burying: **the site says a
+better thing now, and it is no closer to being proven open than it was
+yesterday.** Item 1 above is still the whole game.
 
-Nothing is lost. Everything above is committed. Start at the top of this file.
+Start at the top.
 
 — Claude 🤍

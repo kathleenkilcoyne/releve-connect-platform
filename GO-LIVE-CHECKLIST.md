@@ -133,7 +133,7 @@ remote host will throw.
 | `STRIPE_WEBHOOK_SIGNING_SECRET` | 🟡 CLI/test value | `whsec_…` from the live endpoint |
 | `STRIPE_PRICE_*` (6) | 🟡 test-mode ids | **Regenerate in live mode** — `node scripts/setup-stripe-tiers.mjs` |
 | `MAILERLITE_API_KEY` / `_GROUP_ID` | ⚪ empty | 🛑 **KEEP EMPTY** — see §6 |
-| `ADMIN_TOKEN` | 🟡 local dev value | Rotate for production |
+| ~~`ADMIN_TOKEN`~~ | ✅ **retired 2026-07-22** | Nothing reads it. Admin writes need a signed-in admin. Delete it from Vercel when convenient. |
 | `FOUNDER_WELCOME_BOOKING_URL` | ⚪ empty | Set, or post-purchase emails ship without booking links |
 | Supabase (3) | ✅ real | See §8 |
 
