@@ -98,18 +98,53 @@ Beat"** — also a feature that isn't built. Your call, I left it alone.
 
 ---
 
-## One question I need you to answer
+## The Swing question — you answered it
 
-The build notes in `RESUME-HERE.md` say the next thing to build is **the Swing
-dispatch loop** — the studio side that makes sub-matching actually work. That
-was the plan as of July 13.
+You said it plainly: **The Swing is the staffing agency behind Relevé Connect,
+the biggest studio feature there is, and we're currently free. Give away the
+best studio feature for free and there's nothing left to charge for.**
 
-Today we took The Swing *off the public site*. Those two facts point in opposite
-directions, and I didn't want to quietly pick one for you.
+I checked that against the ratified pricing and it's not just instinct — it's
+structural. Swing and Flex *are* the studio ladder:
 
-**So: is The Swing paused, or just quiet while it gets finished?** Either answer
-is fine — I just need to know which, because it decides what gets built next.
-I've left the question open in `RESUME-HERE.md` rather than answering it myself.
+- Studio Connect $249 → 3 Swing uses
+- Studio Growth $499 → **Swing included**, Flex $250/run
+- Studio Accelerator $1,499 → **unlimited Swing**, 4 Flex runs
+
+Take Swing and Flex out and all three tiers become the same thing: a directory
+listing. There'd be no reason for a studio to move up, and no moment to charge.
+
+**So The Swing isn't paused — it's withheld.** Same roadmap position, still the
+studio product, still getting built. It just isn't being advertised or given
+away first. Recorded in `DECISIONS.md`.
+
+### One thing this changes on your to-do list
+
+**Do NOT run that Supabase command I gave you.** I told you to disable the
+"Substituting via The Swing" checkbox on the application form. **That was wrong
+given what you just explained**, and I'm withdrawing it.
+
+Here's why: every teacher who ticks that box is *supply you own before you
+charge anyone a dollar*. A staffing agency with no staff can't sell a shift.
+Collecting available teachers while the platform is free is exactly how the
+paid studio product works on day one. Leave it on. Same for "Auditioning via
+The Beat."
+
+The split to hold in your head:
+
+- **Teacher side — free, and keep it running.** Opting in, availability, the
+  application question. That's inventory.
+- **Studio side — the product.** Finding, matching, booking a sub. That's what
+  a studio pays for, and it stays behind the paywall.
+
+### One risk worth watching
+
+Teachers can opt into The Swing today, but no studio can book them yet — and
+now that'll be true for a while. The current wording ("opt in to be matched
+when a studio needs a last-minute substitute") doesn't promise a date, so it's
+honest. But if teachers start opting in and nothing ever comes, that erodes
+trust quietly. A small "not live yet" note on that section would fix it. Say
+the word.
 
 ---
 

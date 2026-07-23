@@ -6,6 +6,73 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-22 — The Swing and The Flex Series are WITHHELD, not paused
+
+**Decided (Kathleen):** Pull The Swing and The Flex Series off the public site, and lead
+with licensing instead. **This is a monetization decision, not a deprioritization.**
+
+**Why — in her words:** The Swing is the biggest feature we have for studios. It is the
+staffing agency behind Relevé Connect; Flex is a pilot program alongside it. We fill for
+studios and provide teachers. **We are currently free.** If we give away our single best
+studio feature for free, it is very anticlimactic to then pull the trigger on a
+subscription.
+
+**Why this is structurally right, not just instinct.** Checked against the pricing SSOT
+(`docs/Releve_Pricing_RATIFIED_2026-06-25_...`, §Studios): Swing and Flex ARE the studio
+ladder.
+
+| Tier | What the money actually buys |
+| --- | --- |
+| Studio Connect $249 | **3 Swing uses**, then $20/use |
+| Studio Growth $499 | **Swing included**, Flex à la carte $250/run |
+| Studio Accelerator $1,499 | **Unlimited Swing**, 4 Flex runs/yr included, then $200/run |
+
+Remove Swing and Flex and the three tiers collapse into each other: Connect is a directory
+listing, Growth is a directory listing plus 10 Beat postings, Accelerator is that plus a
+1:1. There is no ladder left to climb and nothing to convert on. **Giving Swing away during
+the free period would spend the entire studio pricing model before it ever earns a dollar.**
+
+**Consistent with the no-tax-on-labor guardrail.** Swing's $20/use is paid by the STUDIO;
+the teacher keeps 100% above the $50/hr floor (pricing SSOT). Charging for Swing access is
+an infrastructure fee on the employer, never a cut of the teacher's wage.
+
+### The supply/demand asymmetry — the part that decides what stays live
+
+The two sides of Swing have opposite economics while the platform is free:
+
+- **Teacher side (opt-in availability) — KEEP LIVE AND FREE.** Every teacher who opts in is
+  *inventory you own before you charge anyone*. It costs nothing to collect and it is the
+  thing that makes the paid studio product work on day one. A staffing agency with no
+  staff cannot sell a shift. This is supply-seeding, not giving the product away.
+- **Studio side (find, match, book a sub) — THIS is the product.** It stays unbuilt/behind
+  the paywall. It is the conversion lever.
+
+**Therefore:** the profile-editor Swing opt-in, the `/apply` "available to substitute"
+question, and the `swing_availability` tables all **stay exactly as they are** — they are
+the free half that makes the paid half viable. Only the *public marketing* of Swing came
+down.
+
+**Reversal of an earlier recommendation (2026-07-22, same day):** I had told Kathleen to
+disable the `open_to_badges` row *"Substituting via The Swing"* on the application form.
+**That advice was wrong under this strategy** and is withdrawn — that checkbox is
+supply-capture, and every applicant who ticks it is free inventory. It should STAY. (The
+sibling row "Auditioning via The Beat" is the same argument and also stays.)
+
+**One promise risk to manage:** teachers can opt into Swing today, but no studio can book
+them yet, and now won't be able to for a while. The opt-in copy must not imply work is
+imminent. Current wording ("Opt in to be matched when a studio needs a last-minute
+substitute") is forward-looking and does not promise timing — acceptable, but a small
+"not live yet" note there would be honest. Not yet done; flagged.
+
+**Flex is a PILOT.** Pilots run privately with hand-picked studios, not on a public
+marketing page. Nothing about pulling it off the site changes its roadmap position.
+
+**What this answers:** the open question left in `RESUME-HERE.md` — "is The Swing paused or
+just quiet?" — is answered **neither**. It is *withheld*: finished when it is time to sell
+it, and deliberately not given away before then.
+
+---
+
 ## 2026-07-11 — Reconciled the repo brief to the ratified 2026-07-11 specs
 
 **Decided:** The two files in `/docs` are the source of truth — `Releve_Connect_Member_Platform_Build_Spec_2026-07-11.md` (what / what-order) and `Releve_Pricing_RATIFIED_2026-06-25_SINGLE_SOURCE_OF_TRUTH.md` (pricing). Where `CLAUDE.md` or this log disagreed, the specs win. Fixed per `docs/RECONCILIATION-NOTE-2026-07-11.md`:

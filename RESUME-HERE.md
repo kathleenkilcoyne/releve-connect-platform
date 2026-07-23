@@ -31,8 +31,18 @@
 > ### Verified
 > `npm run build` compiles · **127/127 tests pass** · ESLint clean · both pages rendered in-browser (homepage body text contains no "Swing" / "Flex" / "$50"; `/studio` clean) · **no horizontal overflow at 375px**, licensing section starts ~718px down a 812px mobile viewport (second thing you see) · zero console errors. **No pricing or tiers added anywhere — the site stays free/waitlist.**
 >
-> ### ▶️ OPEN — needs Kathleen's answer (do NOT guess)
-> **Is The Swing paused, or just quiet while it gets finished?** The pick-up point below (written 2026-07-13) says the next pillar is the **Swing dispatch loop (Slice B)**. Today's decision pulled The Swing off the public site. Those point in opposite directions. **The pick-up point below is left UNCHANGED and is now suspect** — do not start Slice B on the strength of it without asking. If The Swing is paused, the live candidates become The Beat and the licensing lane itself (which is the thing the homepage now leads with, and the thing that isn't built).
+> ### ✅ ANSWERED by Kathleen, same day — Swing is WITHHELD, not paused
+> **The Swing is the staffing agency behind Relevé Connect — the biggest studio feature there is. Flex is the pilot alongside it. The platform is currently FREE. Giving away the single best studio feature for free makes it anticlimactic to then charge for a subscription.**
+>
+> Verified against the pricing SSOT: **Swing and Flex ARE the studio ladder** (Connect $249 = 3 Swing uses · Growth $499 = Swing included + Flex $250/run · Accelerator $1,499 = unlimited Swing + 4 Flex runs). Strip them out and the three tiers collapse into each other — no ladder, nothing to convert on.
+>
+> **So the roadmap position is unchanged; only the shop window changed.** The Swing dispatch loop (Slice B) is still real, still the studio product — it is being finished *for the paid launch*, not abandoned. **The pick-up point below is therefore NOT stale on sequencing.**
+>
+> **The rule that follows (see `DECISIONS.md` 2026-07-22 for the full reasoning):**
+> - **Teacher side stays live and free** — the opt-in, the `/apply` substitute question, `swing_availability`. Every teacher who opts in is *inventory owned before anyone is charged*. A staffing agency with no staff cannot sell a shift.
+> - **Studio side is the product** — find/match/book stays behind the paywall. That is the conversion lever.
+>
+> ⚠️ **WITHDRAWN:** my earlier instruction to disable the `open_to_badges` row *"Substituting via The Swing"* was **wrong under this strategy**. That checkbox is supply-capture. **Leave it enabled.** Same for "Auditioning via The Beat."
 
 > ## ✅ APPLY-FLOW FIXES from Kathleen's self-test (2026-07-20)
 >
@@ -289,8 +299,8 @@
 
 ## 📍 EXACT PICK-UP POINT FOR NEXT SESSION
 
-> ⚠️ **STALE AS OF 2026-07-22 — read the positioning-change note at the top of this file first.**
-> Everything below was written 2026-07-13, when the plan was "finish The Swing, then organize The Beat." On 2026-07-22 The Swing was pulled off the public site (launch lean on licensing + community). **Whether that pauses the Swing dispatch loop is an OPEN QUESTION Kathleen has not answered.** Do not start Slice B on the strength of this section — ask first. The rest of it (The Beat, the deferred items, the forward dependency) is still accurate.
+> ✅ **STILL VALID as of 2026-07-22, with one reframe** — read the positioning-change note at the top of this file first.
+> The Swing came off the *public site* on 2026-07-22, but it was **withheld for monetization, not paused**: it is the studio conversion lever, and giving it away during the free period would spend the whole studio pricing ladder. **The dispatch loop (Slice B) below is still the studio product and still on the roadmap** — build it toward the PAID launch, and do not surface it publicly or hand it to free studio accounts when it ships.
 
 **Two live tracks after 2026-07-13:**
 
