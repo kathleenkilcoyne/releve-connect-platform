@@ -11,6 +11,21 @@ now (or a future engineer) can understand *why* the project is the way it is.
 **Decided (Kathleen):** Pull The Swing and The Flex Series off the public site, and lead
 with licensing instead. **This is a monetization decision, not a deprioritization.**
 
+**Her framing, which governs how to read every line below:**
+> *"Nothing on the build is wasted. It is just not now until demand is proven. Licensing is
+> the feature of RC for now."*
+
+Three things follow from that, and they are the standing rule until she says otherwise:
+1. **Nothing built for Swing/Flex/The Beat is dead code.** The schema, the RLS, the opt-in,
+   the availability tables — all of it is banked, not abandoned. Do not delete, do not
+   "clean up," do not migrate away from it.
+2. **Sequencing is demand-gated, not calendar-gated.** These features come forward when
+   demand is *proven*, not when a date arrives. "Later" here means "once we can see people
+   want it," which is a decision Kathleen makes on evidence.
+3. **Licensing is THE feature of Relevé Connect for now.** Singular. When something competes
+   for the front door, for build time, or for the story — licensing wins by default until
+   she changes it.
+
 **Why — in her words:** The Swing is the biggest feature we have for studios. It is the
 staffing agency behind Relevé Connect; Flex is a pilot program alongside it. We fill for
 studios and provide teachers. **We are currently free.** If we give away our single best

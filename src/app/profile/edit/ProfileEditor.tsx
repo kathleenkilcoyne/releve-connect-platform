@@ -424,13 +424,28 @@ export default function ProfileEditor({
         </div>
       </section>
 
-      {/* The Swing — member-controlled opt-in (spec §10) ----------------- */}
+      {/* The Swing — member-controlled opt-in (spec §10) -----------------
+          The "not live yet" line below is REQUIRED, not decoration. A teacher can
+          opt in today, but the studio side (find / match / book) is not built, so
+          nobody can be booked through this yet — and by decision of 2026-07-22
+          that will stay true for a while: The Swing is the paid studio product
+          and is deliberately not being given away during the free period
+          (DECISIONS.md 2026-07-22). Collecting availability now is how the paid
+          product works on day one — but someone who opts in and never hears
+          anything has been quietly misled. Remove this line only when a studio
+          can actually book a sub. */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">The Swing — substitute teaching</h2>
         <p className="mt-1 text-sm text-neutral-500">
           Opt in to be matched when a studio needs a last-minute substitute. You&apos;re in control:
           this is <span className="font-medium">off</span> until you turn it on, and you can turn it
           off anytime.
+        </p>
+        <p className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+          <span className="font-medium text-neutral-800">Not live yet.</span> Studios can&apos;t
+          book substitutes through Relevé yet — we&apos;re building that. Setting your
+          availability now means you&apos;re ready the day it opens, and we&apos;ll tell you when
+          it does. Nothing happens in the meantime.
         </p>
         <label className="mt-4 flex items-center gap-3">
           <input
