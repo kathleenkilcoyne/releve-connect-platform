@@ -24,6 +24,33 @@ It picked the right tier for each role on its own — Studio Connect for the stu
 
 ---
 
+## 📋 Tomorrow, in order
+
+| # | What | Who does it | Why this order |
+| --- | --- | --- | --- |
+| **1** | **Outlook/Hotmail sign-in codes** | me + **2 min from you** in the Supabase dashboard | Blocks inviting anyone. Nothing else matters until people can get in. |
+| **2** | **Build a profile, end to end** | you, with me watching | The next unproven link: approved → profile → published → shows up in the Roster. This is the original 90-day goal. |
+| **3** | **This Week / the calendar** | me | Already built and live. Needs real classes flowing in — which only exist once a profile does. Hence after #2. |
+| 4 | Clear the test data | me, one command | Before real applicants arrive. 3 applications, 2 memberships, 6 accounts — all yours. |
+| 5 | Remaining studio questions | me | staff count · studio rooms · year founded — columns already built, never asked. |
+
+### Before #2 — one decision from you
+
+You **declined `kathleenmcareekilcoyne@gmail.com`** last night testing the decline path. That account now has no membership, so it can't build a profile. Your options:
+
+- **Use `serenitypremiercare@gmail.com`** — approved, Professional membership, ready now. Nothing to change.
+- **Or I flip your main account back to approved** — say the word. I didn't do it unasked; changing a verdict is yours.
+
+### About #3 — what "This Week" already does
+
+It isn't a to-build. It's live on the site now, with two modes: a **live week** for a signed-in member (their own classes as a teacher, plus their children's as a guardian — two different security policies from one login), and a **clearly-labelled sample week** for everyone else, so it stays showable to a studio without pretending the data is theirs.
+
+What it lacks is *your* real week in it. That's data, not code — and the path to it runs through a real profile, which is #2.
+
+*(Housekeeping: the old `feature/this-week-calendar-pass-one` branch is fully superseded by main — zero unique commits. Safe to delete whenever.)*
+
+---
+
 ## The one thing that still blocks inviting people
 
 ### 🛑 Outlook and Hotmail users cannot sign in — so they cannot apply
