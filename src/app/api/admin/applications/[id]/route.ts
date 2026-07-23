@@ -1,4 +1,5 @@
-// Admin — act on an application (the vetting decision). Gated by ADMIN_TOKEN;
+// Admin — act on an application (the vetting decision). Gated on a signed-in
+// admin session (see lib/admin-auth.ts);
 // writes via the service role (bypasses RLS, since the admin console has no login
 // yet). One PATCH endpoint, dispatched by `action`.
 //
@@ -39,7 +40,7 @@ type Body = {
 };
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = requireAdmin(req);
+  const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
   const { id } = await ctx.params;
@@ -75,7 +76,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   switch (body.action) {
     // ---------------------------------------------------------------------
     case "approve": {
-      const update: Record<string, unknown> = { state: "approved", reviewed_at: now, updated_at: now };
+      // reviewed_by is finally fillable: the gate now knows WHICH admin acted.
+      // Under the old shared token it stayed null — the column existed, but a
+      // password shared by everyone can't name anyone.
+      const update: Record<string, unknown> = {
+        state: "approved",
+        reviewed_at: now,
+        reviewed_by: gate.userId,
+        updated_at: now,
+      };
       let tierLabel: string | null = null;
 
       // A tier only applies to choreographers.
@@ -155,7 +164,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     case "request_info": {
       const { error } = await db
         .from("applications")
-        .update({ state: "more-info", reviewed_at: now, updated_at: now })
+        .update({ state: "more-info", reviewed_at: now, reviewed_by: gate.userId, updated_at: now })
         .eq("application_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -195,7 +204,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
       const { error } = await db
         .from("applications")
-        .update({ state: "declined", reviewed_at: now, updated_at: now })
+        .update({ state: "declined", reviewed_at: now, reviewed_by: gate.userId, updated_at: now })
         .eq("application_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

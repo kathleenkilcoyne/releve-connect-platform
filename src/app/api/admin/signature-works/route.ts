@@ -38,7 +38,7 @@ function clean(v: string | undefined): string | null {
 }
 
 export async function POST(req: Request) {
-  const gate = requireAdmin(req);
+  const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
   let body: Body;

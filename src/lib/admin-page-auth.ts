@@ -1,20 +1,14 @@
 // Gate for admin PAGES (server components).
 //
 // ── Why this is separate from admin-auth.ts ──
-// `requireAdmin()` guards the admin API ROUTES with an `x-admin-token` header.
-// That works for fetch() calls but CANNOT protect a page: a browser navigating
-// to /admin/applications sends no custom headers. So the admin pages were
-// rendering every applicant's full submission — names, emails, mobile numbers,
-// references, work authorisation — to anyone who typed the URL, while only the
-// buttons were protected.
+// This guards PAGES (server components, via redirect/notFound); `requireAdmin()`
+// guards API ROUTES (returning a JSON response). Both now apply the SAME rule —
+// `users.account_type = 'admin'` (CLAUDE.md §3) on the signed-in session.
 //
-// Pages therefore need a session-based check, which is what this is. It uses the
-// real role already in the schema (`users.account_type = 'admin'`, CLAUDE.md §3)
-// rather than inventing a second secret.
-//
-// Follow-up worth doing: give the admin API routes this same check so the shared
-// ADMIN_TOKEN can be retired. Left in place for now as defence in depth — it
-// fails closed, so it is not a risk, just a weaker mechanism than this one.
+// Historical note: the routes used to use a shared `x-admin-token` header
+// instead, which could not protect a page (a browser navigating to
+// /admin/applications sends no custom headers) — so the pages got this check.
+// The token was retired on 2026-07-22; see the header of admin-auth.ts.
 
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";

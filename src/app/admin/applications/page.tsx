@@ -1,6 +1,6 @@
 // Admin — the vetting queue (build spec §4). Reads every application via the
 // service role (bypasses RLS). All actions go through the gated
-// /api/admin/applications/[id] route (ADMIN_TOKEN). Mirrors the Signature-Works
+// /api/admin/applications/[id] route (signed-in admin required). Mirrors the Signature-Works
 // admin console pattern.
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -69,8 +69,7 @@ export default async function AdminApplicationsPage() {
         A real person reads every application. Approve, approve a choreographer at a marketplace tier,
         confer honorifics, ask for more, or decline. During the founding period, approving also
         grants a <span className="font-medium">complimentary membership</span> and sends the
-        welcome email. Actions need your{" "}
-        <code className="mx-1 rounded bg-neutral-100 px-1">ADMIN_TOKEN</code>.
+        welcome email.
       </p>
 
       <ApplicationsConsole applications={applications} />

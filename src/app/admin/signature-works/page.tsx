@@ -3,7 +3,7 @@
 // Stripe flow can be exercised without hand-writing SQL.
 //
 // Reads run server-side via the admin client. All WRITES go through the gated
-// /api/admin/* routes (ADMIN_TOKEN required) — see AdminConsole.
+// /api/admin/* routes (signed-in admin required) — see AdminConsole.
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
@@ -71,9 +71,7 @@ export default async function AdminSignatureWorksPage() {
       </p>
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Signature Experiences</h1>
       <p className="mt-3 text-neutral-600">
-        Create a work, publish it, then open its page to run a test purchase. Writes need your
-        <code className="mx-1 rounded bg-neutral-100 px-1">ADMIN_TOKEN</code> (from
-        <code className="mx-1 rounded bg-neutral-100 px-1">.env.local</code>).
+        Create a work, publish it, then open its page to run a test purchase.
       </p>
 
       <AdminConsole artists={artists} works={works} />

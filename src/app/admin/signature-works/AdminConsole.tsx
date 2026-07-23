@@ -1,15 +1,18 @@
 "use client";
 
 // The interactive admin console. Everything here is client-side and talks to the
-// gated /api/admin/* routes with the ADMIN_TOKEN in a header. After each write it
-// calls router.refresh() so the server-rendered lists update.
+// gated /api/admin/* routes. After each write it calls router.refresh() so the
+// server-rendered lists update.
+//
+// ── 2026-07-22: the admin-token box is gone ──
+// The routes now check the signed-in session (src/lib/admin-auth.ts) instead of
+// a shared secret, so there is nothing to paste. See the note in
+// ApplicationsConsole.tsx for why.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ArtistRow, WorkRow } from "./page";
-
-const TOKEN_KEY = "releve_admin_token";
 
 type Feedback = { kind: "ok" | "err"; text: string } | null;
 
@@ -21,27 +24,13 @@ export default function AdminConsole({
   works: WorkRow[];
 }) {
   const router = useRouter();
-  const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
-
-  // Remember the token locally so it isn't retyped every visit. This one-time
-  // read runs in an effect (not a lazy initializer) so the first client render
-  // still matches the server's empty value — avoiding a hydration mismatch on a
-  // controlled input. The set-state-in-effect lint rule is a perf heuristic that
-  // doesn't apply to this SSR-correct pattern.
-  useEffect(() => {
-    const saved = window.localStorage.getItem(TOKEN_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setToken(saved);
-  }, []);
-  useEffect(() => {
-    if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  }, [token]);
 
   async function adminFetch(url: string, method: string, body: unknown) {
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      // No token header — the route reads the signed-in session.
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
@@ -143,22 +132,6 @@ export default function AdminConsole({
 
   return (
     <div className="mt-10 space-y-12">
-      {/* Token ---------------------------------------------------------- */}
-      <section>
-        <label className={label}>Admin token</label>
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Paste your ADMIN_TOKEN"
-          className={input}
-        />
-        <p className="mt-1 text-xs text-neutral-400">
-          Must match <code>ADMIN_TOKEN</code> in <code>.env.local</code>. Stored only in your
-          browser.
-        </p>
-      </section>
-
       {/* Artist quick-create -------------------------------------------- */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">1 · Add an artist (test)</h2>
@@ -174,7 +147,7 @@ export default function AdminConsole({
           />
           <button
             onClick={createArtist}
-            disabled={busy || !artistName.trim() || !token}
+            disabled={busy || !artistName.trim()}
             className="whitespace-nowrap rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
           >
             Add artist
@@ -295,7 +268,7 @@ export default function AdminConsole({
             <div className="flex items-end">
               <button
                 onClick={createWork}
-                disabled={busy || !work.title.trim() || !work.profileId || !token}
+                disabled={busy || !work.title.trim() || !work.profileId}
                 className="rounded-lg bg-neutral-900 px-5 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
                 Create work
@@ -339,7 +312,7 @@ export default function AdminConsole({
                   </Link>
                   <button
                     onClick={() => toggleStatus(w)}
-                    disabled={busy || !token}
+                    disabled={busy}
                     className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-800 disabled:opacity-40"
                   >
                     {w.status === "published" ? "Unpublish" : "Publish"}
