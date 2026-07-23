@@ -86,6 +86,7 @@ at once — each is only required when its feature is built.
 | `DEFAULT_CHECKIN_BOOKING_URL` | Artist "Check-In" link (after purchase) | Your choice |
 | `MAILERLITE_API_KEY` | Add buyers to "The Climb" (optional) | MailerLite |
 | `MAILERLITE_CLIMB_GROUP_ID` | The Climb group id (optional) | MailerLite |
+| `MAILERLITE_LICENSING_GROUP_ID` | Homepage "tell me when licensing opens" signups join this group *in addition to* The Climb (optional) | MailerLite |
 | `ADMIN_TOKEN` | Unlocks the pre-launch admin console writes | Any long random string you pick |
 | `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
 
