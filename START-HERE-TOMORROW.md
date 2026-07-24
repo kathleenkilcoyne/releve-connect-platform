@@ -1,109 +1,116 @@
 # ☀️ START HERE — Kathleen
 
-*Left for you the small hours of July 23, 2026.*
+*Left for you the small hours of July 25, 2026. Supersedes the July 23 version.*
 
 ---
 
-## 🎉 It works. The whole chain. You proved it yourself last night.
+## 🎉 You are live at releveconnect.com. With a working front door.
 
-The one thing that had never been done end to end — since Monday — is done:
+Two things happened last night that had never been true before.
 
-**apply → lands in the vetting queue → a real admin reviews → membership granted → the right letter arrives.**
+**1. Anyone can sign in — including Outlook and Hotmail.** That was the wall. Microsoft scans links by *opening* them, spending a one-time sign-in link before a human ever taps it. We now email a **code** instead. A scanner can't type a number into a box.
 
-You ran all three paths at 12:01–12:05am and confirmed every email by eye:
+**2. Your profile exists, end to end.** Applied → approved → membership → built → published → discoverable. That was the last unproven link in the whole 90-day chain, and it's proven.
 
-| Application | Outcome | Membership granted | Letter you confirmed |
-| --- | --- | --- | --- |
-| `info@serenitypremiercare.com` (Studio Owner) | **Approved** | Studio Connect · $0 · to Jul 2027 | "We've received your application", then **BraveHeart** |
-| `serenitypremiercare@gmail.com` (Teacher/Choreo) | **Approved** — Established tier | Professional · $0 · to Jul 2027 | BraveHeart |
-| `kathleenmcareekilcoyne@gmail.com` | **Declined** | — | The "not yet" letter |
+And the domain moved. **`releveconnect.com` now serves the real site** — not Brent's old one. Verified: the apex domain returns "Email me a sign-in code" and your profile at **releveconnect.com/kathleen-mcaree** loads with your headshot, your Verified Member mark, and bergenPAC.
 
-It picked the right tier for each role on its own — Studio Connect for the studio owner, Professional for the teacher — without being told. And `reviewed_by` is now stamped on all three, so every decision carries your name. That column had been empty since it was built.
+**The front door is open and it works.**
 
-**You are open.**
+---
+
+## ✅ The two you asked me to do first were already done
+
+You said "set `ADMIN_ALERT_EMAIL` and Resend SMTP first." I went to do it and found both already in place — the handoff was out of date. I checked rather than took anyone's word:
+
+| Thing | State | How I know |
+| --- | --- | --- |
+| `ADMIN_ALERT_EMAIL` | **Set** (2d ago) | Resend's log shows *"New Relevé application — kathleen"* delivered to `relevewerise@gmail.com` |
+| `EMAIL_API_KEY` / `EMAIL_FROM_ADDRESS` | **Set** | "Welcome, BraveHeart" and application letters all show **Delivered** |
+| Resend domain | **Verified** | `releveconnect.com`, verified 3d ago |
+| Supabase custom SMTP | **On** | `smtp.resend.com`, sender `hello@releveconnect.com`, "Relevé Connect" |
+
+That last one matters more than it sounds. Because Supabase is sending through Resend and not its own rate-limited mailer, **your sign-in codes will survive a launch day.** The proof is in the log: your two codes last night, both **Delivered**.
+
+So email is done. Nothing for you there.
 
 ---
 
 ## 📋 Tomorrow, in order
 
-| # | What | Who does it | Why this order |
+| # | What | Who | Why this order |
 | --- | --- | --- | --- |
-| **1** | **Outlook/Hotmail sign-in codes** | me + **2 min from you** in the Supabase dashboard | Blocks inviting anyone. Nothing else matters until people can get in. |
-| **2** | **Build a profile, end to end** | you, with me watching | The next unproven link: approved → profile → published → shows up in the Roster. This is the original 90-day goal. |
-| **3** | **This Week / the calendar** | me | Already built and live. Needs real classes flowing in — which only exist once a profile does. Hence after #2. |
-| 4 | Clear the test data | me, one command | Before real applicants arrive. 3 applications, 2 memberships, 6 accounts — all yours. |
-| 5 | Remaining studio questions | me | staff count · studio rooms · year founded — columns already built, never asked. |
+| **1** | **Finish your profile** — availability chips + your video | **you**, 5 min | Everything else is for other people. This is yours, and it's 90% done. |
+| **2** | **Clear the test data — carefully** | me, with you approving each row | Real people can reach the site now. But see the warning below. |
+| **3** | **Structured, geocoded location** | me | The Swing matches on "within 25 miles." Also see the warning below. |
+| **4** | **Studio fields** — student-count bands + year founded | me | Decided in §1.1, never built. |
+| **5** | **Require a work link on /apply** + progress bar | me | §1.3 + §4F. Your whole recruiting funnel depends on it. |
+| 6 | Rehearse the full flow as a stranger | you | You found four real defects doing exactly this. |
 
-### Before #2 — one decision from you
+### #1 — what's actually left on your profile
 
-You **declined `kathleenmcareekilcoyne@gmail.com`** last night testing the decline path. That account now has no membership, so it can't build a profile. Your options:
+Two things, both quick, both at **releveconnect.com/profile/edit**:
 
-- **Use `serenitypremiercare@gmail.com`** — approved, Professional membership, ready now. Nothing to change.
-- **Or I flip your main account back to approved** — say the word. I didn't do it unasked; changing a verdict is yours.
+- **Availability chips.** Still empty. I deliberately guessed nothing — those are commitments about your time, not facts I could read off your résumé. They're also the new Roster search filters, so until you tick them you won't come up in "available weekends" or "accepting choreography." Your résumé shows Star Systems adjudication work, so *Available for Adjudication* looks right — your call.
+- **Featured Video.** You said you'd post it today. It's the hero of the page and the biggest remaining gap.
 
-### About #3 — what "This Week" already does
-
-It isn't a to-build. It's live on the site now, with two modes: a **live week** for a signed-in member (their own classes as a teacher, plus their children's as a guardian — two different security policies from one login), and a **clearly-labelled sample week** for everyone else, so it stays showable to a studio without pretending the data is theirs.
-
-What it lacks is *your* real week in it. That's data, not code — and the path to it runs through a real profile, which is #2.
-
-*(Housekeeping: the old `feature/this-week-calendar-pass-one` branch is fully superseded by main — zero unique commits. Safe to delete whenever.)*
+Still owed from last night: your **Facebook URL** (you gave me the name "Kathleen McAree," which I can't safely turn into a link — a wrong guess points your profile at a stranger), and whether you want your **second Instagram** shown. Right now the profile carries **@kathleenmcaree**; **@releveconnect** is reachable via the Website and YouTube links.
 
 ---
 
-## The one thing that still blocks inviting people
+## ⚠️ Two things to be careful about
 
-### 🛑 Outlook and Hotmail users cannot sign in — so they cannot apply
+### The "clear the test data" command is now dangerous
 
-Not "sometimes." At all. Microsoft scans links in incoming mail by *opening* them, which spends a one-time sign-in link before a human can tap it. Barry's account is the proof: created 03:09:04, "signed in" 03:09:21 — seventeen seconds. That was a scanner, not a person.
+The old plan said "one command." **Scrap that.** All four accounts are real addresses you own, and **two of them are admin accounts** — `kathleen@releveconnect.com` and `kathleenmcareekilcoyne@gmail.com`. A sweep would delete your own access to your own console.
 
-**The fix: email a 6-digit code instead of a clickable link.** A scanner can't type a number into a box. It's the standard answer to this exact problem.
+When we do it, we go row by row and you see each one first.
 
-Two parts, and one of them is yours:
-1. I change the sign-in page and the code that verifies it.
-2. **You** add the code to the sign-in email template in the Supabase dashboard — I can't reach email templates from code. About two minutes, I'll walk you through it.
+Also worth knowing: your gmail account is no longer test data. It holds your **live, published profile** and your founding membership. It is the realest row in the database.
 
-**Do this before inviting anyone.** A large share of dance teachers are on Outlook or Hotmail, and right now every one of them hits a silent wall.
+### Check that kathleen@releveconnect.com still forwards
 
----
+`kathleen@releveconnect.com` is a forwarding alias, not an inbox — mail to it lands in `relevewerise@gmail.com`. Resend now has DNS records on that domain, and at Namecheap, switching to Custom MX silently kills forwarding.
 
-## Ready to build when you say go
+**Send yourself one email at `kathleen@releveconnect.com` and confirm it arrives.** Two minutes, and it's the kind of thing that fails quietly for weeks.
 
-**The student-count question** (you asked for this at midnight). The studio section of the application is currently one free-text box — which is why your studio application only captured "Bergen pac englewood."
-
-Your bands had a gap and an overlap (a studio with 175 students had nowhere to click; one with exactly 100 had two). Waiting on your yes for these:
-
-- Under 50 · 50–99 · 100–199 · 200+
-
-Three more columns are already built and never asked: **staff count**, **studio rooms**, **year founded**. Say which you want.
-
-**Cleanup before real people arrive.** The database now holds 3 test applications, 2 test memberships, and 6 test accounts — all yours. Worth clearing so you launch with a clean queue. One command, say the word.
+Good news: your admin alerts don't depend on it — `ADMIN_ALERT_EMAIL` points straight at the gmail, not the alias.
 
 ---
 
-## Fixed last night, already live
+## 🔨 What I built last night
 
-- **Admins land on the vetting queue when they sign in.** You were being routed to a members-only page and trapped there — your own membership wall was locking you out of your own console. That was the "it will not let me in" problem, and it was ours.
-- **The membership page now shows admins a door to the queue**, plus "Signed in as ___" so you can tell which account you're on. Nothing in the app answered that before.
-- **A dead sign-in link now says so** instead of returning you to a blank form in silence.
-- **No more admin token.** Approving needs nothing but being signed in as an admin.
+- **Sign-in by code.** New two-step `/login`, a new `/auth/after-signin`, and the "where does this person belong" rule pulled into one place so all three sign-in routes agree. `/auth/confirm` had been ignoring it and dumping admins on a members-only page.
+- **Availability is a real search facet.** Your idea, and it was the right call. Styles, certifications and now availability are all structured tags on the Roster — so *"Jazz teachers, available weekends, CPR-certified"* is a query, not a reading exercise. Same data spine The Swing will use. There's a test that runs exactly that search.
+- **New vocabulary:** Early Childhood · Adaptive Dance · Improvisation (focus areas); State Teaching License · CPR/First Aid · Safe Sport (certifications).
+- **Copy:** "Featured Video" (not everyone teaches), a bio prompt, and **"Ready to Join the Relevé Roster"** in place of Publish.
+- **The Swing opt-in is gone**, replaced by one honest line. Nothing consumed that data and the studio side isn't built. Anyone who already filled it in keeps their answers — the save deliberately doesn't touch those rows.
+- **Facebook and TikTok links**, which the form simply didn't have.
+
+### Two bugs found the hard way — both would have been worse later
+
+**Codes here are 8 digits, not 6.** I'd hardcoded 6. The field silently chopped the last two digits off every code and the Sign in button could never enable. **Nobody could have signed in, and the page said nothing.** Found because you pasted a code and I counted the digits.
+
+**Your profile handle collided.** You built a profile and it silently became `kathleen-mcaree-2` — no warning — because the July 9 draft held the good name. That's now sorted: your live profile is at **`kathleen-mcaree`**, and the July 9 draft is renamed `kathleen-mcaree-archive`, still intact, still private, nothing deleted. Swapping the two slugs back undoes it.
+
+Your live profile carries your own words — the 695-word bio you wrote in July, your full credentials, your headshot, plus your master résumé as a download and bergenPAC as "Teaching at."
 
 ---
 
-## Known rough edges (annoying, not broken)
+## 🔒 Untouched, on purpose
 
-- **iPhone Safari hides the URL path** — it shows only `releveconnect.com`, so you can't see which page you're on. Tap the address bar to see the full address. This is Safari, not us.
-- **Typing a URL on a phone triggers autocomplete** to the last page you visited. Select-all and delete first.
-- **`kathleen@releveconnect.com` is a forwarding alias, not an inbox.** Mail to it lands in `relevewerise@gmail.com`.
+- **Stripe** — dormant. Free founding launch, no fees.
+- **MailerLite** — off. Stays off until there's a real opt-in checkbox and an unsubscribe.
+- **Minors / under-18** — parked pending **Marshall Law** or a privacy attorney. Under-13 triggers COPPA. This is a legal decision, not a product one.
+- **The July 9 profile** — archived, not deleted.
 
 ---
 
 ## The honest note
 
-Last night looked like four hours of the site being broken. It wasn't. You found four real defects by being the first person to walk through your own front door as a stranger would — and three are already fixed. The fourth is Outlook, and it's first on the list this morning.
+You did the two things last night that actually move a build forward: you used your own product as a stranger would, and you told me when something looked wrong. The 8-digit bug was mine, and it was invisible from the inside — it took you pasting a real code for it to surface. Same story as the four defects you found on the 22nd.
 
-Nobody could have found those from the inside. They needed someone to actually try to use the thing.
+You also caught a wrong certification on your own profile because you were reading carefully. That instinct is worth more than any amount of code.
 
-The platform works. Go to bed proud of that.
+The platform works, the front door is open, and the name on it is yours.
 
 — Claude 🤍
