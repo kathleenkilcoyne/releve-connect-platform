@@ -55,7 +55,7 @@ export default function Home() {
         </Link>
 
         <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
-          <HeaderLink href="/studio">Studios</HeaderLink>
+          <HeaderLink href="/studios">Studios</HeaderLink>
           <HeaderLink href="/climb">The Climb</HeaderLink>
           <HeaderLink href="/roster">The Roster</HeaderLink>
           <HeaderLink href="/login">Sign in</HeaderLink>
@@ -99,6 +99,61 @@ export default function Home() {
           >
             Meet Relevé
           </a>
+        </div>
+      </section>
+
+      {/* ─────────────────── Build your future — the three paths ───────────────────
+          One platform, three experiences. Three audiences, three verbs:
+          Professionals APPLY · Studios PARTNER · Families JOIN. The copy is
+          verbatim from Kathleen's V1 brief and must stay so — a visitor has to
+          know instantly which door is theirs.
+
+          ⚠️ The professional "Apply" is the DOMINANT, primary CTA and must not be
+          diluted — it is rendered filled/gold; the other two are quieter outlines.
+          Families never "apply": their button says "Join Through Your Studio" and
+          the /join flow is studio-code-gated at the data layer (a family cannot
+          create a profile without a participating studio's code). Words AND
+          architecture both prevent open family signup. */}
+      <section
+        aria-labelledby="paths-heading"
+        className="border-y border-[color:rgba(182,145,47,0.18)] bg-[var(--rc-cream-2)] px-7 py-14 sm:py-20"
+      >
+        <div className="mx-auto max-w-[960px]">
+          <h2
+            id="paths-heading"
+            className="text-center text-[clamp(1.6rem,3.6vw,2.3rem)] font-medium leading-tight text-[var(--rc-ink)]"
+          >
+            Build your future.
+          </h2>
+          <p className="mx-auto mt-3 max-w-[40rem] text-center text-[1.02rem] leading-relaxed text-[var(--rc-ink-soft)]">
+            One platform, three experiences. Whoever you are, there&apos;s a door with your name on
+            it.
+          </p>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {/* Professionals — the primary path. Filled/gold, listed first. */}
+            <PathCard
+              eyebrow="Professionals"
+              subline="Vetted teachers, choreographers, and performers. Build your credentialed profile."
+              href="/apply"
+              cta="Apply to the Professional Roster"
+              primary
+            />
+            {/* Studios — by invitation; interest form, not self-serve. */}
+            <PathCard
+              eyebrow="Studios"
+              subline="Bring your studio and your competition families into the ecosystem. By invitation."
+              href="/studios"
+              cta="Become a Founding Studio"
+            />
+            {/* Families — join through a participating studio; gated at /join. */}
+            <PathCard
+              eyebrow="Families"
+              subline="With a participating studio? Create your family's “This Week.”"
+              href="/join"
+              cta="Join Through Your Studio"
+            />
+          </div>
         </div>
       </section>
 
@@ -353,7 +408,7 @@ export default function Home() {
         </p>
         <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
           <FooterLink href="/apply">Apply</FooterLink>
-          <FooterLink href="/studio">Studios</FooterLink>
+          <FooterLink href="/studios">Studios</FooterLink>
           <FooterLink href="/climb">The Climb</FooterLink>
           <FooterLink href="/roster">The Roster</FooterLink>
           <FooterLink href="/login">Sign in</FooterLink>
@@ -376,6 +431,52 @@ function FeatureItem({ title, children }: { title: string; children: React.React
       <p className="text-[1.05rem] font-semibold text-[var(--rc-ink)]">{title}</p>
       <p className="mt-1.5 text-[1rem] leading-relaxed text-[var(--rc-ink-soft)]">{children}</p>
     </li>
+  );
+}
+
+/**
+ * One of the three "Build your future." paths. `primary` renders the dominant,
+ * gold-filled treatment reserved for the professional Apply CTA; the other two
+ * are quieter outlined cards so no visitor mistakes which door is theirs.
+ */
+function PathCard({
+  eyebrow,
+  subline,
+  href,
+  cta,
+  primary = false,
+}: {
+  eyebrow: string;
+  subline: string;
+  href: string;
+  cta: string;
+  primary?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col rounded-lg border p-6 text-center transition-shadow hover:shadow-sm ${
+        primary
+          ? "border-[var(--rc-gold)] bg-white shadow-sm"
+          : "border-[color:rgba(182,145,47,0.28)] bg-[color:rgba(255,255,255,0.55)]"
+      }`}
+    >
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-[var(--rc-gold)]">
+        {eyebrow}
+      </p>
+      <p className="mt-3 flex-1 text-[0.98rem] leading-relaxed text-[var(--rc-ink-soft)]">
+        {subline}
+      </p>
+      <Link
+        href={href}
+        className={`mt-6 rounded-sm px-5 py-3 text-[0.76rem] uppercase tracking-[0.14em] no-underline transition-colors ${
+          primary
+            ? "bg-[var(--rc-gold)] text-white hover:bg-[#9c7c26]"
+            : "border border-[var(--rc-gold)] text-[var(--rc-gold)] hover:bg-[color:rgba(182,145,47,0.08)]"
+        }`}
+      >
+        {cta}
+      </Link>
+    </div>
   );
 }
 

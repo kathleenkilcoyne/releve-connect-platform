@@ -6,6 +6,46 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-07-24 — Stable V1: three clean paths (Professionals · Studios · Families)
+
+**Decided (Kathleen, `V1-THREE-PATHS-FROM-KATHLEEN.md`):** One platform, three experiences —
+three audiences, three verbs. **Professionals Apply · Studios Partner · Families Join.** Lay
+the extensible foundations now; keep the family *feature set* lean. No DNS/domain work, no
+payments, no self-serve studio signup, no public minor profiles — all deferred, not foreclosed.
+
+**What shipped:**
+1. **Homepage "Build your future." block** (under the trillions-of-stars hero) — three paths,
+   verbatim copy. The professional **Apply** stays the dominant, gold/filled CTA; Studios and
+   Families are quieter outlines so no visitor mistakes which door is theirs.
+2. **Studios path = interest form, not self-serve.** New `/studios` "Become a Founding Studio"
+   page → `studio_interest` table + an email alert to `ADMIN_ALERT_EMAIL` (EMAILS.md #11).
+   **No studio account or billing is created** — Kathleen onboards the pilots by hand. The old
+   self-serve `/studio` + `/studio/edit` are left intact (her white-glove tools) but are no
+   longer the front-door link; the homepage/nav/footer "Studios" now point to `/studios`.
+3. **Families path = `/join`, studio-gated at the DATA LAYER.** New `studio_invites` table maps
+   a code → a participating studio. `/join` collects the code, hands off to the existing 8-digit
+   sign-in (carrying the code through `?next=`), then `joinThroughStudio` creates the guardian
+   account + `family_account` + `student` + `guardianship` (with COPPA consent stamped) +
+   studio `affiliation`, and lands them in the family dashboard (`/this-week`). **Open family
+   signup is impossible** — nothing is created without a valid, active invite code. All writes
+   run under the service role (validated authenticated user + validated code), which also lets
+   the guardian create the studio affiliation their own RLS correctly forbids.
+4. **Dashboard-by-role routing.** `resolveSignedInDestination` now sends a family guardian (no
+   talent profile, owns a family account or holds a guardianship) to `/this-week`; professionals
+   still go to the profile builder, admins to the vetting console — one login, different surface.
+5. **Reused, not rebuilt:** the existing family layer (`family_accounts`/`students`/
+   `guardianships`, the 2026-07-17 migration), the `ThisWeekScreen`/Ava-Student model, and the
+   OTP sign-in. Nothing that worked was renamed or restructured.
+
+**Seed for testing:** a demo pilot studio ("Founding Pilot Studio (demo)", owned by Kathleen)
++ invite code **`PILOT-2026`**, so `/join` is exercisable end-to-end. Delete or rename freely.
+
+**Kathleen's professional profile** was already approved + active membership + published, so
+requirement 3 ("prove one profile end-to-end") needed no flip — her `/this-week` renders her
+live professional dashboard.
+
+---
+
 ## 2026-07-22 — The Swing and The Flex Series are WITHHELD, not paused
 
 **Decided (Kathleen):** Pull The Swing and The Flex Series off the public site, and lead

@@ -30,12 +30,18 @@ export function ThisWeekScreen({
   weekOffset,
   payload,
   greeting,
+  initialView,
+  initialStudentId,
 }: {
   mode: "live" | "demo";
   weekOffset: number;
   payload?: LiveWeekPayload;
   /** "You Matter Here" — resolved on the server so the daily line can't flicker. */
   greeting?: { message: string; track: GreetingTrack | null };
+  /** Force the opening surface (set by the family-join redirect). */
+  initialView?: ViewKey;
+  /** Open on this specific dancer among a family's children (join redirect). */
+  initialStudentId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,14 +54,27 @@ export function ThisWeekScreen({
   const proBundle: WeekBundle | null =
     mode === "live" ? (payload?.professional ?? null) : demoPro;
 
-  const liveStudent = payload?.students[0] ?? null;
+  // Which dancer to show. Normally the first (guardianships are ordered
+  // primary-first); when the join redirect names a specific child, open on that
+  // one so a just-enrolled dancer is the one selected.
+  const liveStudent =
+    (initialStudentId
+      ? payload?.students.find(
+          (s) => s.bundle.viewer.kind === "student" && s.bundle.viewer.student.id === initialStudentId,
+        )
+      : undefined) ??
+    payload?.students[0] ??
+    null;
   const studentBundle: WeekBundle | null =
     mode === "live" ? (liveStudent?.bundle ?? null) : demoStudent;
 
   // Open on whichever view the member actually has. A guardian with no talent
-  // profile should land on their child's week, not an empty professional one.
+  // profile should land on their child's week, not an empty professional one —
+  // and a multi-role member arriving from a family join is forced onto the
+  // student view by `initialView`, so their teacher week doesn't shadow the
+  // dancer they just added.
   const [view, setView] = useState<ViewKey>(
-    proBundle ? "professional" : "student",
+    initialView ?? (proBundle ? "professional" : "student"),
   );
   const [filter, setFilter] = useState<FilterValue>("all");
 

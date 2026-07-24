@@ -411,6 +411,59 @@ export async function sendIntroRequestNotification(input: {
   });
 }
 
+// ===========================================================================
+// The Studios path — "Become a Founding Studio" interest form.
+// ===========================================================================
+
+/**
+ * EMAILS.md #11 — "New studio interest". ONE internal email to the admin
+ * (ADMIN_ALERT_EMAIL) when a studio submits the founding-studio interest form.
+ *
+ * Studios are onboarded MANUALLY / white-glove in V1 — there is no self-serve
+ * signup — so this alert IS the pipeline: it tells Kathleen a studio raised its
+ * hand so she can reach out and onboard them personally. Best-effort like every
+ * other send (sendEmail never throws), so a mail failure can't lose a submission
+ * that is already saved to studio_interest.
+ */
+export async function sendStudioInterestAlert(input: {
+  studioName: string;
+  contactName: string;
+  email: string;
+  phone: string | null;
+  location: string | null;
+  studentCountLabel: string | null;
+  message: string | null;
+}): Promise<void> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) {
+    console.warn(
+      "[notifications] ADMIN_ALERT_EMAIL unset — nobody will be told this studio is interested:",
+      { studio: input.studioName, contact: input.email },
+    );
+    return;
+  }
+
+  await sendEmail({
+    to,
+    template: "studio-interest.v1",
+    replyTo: input.email,
+    subject: `New Founding Studio interest — ${input.studioName}`,
+    text: body(
+      `${input.contactName} from ${input.studioName} is interested in becoming a Founding Studio.`,
+      [
+        `Studio: ${input.studioName}`,
+        `Contact: ${input.contactName}`,
+        `Email: ${input.email}`,
+        ...(input.phone ? [`Phone: ${input.phone}`] : []),
+        ...(input.location ? [`Location: ${input.location}`] : []),
+        ...(input.studentCountLabel ? [`Students: ${input.studentCountLabel}`] : []),
+      ].join("\n"),
+      ...(input.message ? [`Message:\n${input.message}`] : []),
+      "Reach out to onboard them personally — there is no self-serve signup.",
+    ),
+  });
+}
+
 /** Booking links surfaced after purchase (env-configured; null when unset). */
 export function bookingLinks() {
   return {

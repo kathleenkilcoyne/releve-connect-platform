@@ -47,6 +47,14 @@ export default async function ThisWeekPage({
   const params = await searchParams;
   const weekOffset = parseWeekOffset(params.week);
 
+  // Which surface to open on, and which dancer. Set by the join redirect so a
+  // freshly-enrolled family lands on their new dancer's week, not a multi-role
+  // member's professional view. Both are optional; absent = the normal default.
+  const rawView = Array.isArray(params.view) ? params.view[0] : params.view;
+  const initialView = rawView === "student" || rawView === "professional" ? rawView : undefined;
+  const rawChild = Array.isArray(params.child) ? params.child[0] : params.child;
+  const initialStudentId = rawChild?.trim() || undefined;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -86,6 +94,8 @@ export default async function ThisWeekPage({
       weekOffset={weekOffset}
       payload={payload}
       greeting={greeting}
+      initialView={initialView}
+      initialStudentId={initialStudentId}
     />
   );
 }
