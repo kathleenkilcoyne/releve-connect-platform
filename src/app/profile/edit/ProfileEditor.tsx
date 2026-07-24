@@ -8,6 +8,7 @@ import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
 
 type Option = { slug: string; label: string };
+type AvailOption = Option & { kind: "general" | "currently" };
 
 type Initial = {
   display_name: string;
@@ -26,10 +27,8 @@ type Initial = {
   resume_url: string;
   social_links: Record<string, string>;
   profile_status: string;
-  swing_available: boolean;
-  swing_home_location: string;
-  swing_travel_radius: string;
-  swing_notes: string;
+  teaching_at: string;
+  touring_with: string;
 } | null;
 
 const YEARS = ["0-2", "3-5", "6-10", "11-20", "20+"];
@@ -46,12 +45,12 @@ export default function ProfileEditor({
   focusOptions,
   roleOptions,
   certOptions,
+  availOptions,
   selectedStyles,
   selectedLevels,
   selectedFocus,
   selectedCerts,
-  selectedSwingStyles,
-  selectedSwingLevels,
+  selectedAvailability,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -59,12 +58,12 @@ export default function ProfileEditor({
   focusOptions: Option[];
   roleOptions: Option[];
   certOptions: Option[];
+  availOptions: AvailOption[];
   selectedStyles: string[];
   selectedLevels: string[];
   selectedFocus: string[];
   selectedCerts: string[];
-  selectedSwingStyles: string[];
-  selectedSwingLevels: string[];
+  selectedAvailability: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -88,12 +87,12 @@ export default function ProfileEditor({
   const [resumeRemoved, setResumeRemoved] = useState(false);
   const [resumePicked, setResumePicked] = useState<string>("");
 
-  // The Swing — opt-in toggle. OFF unless the teacher has turned it on. Controls
-  // whether the availability fields are shown (they stay in the DOM so their
-  // values round-trip even while hidden — turning off preserves your choices).
-  const [swingOn, setSwingOn] = useState(initial?.swing_available ?? false);
-
   const social = initial?.social_links ?? {};
+
+  // Availability comes from one table in two flavours: when you can work, and
+  // what you're taking on right now. Rendered as two groups, saved as one facet.
+  const generalAvail = availOptions.filter((a) => a.kind === "general");
+  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -128,13 +127,16 @@ export default function ProfileEditor({
         <p className="mt-2 text-xs text-neutral-400">JPG, PNG, or WebP · up to 5MB.</p>
       </section>
 
-      {/* Teaching Reel — the highest-value item, above the fold (spec §6) */}
+      {/* Featured Video — the highest-value item, above the fold (spec §6).
+          Renamed from "Teaching Reel" on 2026-07-24: not everyone on the Roster
+          teaches, and a choreographer or working dancer shouldn't have to read
+          past a label that isn't for them. The DB column keeps its old name. */}
       <section>
-        <h2 className="text-lg font-semibold text-neutral-900">Teaching Reel</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Featured Video</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          Your headline video — this plays at the top of your profile. Paste a Vimeo or YouTube
-          link. A <span className="font-medium">vertical</span> clip (like a Reel) fills the hero
-          best.
+          A teaching clip, choreography, class footage, or performance. This plays at the top of
+          your profile — paste a Vimeo or YouTube link. A{" "}
+          <span className="font-medium">vertical</span> clip (like a Reel) fills the hero best.
         </p>
         <input
           name="teaching_reel_url"
@@ -220,6 +222,10 @@ export default function ProfileEditor({
       {/* Bio ------------------------------------------------------------ */}
       <section>
         <label className={label}>Bio — your story</label>
+        <p className="mb-2 text-sm text-neutral-500">
+          Tell us what makes you unique. Share your background, experience, and what dancers can
+          expect working with you.
+        </p>
         <textarea
           name="bio"
           value={bio}
@@ -424,77 +430,75 @@ export default function ProfileEditor({
         </div>
       </section>
 
-      {/* The Swing — member-controlled opt-in (spec §10) -----------------
-          The "not live yet" line below is REQUIRED, not decoration. A teacher can
-          opt in today, but the studio side (find / match / book) is not built, so
-          nobody can be booked through this yet — and by decision of 2026-07-22
-          that will stay true for a while: The Swing is the paid studio product
-          and is deliberately not being given away during the free period
-          (DECISIONS.md 2026-07-22). Collecting availability now is how the paid
-          product works on day one — but someone who opts in and never hears
-          anything has been quietly misled. Remove this line only when a studio
-          can actually book a sub. */}
+      {/* Availability (revisions 2026-07-24 §9) --------------------------
+          Every checkbox here is a structured tag, not prose, because these are
+          exactly the things a studio searches on: "available weekends",
+          "accepting commissions". The two free-text lines are the exceptions —
+          where you teach is a fact about you, not a facet anyone filters by. */}
       <section className="rounded-xl border border-neutral-200 p-5">
-        <h2 className="text-lg font-semibold text-neutral-900">The Swing — substitute teaching</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Availability</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          Opt in to be matched when a studio needs a last-minute substitute. You&apos;re in control:
-          this is <span className="font-medium">off</span> until you turn it on, and you can turn it
-          off anytime.
+          Optional — but this is how studios find you. Each of these is a search filter on the
+          Roster.
         </p>
-        <p className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-          <span className="font-medium text-neutral-800">Not live yet.</span> Studios can&apos;t
-          book substitutes through Relevé yet — we&apos;re building that. Setting your
-          availability now means you&apos;re ready the day it opens, and we&apos;ll tell you when
-          it does. Nothing happens in the meantime.
-        </p>
-        <label className="mt-4 flex items-center gap-3">
-          <input
-            type="checkbox"
-            name="swing_available"
-            checked={swingOn}
-            onChange={(e) => setSwingOn(e.target.checked)}
-            className="h-4 w-4"
-          />
-          <span className="text-sm font-medium text-neutral-800">Available for Swing</span>
-        </label>
 
-        {/* Fields stay mounted (hidden when off) so values round-trip on save. */}
-        <div className={swingOn ? "mt-6 space-y-6" : "hidden"}>
-          <SwingChipRow title="Styles I'll sub" name="swing_styles" options={styleOptions} selected={selectedSwingStyles} />
-          <SwingChipRow title="Levels I'll sub" name="swing_levels" options={levelOptions} selected={selectedSwingLevels} />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-5">
+          <AvailChipRow
+            title="General availability"
+            name="availability"
+            options={generalAvail}
+            selected={selectedAvailability}
+          />
+        </div>
+
+        <div className="mt-7 border-t border-neutral-200 pt-6">
+          <p className="text-sm font-medium text-neutral-800">Currently</p>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={label}>Home base</label>
+              <label className={label}>Teaching at</label>
               <input
-                name="swing_home_location"
-                defaultValue={initial?.swing_home_location}
-                placeholder="e.g. Montclair, NJ"
+                name="teaching_at"
+                defaultValue={initial?.teaching_at}
+                placeholder="e.g. Broadway Dance Center"
                 className={input}
               />
             </div>
             <div>
-              <label className={label}>Travel radius (miles)</label>
+              <label className={label}>Touring with</label>
               <input
-                name="swing_travel_radius"
-                type="number"
-                min="0"
-                defaultValue={initial?.swing_travel_radius}
-                placeholder="e.g. 25"
+                name="touring_with"
+                defaultValue={initial?.touring_with}
+                placeholder="e.g. Hamilton — National Tour"
                 className={input}
               />
             </div>
           </div>
-          <div>
-            <label className={label}>Availability notes (optional)</label>
-            <textarea
-              name="swing_notes"
-              defaultValue={initial?.swing_notes}
-              rows={2}
-              placeholder="e.g. Weekday mornings; can travel to NYC; not available Tuesdays."
-              className={input}
+
+          <div className="mt-5">
+            <AvailChipRow
+              title="I'm currently accepting"
+              name="availability"
+              options={currentlyAvail}
+              selected={selectedAvailability}
             />
           </div>
         </div>
+      </section>
+
+      {/* The Swing (revisions 2026-07-24 §7) -----------------------------
+          The opt-in form used to live here — toggle, home base, travel radius,
+          styles/levels you'd sub. It's gone, replaced by one honest line.
+          A teacher could opt in, but the studio side (find / match / book) is
+          not built, so nobody could be booked; The Swing is the paid studio
+          product and is deliberately not being given away during the free
+          period (DECISIONS.md 2026-07-22). Asking for availability that nothing
+          consumes is a chore with no payoff. Anyone who already filled it in
+          keeps their answers — the swing_availability rows are untouched. */}
+      <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-5">
+        <h2 className="text-lg font-semibold text-neutral-900">The Swing</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          You will receive opportunities when Swing launches.
+        </p>
       </section>
 
       {/* Publish + save ------------------------------------------------- */}
@@ -507,11 +511,12 @@ export default function ProfileEditor({
             className="h-4 w-4"
           />
           <span className="text-sm font-medium text-neutral-800">
-            Publish — make my page visible to everyone
+            Ready to Join the Relevé Roster
           </span>
         </label>
-        <p className="mt-1 pl-7 text-xs text-neutral-400">
-          Leave unchecked to keep it a private draft while you work on it.
+        <p className="mt-1 pl-7 text-xs text-neutral-500">
+          Turn this on when you&apos;re ready for studios and fellow professionals to discover you.
+          Off means your profile stays a private draft.
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
@@ -579,9 +584,9 @@ function CheckGroup({
   );
 }
 
-// A lighter chip group (smaller heading) for fields nested inside a section,
-// e.g. the Swing "styles/levels I'll sub".
-function SwingChipRow({
+// A lighter chip group (smaller heading) for fields nested inside a section —
+// used by the Availability groups, which sit under one shared heading.
+function AvailChipRow({
   title,
   name,
   options,

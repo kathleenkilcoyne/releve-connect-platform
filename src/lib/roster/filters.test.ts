@@ -17,6 +17,7 @@ describe("parseRosterParams", () => {
       styles: [],
       levels: [],
       certs: [],
+      availability: [],
       region: null,
       state: null,
       q: null,
@@ -58,6 +59,7 @@ const base: RosterRow = {
   style_slugs: ["ballet", "contemporary"],
   level_slugs: ["advanced", "professional"],
   cert_slugs: ["abt-ntc"],
+  availability_slugs: ["weekends", "willing-to-travel", "accepting-choreography"],
   region_id: "region-nj",
   state_province: "NJ",
   display_name: "Ava Marchetti",
@@ -107,8 +109,60 @@ describe("profileMatchesFilters", () => {
   });
 
   it("tolerates null facet arrays", () => {
-    const sparse: RosterRow = { ...base, style_slugs: null, level_slugs: null, cert_slugs: null };
+    const sparse: RosterRow = {
+      ...base,
+      style_slugs: null,
+      level_slugs: null,
+      cert_slugs: null,
+      availability_slugs: null,
+    };
     expect(profileMatchesFilters(sparse, parseRosterParams({}))).toBe(true);
     expect(profileMatchesFilters(sparse, parseRosterParams({ style: "ballet" }))).toBe(false);
+    expect(profileMatchesFilters(sparse, parseRosterParams({ avail: "weekends" }))).toBe(false);
+  });
+
+  // Availability (revisions 2026-07-24 §9). Both kinds of tag — when someone can
+  // work, and what they're taking on — share the single `avail` facet.
+  it("filters by availability, ANY-within-facet", () => {
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "weekends" }))).toBe(true);
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "saturdays" }))).toBe(false);
+    // ANY: has weekends, not summers-only → still a match
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "summers-only,weekends" }))).toBe(true);
+  });
+
+  it("treats 'currently accepting' tags as the same facet as general availability", () => {
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "accepting-choreography" }))).toBe(true);
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "available-for-adjudication" }))).toBe(false);
+  });
+
+  it("answers the studio's real question: jazz teacher, weekends, CPR-certified", () => {
+    // The query from PROFILE-REVISIONS-FROM-KATHLEEN.md, as a filter.
+    const query = parseRosterParams({
+      role: "teacher",
+      style: "jazz",
+      avail: "weekends",
+      cert: "cpr-first-aid",
+    });
+
+    // Ava teaches ballet/contemporary and holds ABT — wrong style, wrong cert.
+    expect(profileMatchesFilters(base, query)).toBe(false);
+
+    const match: RosterRow = {
+      ...base,
+      display_name: "Jordan Reyes",
+      style_slugs: ["jazz", "hip-hop"],
+      cert_slugs: ["cpr-first-aid", "safe-sport"],
+      availability_slugs: ["weekends", "willing-to-travel"],
+    };
+    expect(profileMatchesFilters(match, query)).toBe(true);
+
+    // Same person, but only free weekends in summer → drops out.
+    expect(
+      profileMatchesFilters({ ...match, availability_slugs: ["summers-only"] }, query),
+    ).toBe(false);
+  });
+
+  it("counts availability as an active filter (so 'Clear filters' shows)", () => {
+    expect(hasNoActiveFilters(parseRosterParams({ avail: "weekends" }))).toBe(false);
   });
 });

@@ -63,25 +63,27 @@ vetting queue instead of a members-only page. Your profile is one click away.
 
 Go to **http://localhost:3000/profile/edit**
 
-It'll say *"Create your profile"* — this account is starting fresh. The sections,
-in the order you'll meet them:
+It'll say *"Welcome to the Relevé Roster"* — this account is starting fresh. The
+sections, in the order you'll meet them:
 
 | Section | What to put there |
 |---|---|
 | **Photo** | Your headshot. Uploads to Supabase storage. |
-| **Teaching Reel** | A Vimeo or YouTube URL — renders inline on your public page. |
+| **Featured Video** | A Vimeo or YouTube URL — teaching clip, choreography, class footage, or performance. Renders inline at the top of your public page. |
 | **Name** * | Required. The only required field. |
 | **Profile handle** | Your shareable link, `releveconnect.com/<handle>`. **Read the warning below.** |
 | **Primary role** | Teacher (matches your application). |
 | Years / City / State / Country / Age range | |
 | **Bio — your story** | No word minimum. §1.3 removed those. |
-| Styles · Levels · Focus areas | Tick boxes, from the taxonomy tables. |
+| Styles · Levels · Focus areas | Tick boxes. Focus areas now include Early Childhood, Adaptive Dance, Improvisation. |
+| **Certifications** | Now includes State Teaching License, CPR / First Aid, Safe Sport. |
 | **Credentials & training** | Degrees, certifications, companies. |
 | **Photo gallery** | Multiple images. |
 | **Résumé / CV** | File upload. |
 | **Links** | Website · Instagram · Vimeo · YouTube |
-| **The Swing** | Substitute teaching: on/off, home base, travel radius, notes. Off by default. |
-| **Publish** | A checkbox. Leave it **unchecked** while drafting. |
+| **Availability** | General availability chips, plus *Currently*: Teaching at / Touring with, and what you're accepting. Every chip is a Roster search filter. |
+| **The Swing** | One line now — opportunities arrive when Swing launches. Nothing to fill in. |
+| **Ready to Join the Relevé Roster** | The publish toggle. Leave it **off** while drafting. |
 
 Then **Save profile**. On success a *"View my public page ↗"* link appears.
 
@@ -106,7 +108,7 @@ I'd do #1. It's your name and the shorter link is the better one.
 
 ## Step 4 — Publish, and check it landed
 
-1. Tick **Publish** → **Save profile**
+1. Turn on **Ready to Join the Relevé Roster** → **Save profile**
 2. Open your public page: `http://localhost:3000/<your-handle>`
 3. Open **http://localhost:3000/roster** — you should be there.
 

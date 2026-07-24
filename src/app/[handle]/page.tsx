@@ -47,6 +47,8 @@ type ProfileRow = {
   social_links: Record<string, string> | null;
   profile_status: string;
   visibility: string;
+  teaching_at: string | null;
+  touring_with: string | null;
 };
 
 async function loadProfile(handle: string) {
@@ -58,7 +60,8 @@ async function loadProfile(handle: string) {
     .select(
       "profile_id, user_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, headshot_url, teaching_reel_url, gallery_urls, resume_url, " +
-        "honorifics, verification_flag, social_links, profile_status, visibility",
+        "honorifics, verification_flag, social_links, profile_status, visibility, " +
+        "teaching_at, touring_with",
     )
     .eq("public_slug", handle)
     .maybeSingle();
@@ -86,10 +89,14 @@ async function loadProfile(handle: string) {
   }
 
   const pid = profile.profile_id;
-  const [styles, levels, focus] = await Promise.all([
+  const [styles, levels, focus, avail] = await Promise.all([
     db.from("profile_styles").select("styles(label)").eq("profile_id", pid),
     db.from("profile_levels").select("levels(label)").eq("profile_id", pid),
     db.from("profile_focus_areas").select("focus_areas(label)").eq("profile_id", pid),
+    db
+      .from("profile_availability")
+      .select("availability_tags(label, kind, sort_order)")
+      .eq("profile_id", pid),
   ]);
   const labelsOf = (rows: unknown, key: string): string[] =>
     ((rows as Array<Record<string, { label: string } | { label: string }[]>>) ?? [])
@@ -99,12 +106,28 @@ async function loadProfile(handle: string) {
       })
       .filter(Boolean) as string[];
 
+  // Availability, split back into its two kinds for display. A studio that
+  // filtered the Roster on "accepting choreography" has to SEE that here, or the
+  // filter looks broken the moment they click through.
+  // The embedded row comes back as either an object or a one-element array
+  // depending on how the client infers the relationship — same reason `labelsOf`
+  // above handles both. Cast through `unknown` and normalize.
+  type AvailTag = { label: string; kind: string; sort_order: number };
+  const availRows = ((avail.data ?? []) as unknown as Array<{
+    availability_tags: AvailTag | AvailTag[] | null;
+  }>)
+    .map((r) => (Array.isArray(r.availability_tags) ? r.availability_tags[0] : r.availability_tags))
+    .filter((t): t is AvailTag => Boolean(t))
+    .sort((a, b) => a.sort_order - b.sort_order);
+
   return {
     profile,
     isDraftPreview,
     styles: labelsOf(styles.data, "styles"),
     levels: labelsOf(levels.data, "levels"),
     focus: labelsOf(focus.data, "focus_areas"),
+    availGeneral: availRows.filter((t) => t.kind === "general").map((t) => t.label),
+    availCurrently: availRows.filter((t) => t.kind === "currently").map((t) => t.label),
   };
 }
 
@@ -143,7 +166,7 @@ export default async function PublicProfilePage({
   const loaded = await loadProfile(handle);
   if (!loaded) notFound();
 
-  const { profile, styles, levels, focus, isDraftPreview } = loaded;
+  const { profile, styles, levels, focus, availGeneral, availCurrently, isDraftPreview } = loaded;
   const location = [profile.city, profile.state_province, profile.country]
     .filter(Boolean)
     .join(", ");
@@ -208,7 +231,7 @@ export default async function PublicProfilePage({
             <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-neutral-900 ring-1 ring-neutral-200">
               <iframe
                 src={reel.src}
-                title={`${profile.display_name} — Teaching Reel`}
+                title={`${profile.display_name} — featured video`}
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowFullScreen
                 className="absolute inset-0 h-full w-full"
@@ -302,6 +325,27 @@ export default async function PublicProfilePage({
       <TagRow title="Styles" items={styles} />
       <TagRow title="Teaching levels" items={levels} />
       <TagRow title="Focus" items={focus} />
+      <TagRow title="Availability" items={availGeneral} />
+      <TagRow title="Currently accepting" items={availCurrently} />
+
+      {/* The "Currently" lines — where they are right now. Free text, so they
+          render as a sentence rather than tags. */}
+      {(profile.teaching_at || profile.touring_with) && (
+        <section className="mt-8 space-y-1 text-sm text-neutral-600">
+          {profile.teaching_at && (
+            <p>
+              <span className="font-medium text-neutral-800">Teaching at</span> ·{" "}
+              {profile.teaching_at}
+            </p>
+          )}
+          {profile.touring_with && (
+            <p>
+              <span className="font-medium text-neutral-800">Touring with</span> ·{" "}
+              {profile.touring_with}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Photo gallery grid */}
       {gallery.length > 0 && (

@@ -11,7 +11,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
-import { buildSwingAvailabilityRow } from "@/lib/swing/availability";
 
 export type SaveState = {
   ok: boolean;
@@ -50,24 +49,24 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const years = String(formData.get("years_experience") ?? "").trim() || null;
   const credentials = String(formData.get("credentials") ?? "").trim() || null;
   const ageRange = String(formData.get("age_range") ?? "").trim() || null;
+  // The DB column is still `teaching_reel_url`; the form now calls it "Featured
+  // Video" (revisions 2026-07-24 §2). Renaming the column would be churn for no
+  // gain — the label is what members read.
   const teachingReelUrl = String(formData.get("teaching_reel_url") ?? "").trim() || null;
   const publish = formData.get("publish") === "on";
+
+  // The "Currently" lines. Free text on purpose — a specific employer name is a
+  // fact about one person, not a facet anyone would filter the Roster by.
+  const teachingAt = String(formData.get("teaching_at") ?? "").trim() || null;
+  const touringWith = String(formData.get("touring_with") ?? "").trim() || null;
 
   const styles = formData.getAll("styles").map(String).filter(Boolean);
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
-
-  // The Swing (§10) — the member-controlled availability toggle + fields. Stored
-  // in its own table so the dispatch loop can match on it later. Opt-in only.
-  const swingRow = buildSwingAvailabilityRow({
-    available: formData.get("swing_available") === "on",
-    homeLocation: String(formData.get("swing_home_location") ?? ""),
-    travelRadiusRaw: String(formData.get("swing_travel_radius") ?? ""),
-    notes: String(formData.get("swing_notes") ?? ""),
-  });
-  const swingStyles = formData.getAll("swing_styles").map(String).filter(Boolean);
-  const swingLevels = formData.getAll("swing_levels").map(String).filter(Boolean);
+  // Both availability groups ("general" + "currently") post under one name, so
+  // they land here as a single list and save as one facet.
+  const availability = formData.getAll("availability").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
   for (const k of ["website", "instagram", "vimeo", "youtube", "linkedin"] as const) {
@@ -203,6 +202,8 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     credentials,
     age_range: ageRange,
     teaching_reel_url: teachingReelUrl,
+    teaching_at: teachingAt,
+    touring_with: touringWith,
     gallery_urls: galleryUrls,
     social_links: social,
     profile_status: publish ? "published" : "draft",
@@ -275,13 +276,18 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   await replaceJoin("profile_levels", "level_id", levels, "levels");
   await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
   await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
+  await replaceJoin(
+    "profile_availability",
+    "availability_tag_id",
+    availability,
+    "availability_tags",
+  );
 
-  // ---- The Swing: availability row + what they'll sub ----------------------
-  await supabase
-    .from("swing_availability")
-    .upsert({ profile_id: profileId, ...swingRow, updated_at: new Date().toISOString() }, { onConflict: "profile_id" });
-  await replaceJoin("swing_styles", "style_id", swingStyles, "styles");
-  await replaceJoin("swing_levels", "level_id", swingLevels, "levels");
+  // NOTE: the Swing tables (swing_availability / swing_styles / swing_levels)
+  // are deliberately NOT written here any more. The builder no longer asks for
+  // that data (revisions 2026-07-24 §7), and writing an empty row would quietly
+  // erase what members already entered — so we leave those rows exactly as they
+  // are until The Swing actually ships.
 
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");
@@ -291,7 +297,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     slug: handle,
     published: publish,
     message: publish
-      ? "Saved and published! Your public page is live."
-      : "Saved as a draft. Flip “Publish” on when you're ready to go live.",
+      ? "Saved — you're on the Relevé Roster. Your public page is live."
+      : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",
   };
 }
