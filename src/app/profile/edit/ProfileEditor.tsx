@@ -428,6 +428,21 @@ export default function ProfileEditor({
           <label className={label}>YouTube</label>
           <input name="youtube" defaultValue={social.youtube} placeholder="https://youtube.com/…" className={input} />
         </div>
+        {/* Facebook + TikTok added 2026-07-24 — the form only had website /
+            Instagram / Vimeo / YouTube / LinkedIn, so members on those two
+            platforms had nowhere to put them. */}
+        <div>
+          <label className={label}>Facebook</label>
+          <input name="facebook" defaultValue={social.facebook} placeholder="https://facebook.com/…" className={input} />
+        </div>
+        <div>
+          <label className={label}>TikTok</label>
+          <input name="tiktok" defaultValue={social.tiktok} placeholder="https://tiktok.com/@…" className={input} />
+        </div>
+        <div>
+          <label className={label}>LinkedIn</label>
+          <input name="linkedin" defaultValue={social.linkedin} placeholder="https://linkedin.com/in/…" className={input} />
+        </div>
       </section>
 
       {/* Availability (revisions 2026-07-24 §9) --------------------------

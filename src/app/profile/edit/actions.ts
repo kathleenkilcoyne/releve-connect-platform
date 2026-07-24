@@ -69,7 +69,17 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const availability = formData.getAll("availability").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
-  for (const k of ["website", "instagram", "vimeo", "youtube", "linkedin"] as const) {
+  // facebook + tiktok added 2026-07-24. A key missing from this list is silently
+  // dropped on save no matter what the form shows, so the two must stay in step.
+  for (const k of [
+    "website",
+    "instagram",
+    "facebook",
+    "tiktok",
+    "vimeo",
+    "youtube",
+    "linkedin",
+  ] as const) {
     const v = String(formData.get(k) ?? "").trim();
     if (v) social[k] = v;
   }

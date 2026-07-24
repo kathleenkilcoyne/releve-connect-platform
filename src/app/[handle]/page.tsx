@@ -149,9 +149,12 @@ function titleCase(s: string) {
   return s.replace(/(^|[-_ ])(\w)/g, (_, sep, c) => (sep ? " " : "") + c.toUpperCase()).trim();
 }
 
+// Order here is the order the links render in.
 const SOCIAL_LABELS: Record<string, string> = {
   website: "Website",
   instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
   vimeo: "Vimeo",
   youtube: "YouTube",
   linkedin: "LinkedIn",
@@ -388,7 +391,17 @@ export default async function PublicProfilePage({
               Résumé / CV ↗
             </a>
           )}
-          {Object.entries(social).map(([k, v]) => (
+          {/* Ordered by SOCIAL_LABELS, not by whatever order the keys happen to
+              sit in the JSON — otherwise the row reshuffles itself every time a
+              member edits their links. Anything unrecognised still renders, last. */}
+          {Object.entries(social)
+            .sort(([a], [b]) => {
+              const keys = Object.keys(SOCIAL_LABELS);
+              const ia = keys.indexOf(a);
+              const ib = keys.indexOf(b);
+              return (ia < 0 ? keys.length : ia) - (ib < 0 ? keys.length : ib);
+            })
+            .map(([k, v]) => (
             <a
               key={k}
               href={v}
@@ -397,8 +410,8 @@ export default async function PublicProfilePage({
               className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
             >
               {SOCIAL_LABELS[k] ?? titleCase(k)} ↗
-            </a>
-          ))}
+              </a>
+            ))}
         </section>
       )}
 
