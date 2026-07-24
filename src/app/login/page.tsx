@@ -1,6 +1,6 @@
 "use client";
 
-// Sign in with a 6-digit code — no password.
+// Sign in with a numeric code — no password. Length lives in CODE_LENGTH below.
 //
 // ── Why a code and not a "magic link" (2026-07-23) ──
 // We used to email a one-tap link. Outlook, Hotmail and most corporate mail
@@ -16,10 +16,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+// ── How long a code is ──
+// This MUST match "Email OTP length" in the Supabase dashboard
+// (Authentication → Sign In / Providers → Email). This project is set to 8;
+// Supabase's own default is 6, so don't assume.
+//
+// Found the hard way on 2026-07-24: this was hardcoded to 6 while the project
+// issued 8, so the Sign in button never enabled and the field silently chopped
+// the last two digits off every code. Sign-in was impossible and said nothing.
+// One constant now, used for the cap, the enable rule, and the copy — so the
+// three can't drift apart again.
+const CODE_LENGTH = 8;
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  // "email" = asking who you are · "code" = waiting for the 6 digits
+  // "email" = asking who you are · "code" = waiting for the digits
   const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -34,8 +46,8 @@ export default function LoginPage() {
     if (reason === "link") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(
-        "That sign-in link had already been used or expired. We now send a 6-digit " +
-          "code instead — enter your email below and we'll send you one.",
+        "That sign-in link had already been used or expired. We now send a " +
+          `${CODE_LENGTH}-digit code instead — enter your email below and we'll send you one.`,
       );
     } else if (reason === "session") {
       setError(
@@ -69,7 +81,7 @@ export default function LoginPage() {
     }
   }
 
-  // Step 2 — check the 6 digits. Success writes the login cookie in this
+  // Step 2 — check the code. Success writes the login cookie in this
   // browser; /auth/after-signin then decides which page you land on.
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
@@ -132,7 +144,8 @@ export default function LoginPage() {
       {step === "email" ? (
         <>
           <p className="mt-3 text-neutral-600">
-            Enter your email and we&apos;ll send you a 6-digit sign-in code. No password needed.
+            Enter your email and we&apos;ll send you a {CODE_LENGTH}-digit sign-in code. No password
+            needed.
           </p>
           <form onSubmit={sendCode} className="mt-8 space-y-4">
             <div>
@@ -163,13 +176,13 @@ export default function LoginPage() {
       ) : (
         <>
           <p className="mt-3 text-neutral-600">
-            We sent a 6-digit code to <span className="font-medium">{email}</span>. Enter it below —
-            it&apos;s good for one hour.
+            We sent a {CODE_LENGTH}-digit code to <span className="font-medium">{email}</span>. Enter
+            it below — it&apos;s good for one hour.
           </p>
           <form onSubmit={verifyCode} className="mt-8 space-y-4">
             <div>
               <label htmlFor="code" className="mb-1 block text-xs font-medium text-neutral-600">
-                6-digit code
+                {CODE_LENGTH}-digit code
               </label>
               <input
                 id="code"
@@ -180,10 +193,10 @@ export default function LoginPage() {
                 autoComplete="one-time-code"
                 autoFocus
                 required
-                maxLength={6}
+                maxLength={CODE_LENGTH}
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="123456"
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH))}
+                placeholder={"1234567890".slice(0, CODE_LENGTH)}
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-center text-2xl tracking-[0.4em] focus:border-neutral-500 focus:outline-none"
               />
             </div>
@@ -195,7 +208,7 @@ export default function LoginPage() {
             {error && <ErrorNote>{error}</ErrorNote>}
             <button
               type="submit"
-              disabled={busy || code.length !== 6}
+              disabled={busy || code.length !== CODE_LENGTH}
               className="w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
             >
               {busy ? "Checking…" : "Sign in"}
