@@ -291,3 +291,36 @@ These were settled before the build began. Recorded here so they're not re-litig
 - **Studio annual included-post allowance (§A.1) = policy, not a column:** included posts are `posting_type='studio_included'`; the annual cap is enforced at post/checkout time by counting a studio's studio_included posts within its current membership year. Resets annually.
 - **Money in cents** (`amount_cents`), matching `memberships.price_cents`.
 - **RLS:** active postings world-readable (job seekers browse); poster manages own rows incl. drafts; partner packages + transactions private to owner; taxonomy public-read / admin-writes. Verified live by simulating anon / poster / other-user roles.
+
+## 2026-07-24 — Profile builder revisions + the Availability facet
+
+*From PROFILE-REVISIONS-FROM-KATHLEEN.md.*
+
+- **Everything a studio might search on is a structured tag, not free text** (Kathleen, 2026-07-24).
+  The test case: *"Show me Jazz teachers within 20 miles, available weekends, CPR-certified."* Styles,
+  focus areas, certifications and now availability are all controlled vocabularies with join tables
+  and a `roster_profiles` array column. Capturing it structured now is nearly free; retrofitting it
+  onto real member data later is a migration. This is the same spine The Swing will match on.
+- **One `availability_tags` table, two `kind`s** — `general` (Saturdays · Weekends · Summers Only ·
+  Willing to Travel · Virtual Available) and `currently` (Accepting Choreography · Accepting Master
+  Classes · Available for Adjudication · Available for Guest Teaching). Two headings in the UI, ONE
+  facet in the filter, because they filter identically and a studio combining them wants a single
+  ANY-within / AND-across rule. The `currently` four are deliberately **not** booleans on
+  `talent_profiles`: a studio searching "choreographers accepting commissions" wants a facet that
+  behaves exactly like Style, not a special case.
+- **`teaching_at` / `touring_with` stay free text** — a specific employer name is a fact about one
+  person, not a facet anyone would filter by. They render as a sentence on the public profile.
+- **The Swing opt-in form is REMOVED from the builder** (§7), replaced by one line: *"You will
+  receive opportunities when Swing launches."* Nothing consumed that data — the studio side isn't
+  built and, per 2026-07-22, Swing is the paid studio product and isn't being given away during the
+  free period. Asking for availability nothing acts on is a chore with no payoff.
+  **The existing `swing_availability` / `swing_styles` / `swing_levels` rows are left UNTOUCHED** —
+  the save action no longer writes them, precisely so it can't erase what members already entered.
+  `buildSwingAvailabilityRow` and its tests stay as the spec for when Swing ships.
+  ⚠️ **Consequence:** travel radius / home base are no longer captured anywhere. HANDOFF §1.2's
+  structured geocoded location is now the only planned source for Swing distance matching.
+- **"Teaching Reel" → "Featured Video"** (§2) — not everyone on the Roster teaches. Label only; the
+  `teaching_reel_url` column keeps its name (renaming it would be churn for no gain).
+- **Publish → "Ready to Join the Relevé Roster"** (§10), default OFF. Same `profile_status` values.
+- **Heading "Create your profile" → "Welcome to the Relevé Roster"** for a first-time member; a
+  returning member still sees "Edit your profile".

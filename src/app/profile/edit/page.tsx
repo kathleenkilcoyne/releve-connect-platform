@@ -34,7 +34,11 @@ type ProfileFields = {
   resume_url: string | null;
   social_links: Record<string, string> | null;
   profile_status: string | null;
+  teaching_at: string | null;
+  touring_with: string | null;
 };
+
+type AvailOption = { slug: string; label: string; kind: "general" | "currently" };
 
 export default async function ProfileEditPage() {
   const supabase = await createClient();
@@ -52,12 +56,17 @@ export default async function ProfileEditPage() {
   }
 
   // Pick-lists (world-readable).
-  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes] = await Promise.all([
+  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
+    supabase
+      .from("availability_tags")
+      .select("slug, label, kind")
+      .eq("is_active", true)
+      .order("sort_order"),
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
@@ -65,6 +74,7 @@ export default async function ProfileEditPage() {
   const focusOptions = (focusRes.data ?? []) as Option[];
   const roleOptions = (rolesRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
+  const availOptions = (availRes.data ?? []) as AvailOption[];
 
   // My existing profile (own-row only via RLS).
   const { data: profile } = await supabase
@@ -72,7 +82,7 @@ export default async function ProfileEditPage() {
     .select(
       "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, age_range, headshot_url, teaching_reel_url, " +
-        "gallery_urls, resume_url, social_links, profile_status",
+        "gallery_urls, resume_url, social_links, profile_status, teaching_at, touring_with",
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -81,28 +91,25 @@ export default async function ProfileEditPage() {
   const p = profile as unknown as ProfileFields | null;
 
   // Which tags are currently selected.
+  //
+  // The Swing's own fields (opt-in, home base, travel radius, styles/levels
+  // they'd sub) are no longer loaded here — the builder now shows a single line
+  // saying opportunities arrive when Swing launches (revisions 2026-07-24 §7).
+  // The swing_availability rows are deliberately left ALONE rather than cleared:
+  // anyone who already filled them in keeps their answers for when Swing ships.
   let selectedStyles: string[] = [];
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
   let selectedCerts: string[] = [];
-  let selectedSwingStyles: string[] = [];
-  let selectedSwingLevels: string[] = [];
-  // The Swing availability (off + empty until the teacher opts in).
-  let swing = { available: false, home_location: "", travel_radius: "", notes: "" };
+  let selectedAvailability: string[] = [];
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, sa, ss, sl] = await Promise.all([
+    const [ps, pl, pf, pc, pa] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
-      supabase
-        .from("swing_availability")
-        .select("is_available, home_location, travel_radius_miles, notes")
-        .eq("profile_id", pid)
-        .maybeSingle(),
-      supabase.from("swing_styles").select("styles(slug)").eq("profile_id", pid),
-      supabase.from("swing_levels").select("levels(slug)").eq("profile_id", pid),
+      supabase.from("profile_availability").select("availability_tags(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -115,19 +122,7 @@ export default async function ProfileEditPage() {
     selectedLevels = slugsOf(pl.data, "levels");
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
-    selectedSwingStyles = slugsOf(ss.data, "styles");
-    selectedSwingLevels = slugsOf(sl.data, "levels");
-    const saRow = sa.data as
-      | { is_available: boolean; home_location: string | null; travel_radius_miles: number | null; notes: string | null }
-      | null;
-    if (saRow) {
-      swing = {
-        available: saRow.is_available,
-        home_location: saRow.home_location ?? "",
-        travel_radius: saRow.travel_radius_miles != null ? String(saRow.travel_radius_miles) : "",
-        notes: saRow.notes ?? "",
-      };
-    }
+    selectedAvailability = slugsOf(pa.data, "availability_tags");
   }
 
   return (
@@ -149,12 +144,12 @@ export default async function ProfileEditPage() {
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        {profile ? "Edit your profile" : "Create your profile"}
+        {profile ? "Edit your profile" : "Welcome to the Relevé Roster"}
       </h1>
       <p className="mt-3 text-neutral-600">
         This is your public page — what studios and fellow artists see. Fill in what you like now;
-        you can always come back and add more. Nothing is public until you flip{" "}
-        <span className="font-medium">Publish</span> on.
+        you can always come back and add more. Nothing is public until you turn on{" "}
+        <span className="font-medium">Ready to Join the Relevé Roster</span>.
       </p>
 
       <ProfileEditor
@@ -177,10 +172,8 @@ export default async function ProfileEditPage() {
                 resume_url: p.resume_url ?? "",
                 social_links: p.social_links ?? {},
                 profile_status: p.profile_status ?? "draft",
-                swing_available: swing.available,
-                swing_home_location: swing.home_location,
-                swing_travel_radius: swing.travel_radius,
-                swing_notes: swing.notes,
+                teaching_at: p.teaching_at ?? "",
+                touring_with: p.touring_with ?? "",
               }
             : null
         }
@@ -189,12 +182,12 @@ export default async function ProfileEditPage() {
         focusOptions={focusOptions}
         roleOptions={roleOptions}
         certOptions={certOptions}
+        availOptions={availOptions}
         selectedStyles={selectedStyles}
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
-        selectedSwingStyles={selectedSwingStyles}
-        selectedSwingLevels={selectedSwingLevels}
+        selectedAvailability={selectedAvailability}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
