@@ -1,45 +1,24 @@
-// The landing spot for the emailed sign-in link. Supabase sends the visitor here
+// The landing spot for an emailed sign-in LINK. Supabase sends the visitor here
 // with a one-time `code`; we exchange it for a real login session (stored in a
-// cookie) and then send them to their profile editor.
+// cookie) and then hand off to the shared "where do they belong" rule.
+//
+// Note: sign-in from /login now uses a 6-digit code instead of a link, because
+// Outlook/Hotmail pre-fetch links and burn them before the human clicks. This
+// route stays for admin-generated links and any link already in someone's inbox.
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveSignedInDestination } from "@/lib/auth/destination";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  // Only honor an INTERNAL relative path (guard against open-redirects).
-  const nextParam = searchParams.get("next");
-  const explicitNext = nextParam && nextParam.startsWith("/") ? nextParam : null;
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // ── Where to land when nothing was requested (2026-07-22) ──
-      // The old default was always /profile/edit. That page needs an ACTIVE
-      // MEMBERSHIP and otherwise bounces to /subscribe — so an admin without a
-      // membership (the founder's own situation: no one has approved her) was
-      // thrown onto a members-only dead end every single time she signed in,
-      // and never reached the vetting queue. Admins land on their console.
-      let next = explicitNext;
-      if (!next) {
-        next = "/profile/edit";
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          const { data: roleRow } = await createAdminClient()
-            .from("users")
-            .select("account_type")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          if ((roleRow as { account_type?: string } | null)?.account_type === "admin") {
-            next = "/admin/applications";
-          }
-        }
-      }
+      const next = await resolveSignedInDestination(supabase, searchParams.get("next"));
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

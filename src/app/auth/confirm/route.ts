@@ -6,17 +6,18 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { resolveSignedInDestination } from "@/lib/auth/destination";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
   const type = (searchParams.get("type") ?? "magiclink") as EmailOtpType;
-  const next = searchParams.get("next") ?? "/profile/edit";
 
   if (tokenHash) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) {
+      const next = await resolveSignedInDestination(supabase, searchParams.get("next"));
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
