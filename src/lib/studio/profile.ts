@@ -36,6 +36,18 @@ const trimOrNull = (v: string | null | undefined): string | null => {
   return t === "" ? null : t;
 };
 
+/**
+ * Parse a free-text "name(s)" field into a clean list. The Artistic Director
+ * field allows more than one (co-directors / studio leadership), entered as a
+ * comma- or newline-separated string. Blank → empty array.
+ */
+export function parseNameList(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** Keep only a value that's in the allowed set; otherwise null. */
 export function parseEnum<T extends string>(
   raw: string | null | undefined,
@@ -84,6 +96,9 @@ export function parseTriBool(raw: string | null | undefined): boolean | null {
 
 export type StudioInput = {
   name: string | null | undefined;
+  artisticDirector: string | null | undefined; // free text, comma/newline separated
+  uniqueNote: string | null | undefined;
+  mission: string | null | undefined;
   website: string | null | undefined;
   addressLine1: string | null | undefined;
   addressLine2: string | null | undefined;
@@ -105,9 +120,17 @@ export type StudioInput = {
 
 export type StudioRow = {
   name: string;
+  artistic_director: string[];
+  culture_note: string | null;
+  unique_note: string | null;
+  mission: string | null;
   website: string | null;
   address_line1: string | null;
   address_line2: string | null;
+  // Location is REQUIRED (city + state at minimum) — buildEmployerProfileRow
+  // refuses to build a row without them. Kept as `string | null` on the type so
+  // the shape still matches reads of legacy/partial rows, but a freshly-built row
+  // always carries non-empty city + state.
   city: string | null;
   state_province: string | null;
   postal_code: string | null;
@@ -120,7 +143,6 @@ export type StudioRow = {
   car_required: boolean | null;
   parking: ParkingKind | null;
   directions_note: string | null;
-  culture_note: string | null;
   bio: string | null;
 };
 
@@ -130,10 +152,14 @@ export type StudioParseResult =
 
 /**
  * Normalize + validate the raw studio form into the employer_profiles row shape.
- * The ONLY hard requirement is a studio name (everything else can be filled in
- * over time — light onboarding, no gate). Address changes clear a stale geocode
- * so the later backfill re-pins the studio; that clearing is handled in the save
- * action (it needs the previous row), not here.
+ *
+ * TWO hard requirements: a studio NAME and a LOCATION (city + state at minimum).
+ * Everything else — the story fields, transport, scale — is optional and can be
+ * filled over time (light onboarding). Location is the one gate: no city/state,
+ * no Swing/Flex match, so the profile cannot be saved without it (spec:
+ * STUDIO-PROFILE-FROM-KATHLEEN.md §3, DoD #3). Address changes clear a stale
+ * geocode so the later backfill re-pins the studio; that clearing is handled in
+ * the save action (it needs the previous row), not here.
  */
 export function buildEmployerProfileRow(
   input: StudioInput,
@@ -142,15 +168,30 @@ export function buildEmployerProfileRow(
   const name = (input.name ?? "").trim();
   if (!name) return { ok: false, message: "Please enter your studio's name." };
 
+  const city = (input.city ?? "").trim();
+  const stateProvince = (input.stateProvince ?? "").trim();
+  if (!city || !stateProvince) {
+    return {
+      ok: false,
+      message:
+        "Please enter your studio's city and state — location is required so we can match you " +
+        "with nearby teachers and subs.",
+    };
+  }
+
   return {
     ok: true,
     row: {
       name,
+      artistic_director: parseNameList(input.artisticDirector),
+      culture_note: trimOrNull(input.cultureNote),
+      unique_note: trimOrNull(input.uniqueNote),
+      mission: trimOrNull(input.mission),
       website: trimOrNull(input.website),
       address_line1: trimOrNull(input.addressLine1),
       address_line2: trimOrNull(input.addressLine2),
-      city: trimOrNull(input.city),
-      state_province: trimOrNull(input.stateProvince),
+      city,
+      state_province: stateProvince,
       postal_code: trimOrNull(input.postalCode),
       country: trimOrNull(input.country),
       year_founded: parseYearFounded(input.yearFounded, now),
@@ -161,7 +202,6 @@ export function buildEmployerProfileRow(
       car_required: parseTriBool(input.carRequired),
       parking: parseEnum(input.parking, PARKING_KINDS),
       directions_note: trimOrNull(input.directionsNote),
-      culture_note: trimOrNull(input.cultureNote),
       bio: trimOrNull(input.bio),
     },
   };

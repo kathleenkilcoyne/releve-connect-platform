@@ -38,15 +38,22 @@ export async function submitStudioInterest(
   const contactName = str("contact_name");
   const email = str("email").toLowerCase();
   const phone = str("phone") || null;
-  const city = str("city") || null;
-  const stateProvince = str("state_province") || null;
+  const city = str("city");
+  const stateProvince = str("state_province");
   const studentCountBand = parseEnum(str("student_count_band"), STUDENT_COUNT_BANDS);
   const message = str("message") || null;
 
-  // ---- Validation (kept light — this is an interest form, not an application) --
+  // ---- Validation --------------------------------------------------------------
+  // Light overall (this is an interest form, not the vetted application) — EXCEPT
+  // Location. City + state are REQUIRED here just as on the full profile: no
+  // location, no Swing/Flex match, so a studio cannot request onboarding without
+  // telling us where it is (spec: STUDIO-PROFILE-FROM-KATHLEEN.md §3, DoD #3).
   if (!studioName) return { ok: false, message: "Please tell us your studio's name." };
   if (!contactName) return { ok: false, message: "Please tell us your name." };
   if (!EMAIL_RE.test(email)) return { ok: false, message: "Please enter a valid email address." };
+  if (!city || !stateProvince) {
+    return { ok: false, message: "Please enter your studio's city and state — it's how we match you with nearby teachers." };
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.from("studio_interest").insert({
@@ -83,6 +90,10 @@ export async function submitStudioInterest(
 
   return {
     ok: true,
-    message: "Thank you — we've got your details. Kathleen will be in touch personally.",
+    message:
+      "Thank you for your interest in becoming a Founding Studio. Kathleen personally " +
+      "reviews and onboards every founding studio — she'll reach out to you directly at " +
+      `${email} to talk through your program and the next steps. There's nothing more you ` +
+      "need to do right now.",
   };
 }

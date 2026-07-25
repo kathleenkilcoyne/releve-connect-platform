@@ -20,6 +20,9 @@ type Option = { slug: string; label: string };
 type EmployerFields = {
   employer_id: string;
   name: string | null;
+  artistic_director: string[] | null;
+  unique_note: string | null;
+  mission: string | null;
   website: string | null;
   address_line1: string | null;
   address_line2: string | null;
@@ -64,9 +67,10 @@ export default async function StudioEditPage() {
   const { data: profile } = await supabase
     .from("employer_profiles")
     .select(
-      "employer_id, name, website, address_line1, address_line2, city, state_province, " +
-        "postal_code, country, year_founded, student_count_band, staff_count, room_count, " +
-        "nearest_transit, car_required, parking, directions_note, culture_note, bio",
+      "employer_id, name, artistic_director, unique_note, mission, website, address_line1, " +
+        "address_line2, city, state_province, postal_code, country, year_founded, " +
+        "student_count_band, staff_count, room_count, nearest_transit, car_required, parking, " +
+        "directions_note, culture_note, bio",
     )
     .eq("owner_user_id", user.id)
     .maybeSingle();
@@ -125,6 +129,9 @@ export default async function StudioEditPage() {
           e
             ? {
                 name: e.name ?? "",
+                artistic_director: (e.artistic_director ?? []).join(", "),
+                unique_note: e.unique_note ?? "",
+                mission: e.mission ?? "",
                 website: e.website ?? "",
                 address_line1: e.address_line1 ?? "",
                 address_line2: e.address_line2 ?? "",

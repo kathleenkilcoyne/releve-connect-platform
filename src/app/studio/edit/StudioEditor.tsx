@@ -1,9 +1,21 @@
 "use client";
 
-// The interactive studio (employer) profile form. On submit it calls the
-// saveStudioProfile server action; React shows "Saving…", then a success/error
-// message. Checkbox groups (styles / concentration / certs) submit their checked
-// values as arrays. Light onboarding — only the studio name is required.
+// The studio (employer) profile — a STUDIO STORY, not a database form.
+//
+// Reframed 2026-07-24 (spec: STUDIO-PROFILE-FROM-KATHLEEN.md). The audience is a
+// PROFESSIONAL deciding whether to teach here (and the Swing/Flex matching
+// engine) — not parents, not SEO. So the story leads: Studio Name → Artistic
+// Director → Culture / Unique / Mission → then the logistics (Location, Styles,
+// Scale, Getting there, Certifications, and finally the plain details).
+//
+// TWO gates, everything else optional:
+//   • Studio name (required)
+//   • Location — CITY + STATE required (no location, no Swing/Flex match). The
+//     story fields are warmly prompted but never required; only location gates.
+//
+// On submit it calls saveStudioProfile; React shows "Saving…", then a message.
+// Checkbox groups (styles / concentration / certs) submit checked values as
+// arrays.
 
 import { useActionState } from "react";
 import { saveStudioProfile, type SaveState } from "./actions";
@@ -18,6 +30,10 @@ type Option = { slug: string; label: string };
 
 type Initial = {
   name: string;
+  artistic_director: string; // comma-joined for the single free-text field
+  unique_note: string;
+  mission: string;
+  culture_note: string;
   website: string;
   address_line1: string;
   address_line2: string;
@@ -32,14 +48,23 @@ type Initial = {
   nearest_transit: string;
   car_required: string; // "", "yes", "no"
   parking: string;
-  directions_note: string;
-  culture_note: string;
   bio: string;
+  directions_note: string;
 } | null;
 
 const input =
   "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
 const label = "block text-xs font-medium text-neutral-600 mb-1";
+const help = "mt-1 text-xs leading-relaxed text-neutral-500";
+
+/** The gentle, non-interactive example chips under "What makes your studio unique?" */
+const UNIQUE_EXAMPLES = [
+  "Conservatory training",
+  "College preparation",
+  "Recreational dancers welcome",
+  "Strong acrobatics program",
+  "Performance company",
+];
 
 export default function StudioEditor({
   initial,
@@ -65,41 +90,88 @@ export default function StudioEditor({
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
-      {/* ---- Identity ---- */}
-      <section className="space-y-4">
+      {/* ── 1 · Studio name ─────────────────────────────────────────────── */}
+      <section className="space-y-1">
+        <label className={label}>Studio name *</label>
+        <input name="name" required defaultValue={initial?.name ?? ""} className={input} />
+      </section>
+
+      {/* ── 2 · Artistic Director ───────────────────────────────────────── */}
+      <section className="space-y-1">
+        <label className={label}>Artistic Director</label>
+        <input
+          name="artistic_director"
+          placeholder="e.g., Roberta Mathes"
+          defaultValue={initial?.artistic_director ?? ""}
+          className={input}
+        />
+        <p className={help}>
+          The person behind the studio — teachers often know a name before they know a studio. Have
+          co-directors? Separate them with commas.
+        </p>
+      </section>
+
+      {/* ── 3 · The story: culture · unique · mission (all optional) ─────── */}
+      <section className="space-y-6">
         <div>
-          <label className={label}>Studio name *</label>
-          <input name="name" required defaultValue={initial?.name ?? ""} className={input} />
-        </div>
-        <div>
-          <label className={label}>Website</label>
-          <input
-            name="website"
-            type="url"
-            placeholder="https://"
-            defaultValue={initial?.website ?? ""}
+          <label className={label}>What&apos;s it like to teach here?</label>
+          <textarea
+            name="culture_note"
+            rows={3}
+            placeholder="We value kindness, preparation, and professionalism — and dancers who lift each other up. Our faculty collaborate; they don't compete."
+            defaultValue={initial?.culture_note ?? ""}
             className={input}
           />
+          <p className={help}>
+            A few honest words about your culture — what you value, how your dancers treat one
+            another. This tells a teacher more than any statistic.
+          </p>
         </div>
+
         <div>
-          <label className={label}>Year founded</label>
+          <label className={label}>What makes your studio unique?</label>
+          <textarea
+            name="unique_note"
+            rows={3}
+            placeholder="Conservatory-level training with a heart for college prep — and a place where recreational dancers are valued as much as our pre-professional company."
+            defaultValue={initial?.unique_note ?? ""}
+            className={input}
+          />
+          <p className={help}>
+            One or two sentences. What would a dancer or teacher feel here that they wouldn&apos;t
+            feel anywhere else?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {UNIQUE_EXAMPLES.map((ex) => (
+              <span
+                key={ex}
+                className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500"
+              >
+                {ex}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className={label}>Your studio in one line.</label>
           <input
-            name="year_founded"
-            inputMode="numeric"
-            placeholder="e.g. 2005"
-            defaultValue={initial?.year_founded ?? ""}
+            name="mission"
+            placeholder="Training the whole artist — technique, character, and courage."
+            defaultValue={initial?.mission ?? ""}
             className={input}
           />
         </div>
       </section>
 
-      {/* ---- Address + map pin ---- */}
+      {/* ── 4 · Location (REQUIRED: city + state) ───────────────────────── */}
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Location</h2>
           <p className="mt-1 text-sm text-neutral-600">
-            Your full address powers sub matching by distance. We&apos;ll place your map pin from
-            this automatically — you don&apos;t need coordinates.
+            Required. Your city and state power Swing/Flex matching by distance — no location, no
+            match. Your full address lets us place your map pin automatically; you don&apos;t need
+            coordinates.
           </p>
         </div>
         <div>
@@ -112,12 +184,22 @@ export default function StudioEditor({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className={label}>City</label>
-            <input name="city" defaultValue={initial?.city ?? ""} className={input} />
+            <label className={label}>City *</label>
+            <input
+              name="city"
+              required
+              defaultValue={initial?.city ?? ""}
+              className={input}
+            />
           </div>
           <div>
-            <label className={label}>State</label>
-            <input name="state_province" defaultValue={initial?.state_province ?? ""} className={input} />
+            <label className={label}>State *</label>
+            <input
+              name="state_province"
+              required
+              defaultValue={initial?.state_province ?? ""}
+              className={input}
+            />
           </div>
           <div>
             <label className={label}>ZIP / postal</label>
@@ -130,13 +212,66 @@ export default function StudioEditor({
         </div>
       </section>
 
-      {/* ---- Getting there / accessibility (the differentiator, §7) ---- */}
+      {/* ── 5 · Styles / concentration ──────────────────────────────────── */}
+      <CheckGroup
+        title="Styles offered"
+        name="styles"
+        options={styleOptions}
+        selected={selectedStyles}
+      />
+      <CheckGroup
+        title="Concentration / focus"
+        name="concentrations"
+        options={concentrationOptions}
+        selected={selectedConcentrations}
+      />
+
+      {/* ── 6 · Scale ───────────────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-neutral-900">Studio scale</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className={label}>Students</label>
+            <select
+              name="student_count_band"
+              defaultValue={initial?.student_count_band ?? ""}
+              className={input}
+            >
+              <option value="">—</option>
+              {STUDENT_COUNT_BANDS.map((b) => (
+                <option key={b} value={b}>
+                  {STUDENT_COUNT_LABELS[b]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={label}>Staff (teachers)</label>
+            <input
+              name="staff_count"
+              inputMode="numeric"
+              defaultValue={initial?.staff_count ?? ""}
+              className={input}
+            />
+          </div>
+          <div>
+            <label className={label}>Studios / rooms</label>
+            <input
+              name="room_count"
+              inputMode="numeric"
+              defaultValue={initial?.room_count ?? ""}
+              className={input}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── 7 · Getting there (transportation) ──────────────────────────── */}
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Getting there</h2>
           <p className="mt-1 text-sm text-neutral-600">
-            The practical details a sub needs to decide if they can reach you. No other platform
-            surfaces this.
+            The practical details a sub needs to decide if they can reach you.
           </p>
         </div>
         <div>
@@ -180,59 +315,7 @@ export default function StudioEditor({
         </div>
       </section>
 
-      {/* ---- Scale ---- */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-neutral-900">Studio scale</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label className={label}>Students</label>
-            <select
-              name="student_count_band"
-              defaultValue={initial?.student_count_band ?? ""}
-              className={input}
-            >
-              <option value="">—</option>
-              {STUDENT_COUNT_BANDS.map((b) => (
-                <option key={b} value={b}>
-                  {STUDENT_COUNT_LABELS[b]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label}>Staff (teachers)</label>
-            <input
-              name="staff_count"
-              inputMode="numeric"
-              defaultValue={initial?.staff_count ?? ""}
-              className={input}
-            />
-          </div>
-          <div>
-            <label className={label}>Studios / rooms</label>
-            <input
-              name="room_count"
-              inputMode="numeric"
-              defaultValue={initial?.room_count ?? ""}
-              className={input}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ---- Styles / concentration / certs ---- */}
-      <CheckGroup
-        title="Styles offered"
-        name="styles"
-        options={styleOptions}
-        selected={selectedStyles}
-      />
-      <CheckGroup
-        title="Concentration / focus"
-        name="concentrations"
-        options={concentrationOptions}
-        selected={selectedConcentrations}
-      />
+      {/* ── 8 · Certifications ──────────────────────────────────────────── */}
       <CheckGroup
         title="Certifications valued"
         name="certs"
@@ -240,25 +323,36 @@ export default function StudioEditor({
         selected={selectedCerts}
       />
 
-      {/* ---- Culture + about ---- */}
+      {/* ── 9 · Plain details (logistics, last) ─────────────────────────── */}
       <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-neutral-900">Studio details</h2>
         <div>
-          <label className={label}>Studio culture note</label>
-          <textarea
-            name="culture_note"
-            rows={3}
-            placeholder="What's it like to teach here?"
-            defaultValue={initial?.culture_note ?? ""}
+          <label className={label}>Website</label>
+          <input
+            name="website"
+            type="url"
+            placeholder="https://"
+            defaultValue={initial?.website ?? ""}
             className={input}
           />
         </div>
         <div>
-          <label className={label}>About the studio (optional)</label>
+          <label className={label}>Year founded</label>
+          <input
+            name="year_founded"
+            inputMode="numeric"
+            placeholder="e.g. 2005"
+            defaultValue={initial?.year_founded ?? ""}
+            className={input}
+          />
+        </div>
+        <div>
+          <label className={label}>Anything else about the studio (optional)</label>
           <textarea name="bio" rows={4} defaultValue={initial?.bio ?? ""} className={input} />
         </div>
       </section>
 
-      {/* ---- Submit ---- */}
+      {/* ── Submit ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-4">
         <button
           type="submit"

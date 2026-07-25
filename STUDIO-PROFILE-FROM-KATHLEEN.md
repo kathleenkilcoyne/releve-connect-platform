@@ -29,12 +29,13 @@ Tell the story, then collect the logistics.
 **"What makes your studio unique?" (new).** One or two sentences — more meaningful than a checklist of styles. Example prompts: *conservatory training · college preparation · recreational dancers welcome · strong acrobatics program · performance company.*
 
 ## Keep / don't lose (technical)
-- **Location stays structured + geocoded** (street/city/state/ZIP → lat/long). It moves *down visually*, but the underlying data must remain structured and geocoded — the Swing engine matches on distance ("within 25 miles"). Do not turn it into a free-text box.
+- **Location is REQUIRED, structured + geocoded** (street/city/state/ZIP → lat/long) — **city and state at minimum are mandatory, never optional.** It moves *down visually*, but it is **not skippable.** The Swing engine matches on distance ("within 25 miles"), and Flex placement depends on whether a specific teacher is close enough to flex their schedule — *can a teacher actually get there?* **No location, no match.** Do not turn it into a free-text box.
 - **Scale = student-count bands** already decided (Under 50 · 50–99 · 100–199 · 200+).
 - Website, year founded, and address are still collected — just after the story, not before it.
 
 ## Tone & build discipline
 - **Warm and invitational, optional not interrogative.** The culture / uniqueness / mission fields are **prompted but optional** — no word minimums, no forced "tell your story" (consistent with the roster application decision). Give warm placeholder prompts; never gate on them.
+- **The one exception is Location, which IS required** (see above). The *story* fields stay optional; **location is the field you must gate on** — a studio cannot submit without a valid city + state.
 - **Lean and extensible.** Add these fields to the existing profile model; don't rebuild. Story fields are display-forward on the profile view.
 
 ## Field copy — use verbatim (label · helper prompt · example placeholder)
@@ -65,7 +66,7 @@ Tell the story, then collect the logistics.
 ## Definition of done
 1. The profile *reads* as a studio story: name → artistic director → culture/mission surface first; logistics follow.
 2. Artistic Director, Studio Culture note, and "What makes your studio unique?" fields exist and display prominently.
-3. Location remains structured + geocoded (Swing-ready) even though it sits lower in the visual order.
+3. **Location is REQUIRED** (city + state minimum) and stored structured + geocoded (Swing-ready), even though it sits lower in the visual order — **a studio cannot submit the form without it.** This applies to BOTH the studio *entry / "Request Information"* form and the full studio *profile*.
 4. New fields are optional and warmly prompted — nothing required, no word counts.
 5. Nothing parent- or SEO-oriented is added; the profile serves professional decision-making and Swing/Flex matching.
 

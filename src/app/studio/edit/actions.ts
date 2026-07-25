@@ -29,6 +29,9 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
   // ---- Normalize + validate the form (pure, tested) ------------------------
   const parsed = buildEmployerProfileRow({
     name: String(formData.get("name") ?? ""),
+    artisticDirector: String(formData.get("artistic_director") ?? ""),
+    uniqueNote: String(formData.get("unique_note") ?? ""),
+    mission: String(formData.get("mission") ?? ""),
     website: String(formData.get("website") ?? ""),
     addressLine1: String(formData.get("address_line1") ?? ""),
     addressLine2: String(formData.get("address_line2") ?? ""),
@@ -95,6 +98,9 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
   const writeRow: Record<string, unknown> = {
     owner_user_id: user.id,
     name: row.name,
+    artistic_director: row.artistic_director,
+    unique_note: row.unique_note,
+    mission: row.mission,
     website: row.website,
     address_line1: row.address_line1,
     address_line2: row.address_line2,

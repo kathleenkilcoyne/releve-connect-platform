@@ -14,9 +14,9 @@ export default function StudioInterestForm() {
 
   if (state.ok) {
     return (
-      <div className="mt-8 rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center">
-        <p className="text-lg font-medium text-green-900">You&apos;re on the list.</p>
-        <p className="mt-2 text-sm leading-relaxed text-green-800">{state.message}</p>
+      <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50 px-6 py-8">
+        <p className="text-lg font-semibold text-neutral-900">Request received.</p>
+        <p className="mt-2 text-sm leading-relaxed text-neutral-700">{state.message}</p>
       </div>
     );
   }
@@ -29,9 +29,14 @@ export default function StudioInterestForm() {
         <Field name="email" label="Email" type="email" required autoComplete="email" />
         <Field name="phone" label="Phone (optional)" type="tel" autoComplete="tel" />
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field name="city" label="City (optional)" autoComplete="address-level2" />
-        <Field name="state_province" label="State (optional)" autoComplete="address-level1" />
+      <div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field name="city" label="City" required autoComplete="address-level2" />
+          <Field name="state_province" label="State" required autoComplete="address-level1" />
+        </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">
+          Required — your city and state are how we match you with nearby teachers and subs.
+        </p>
       </div>
 
       <div>

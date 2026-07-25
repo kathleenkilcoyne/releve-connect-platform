@@ -4,6 +4,7 @@ import {
   parseEnum,
   parseYearFounded,
   parseTriBool,
+  parseNameList,
   buildEmployerProfileRow,
   addressChanged,
   STUDENT_COUNT_BANDS,
@@ -13,14 +14,21 @@ import {
   type StudioRow,
 } from "./profile";
 
-/** A fully-blank studio form (only name required) — spread + override per test. */
+/**
+ * A blank studio form — spread + override per test. It carries a valid city +
+ * state because those are REQUIRED (no location, no Swing/Flex match); the
+ * "location is required" tests deliberately blank them back out.
+ */
 const blank: StudioInput = {
   name: "Studio A",
+  artisticDirector: "",
+  uniqueNote: "",
+  mission: "",
   website: "",
   addressLine1: "",
   addressLine2: "",
-  city: "",
-  stateProvince: "",
+  city: "Montclair",
+  stateProvince: "NJ",
   postalCode: "",
   country: "",
   yearFounded: "",
@@ -103,6 +111,17 @@ describe("parseTriBool", () => {
   });
 });
 
+describe("parseNameList", () => {
+  it("splits on commas and newlines, trims, drops blanks", () => {
+    expect(parseNameList("Roberta Mathes")).toEqual(["Roberta Mathes"]);
+    expect(parseNameList("Roberta Mathes, Jamie Lee")).toEqual(["Roberta Mathes", "Jamie Lee"]);
+    expect(parseNameList("A\nB , C")).toEqual(["A", "B", "C"]);
+    expect(parseNameList("  ,  ")).toEqual([]);
+    expect(parseNameList("")).toEqual([]);
+    expect(parseNameList(null)).toEqual([]);
+  });
+});
+
 describe("buildEmployerProfileRow", () => {
   const now = new Date("2026-07-13T00:00:00Z");
 
@@ -112,12 +131,29 @@ describe("buildEmployerProfileRow", () => {
     if (!res.ok) expect(res.message).toMatch(/name/i);
   });
 
-  it("accepts a name-only studio (light onboarding — everything else optional)", () => {
-    const res = buildEmployerProfileRow({ ...blank, name: "Elevate Dance" }, now);
+  it("requires a location — city and state (no location, no match)", () => {
+    const noCity = buildEmployerProfileRow({ ...blank, city: "  " }, now);
+    expect(noCity.ok).toBe(false);
+    if (!noCity.ok) expect(noCity.message).toMatch(/location|city|state/i);
+
+    const noState = buildEmployerProfileRow({ ...blank, stateProvince: "" }, now);
+    expect(noState.ok).toBe(false);
+    if (!noState.ok) expect(noState.message).toMatch(/location|city|state/i);
+  });
+
+  it("accepts a studio with name + location, everything else optional (light onboarding)", () => {
+    const res = buildEmployerProfileRow(
+      { ...blank, name: "Elevate Dance", city: "Newark", stateProvince: "NJ" },
+      now,
+    );
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.row.name).toBe("Elevate Dance");
-      expect(res.row.city).toBeNull();
+      expect(res.row.city).toBe("Newark");
+      expect(res.row.state_province).toBe("NJ");
+      expect(res.row.artistic_director).toEqual([]);
+      expect(res.row.unique_note).toBeNull();
+      expect(res.row.mission).toBeNull();
       expect(res.row.parking).toBeNull();
       expect(res.row.car_required).toBeNull();
     }
@@ -127,6 +163,9 @@ describe("buildEmployerProfileRow", () => {
     const res = buildEmployerProfileRow(
       {
         name: "  Montclair Dance Collective  ",
+        artisticDirector: "Roberta Mathes, Jamie Lee",
+        uniqueNote: "Conservatory training with a heart for college prep.",
+        mission: "Training the whole artist.",
         website: " https://mdc.example ",
         addressLine1: "12 Bloomfield Ave",
         addressLine2: "Suite 3",
@@ -151,6 +190,10 @@ describe("buildEmployerProfileRow", () => {
     if (res.ok) {
       expect(res.row).toEqual<StudioRow>({
         name: "Montclair Dance Collective",
+        artistic_director: ["Roberta Mathes", "Jamie Lee"],
+        culture_note: "Warm, technique-forward",
+        unique_note: "Conservatory training with a heart for college prep.",
+        mission: "Training the whole artist.",
         website: "https://mdc.example",
         address_line1: "12 Bloomfield Ave",
         address_line2: "Suite 3",
@@ -166,7 +209,6 @@ describe("buildEmployerProfileRow", () => {
         car_required: false,
         parking: "street",
         directions_note: "Enter on Label St",
-        culture_note: "Warm, technique-forward",
         bio: "A community studio.",
       });
     }
@@ -189,6 +231,10 @@ describe("buildEmployerProfileRow", () => {
 describe("addressChanged", () => {
   const base: StudioRow = {
     name: "S",
+    artistic_director: [],
+    culture_note: null,
+    unique_note: null,
+    mission: null,
     website: null,
     address_line1: "12 Bloomfield Ave",
     address_line2: null,
@@ -204,7 +250,6 @@ describe("addressChanged", () => {
     car_required: null,
     parking: null,
     directions_note: null,
-    culture_note: null,
     bio: null,
   };
 
