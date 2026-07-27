@@ -183,6 +183,7 @@ export default async function PublicProfilePage({
   // Any signed-in active member (not the owner) may connect (§5 + founder
   // decision). We also load whether they've already saved / requested, so the
   // buttons reflect state. Logged-out or non-members simply see no actions.
+  let isOwner = false;
   let canAct = false;
   let initialSaved = false;
   let initialRequested = false;
@@ -192,6 +193,12 @@ export default async function PublicProfilePage({
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
+      // Server-side ownership check. `getUser()` validates the session against
+      // Supabase's auth server, so `user.id` is trustworthy (not a client-supplied
+      // value). The owner-only bar below is rendered only when this is true — a
+      // logged-out visitor or any signed-in non-owner never enters this branch,
+      // so that markup is never generated or sent to them.
+      isOwner = user.id === profile.user_id;
       canAct = canConnect({
         viewerUserId: user.id,
         viewerHasActiveMembership: await hasAnyActiveMembership(supabase, user.id),
@@ -223,6 +230,33 @@ export default async function PublicProfilePage({
           <Link href="/profile/edit" className="shrink-0 text-sm font-medium text-amber-900 underline">
             Edit &amp; publish →
           </Link>
+        </div>
+      )}
+
+      {/* Owner-only bar — shown ONLY to the authenticated owner viewing their
+          own LIVE profile (server-gated by `isOwner` above). It is pure
+          navigation and carries NO calendar/schedule/private data. Public
+          visitors and signed-in non-owners never receive this markup. */}
+      {isOwner && !isDraftPreview && (
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 px-5 py-4">
+          <p className="text-sm text-neutral-700">
+            <span className="font-medium text-neutral-900">Your profile is live.</span>{" "}
+            Keep your professional information current and organize what comes next.
+          </p>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link
+              href="/this-week"
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+            >
+              Go to This Week
+            </Link>
+            <Link
+              href="/profile/edit"
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            >
+              Edit Profile
+            </Link>
+          </div>
         </div>
       )}
 
