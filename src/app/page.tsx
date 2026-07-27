@@ -217,16 +217,35 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ─────────────────────────── Mission ─────────────────────────── */}
+      {/* ─────────────────────────── Mission ───────────────────────────
+          The north star — Kathleen's words, VERBATIM (source of truth:
+          Releve_Connect_Business_Model_Strategy.md, "Mission"). This is the
+          emotional centre of the page: given room to breathe as a statement,
+          public, ungated. Do not edit, trim, or paraphrase this text. */}
       <section
         id="mission"
         aria-labelledby="mission-heading"
-        className="scroll-mt-24 px-7 py-12 text-center sm:py-20"
+        className="scroll-mt-24 px-7 py-16 text-center sm:py-28"
       >
-        <h2 id="mission-heading" className="sr-only">
-          Our mission
-        </h2>
-        <div className="mx-auto max-w-[720px]">
+        <div className="mx-auto max-w-[880px]">
+          <h2
+            id="mission-heading"
+            className="text-xs font-medium uppercase tracking-[0.28em] text-[var(--rc-gold)]"
+          >
+            Our mission
+          </h2>
+          <p className="mt-9 text-[clamp(1.4rem,3.4vw,2.1rem)] font-medium leading-[1.4] text-[var(--rc-ink)]">
+            We don&apos;t rise to the level of our potential. We fall to the standard of the system.
+            Relevé exists to strategize, network, and maximize your potential while helping you build
+            a successful career in the professional world of our craft. No dream is too big. We are
+            here to support and guide your path. You can lead a life of passion and integrity while
+            prospering from a sustainable career.
+          </p>
+        </div>
+
+        {/* Supporting narrative — the existing mission copy, quieter, below the
+            statement so the north star leads. */}
+        <div className="mx-auto mt-16 max-w-[720px]">
           <p className="text-[clamp(1.02rem,2vw,1.18rem)] leading-relaxed text-[var(--rc-ink-soft)]">
             Talent alone was never enough. Careers are built through relationships, strategy,
             preparation, and opportunity — and for too long, the dance world has had the talent
