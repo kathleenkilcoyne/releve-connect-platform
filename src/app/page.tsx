@@ -15,6 +15,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ClimbSignup } from "@/components/home/ClimbSignup";
+import HashScroll from "./HashScroll";
 import "@/components/home/tokens.css";
 
 export const metadata = {
@@ -41,6 +42,9 @@ const ECOSYSTEM_ROLES: { name: string; blurb: string }[] = [
 export default function Home() {
   return (
     <div className="home-scope flex flex-1 flex-col">
+      {/* Makes /#mission (and the "Meet Relevé" button) reliably land on the
+          mission section, and smooth-scrolls in-page anchors. Renders nothing. */}
+      <HashScroll />
       {/* ─────────────────────────── Top nav ───────────────────────────
           Sticky, because the mockup's whole point was "nav at the TOP,
           always visible". */}
