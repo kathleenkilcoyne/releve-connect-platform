@@ -336,10 +336,10 @@ export default function Home() {
           ))}
         </ul>
 
-        {/* The strip, as crisp type beneath the artwork. It also appears small
-            inside the PNG itself; rendered here it reads as the section's
-            closing line rather than image detail. */}
-        <p className="mx-auto mt-8 max-w-[52rem] text-[clamp(0.62rem,1.5vw,0.82rem)] uppercase leading-relaxed tracking-[0.22em] text-[var(--rc-gold-bright)]">
+        {/* The strip is baked into the PNG (larger). We keep the words here for
+            screen readers and search only — sr-only so they don't render as a
+            visible duplicate beneath the artwork. */}
+        <p className="sr-only">
           Seen · Connected · Protected · Licensed · Marketed · Monetized
         </p>
         <p className="mt-4 text-[1.05rem] italic text-[var(--rc-gold-bright)] opacity-90">
@@ -373,8 +373,8 @@ export default function Home() {
             More than a network — it&apos;s where you build your career.
           </h2>
           <p className="mx-auto mt-5 max-w-[42rem] text-center text-[1.05rem] leading-relaxed text-[var(--rc-ink-soft)]">
-            Relevé Connect isn&apos;t just another platform for dancers and connection.
-            It&apos;s your playground to build a career — the place where the work actually
+            Relevé Connect isn&apos;t just another platform or professional directory.
+            It&apos;s where you build a career — the place where the work actually
             happens.
           </p>
 
