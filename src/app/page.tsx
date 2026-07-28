@@ -49,12 +49,24 @@ export default function Home() {
           Sticky, because the mockup's whole point was "nav at the TOP,
           always visible". */}
       <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b border-[color:rgba(182,145,47,0.25)] bg-[color:rgba(245,238,225,0.92)] px-4 py-3.5 backdrop-blur sm:px-8 lg:px-11">
-        <Link href="/" className="flex items-baseline gap-2.5 no-underline">
-          <span className="text-2xl font-semibold tracking-[0.14em] text-[var(--rc-ink)]">
-            RELEV<span className="rc-gold">É</span>
-          </span>
-          <span className="text-[0.6rem] uppercase tracking-[0.34em] text-[var(--rc-muted)]">
-            Connect
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
+          {/* Transparent dancer mark — the header is cream, so releve-mark.png
+              (RGBA, no baked background) sits cleanly beside the wordmark. */}
+          <Image
+            src="/releve-mark.png"
+            alt=""
+            width={32}
+            height={32}
+            priority
+            className="h-8 w-8 shrink-0"
+          />
+          <span className="flex items-baseline gap-2.5">
+            <span className="text-2xl font-semibold tracking-[0.14em] text-[var(--rc-ink)]">
+              RELEV<span className="rc-gold">É</span>
+            </span>
+            <span className="text-[0.6rem] uppercase tracking-[0.34em] text-[var(--rc-muted)]">
+              Connect
+            </span>
           </span>
         </Link>
 
@@ -74,9 +86,16 @@ export default function Home() {
 
       {/* ──────────────────────────── Hero ──────────────────────────── */}
       <section className="mx-auto max-w-4xl px-7 pb-12 pt-12 text-center sm:pb-20 sm:pt-24">
-        <p aria-hidden="true" className="mb-5 text-[2.2rem] leading-none text-[var(--rc-gold)]">
-          ✦
-        </p>
+        <div aria-hidden="true" className="mb-5 flex justify-center">
+          <Image
+            src="/releve-mark.png"
+            alt=""
+            width={72}
+            height={72}
+            priority
+            className="h-[72px] w-[72px]"
+          />
+        </div>
 
         <h1 className="text-[clamp(1.9rem,4.6vw,3.15rem)] font-medium leading-[1.16] tracking-[0.3px] text-[var(--rc-ink)]">
           There are trillions of stars. Each one has its place to shine.
@@ -426,6 +445,14 @@ export default function Home() {
 
       {/* ──────────────────────────── Footer ──────────────────────────── */}
       <footer className="border-t border-[color:rgba(217,184,95,0.15)] bg-[var(--rc-black)] px-6 py-8 text-center">
+        {/* Transparent mark on black — reads cleanly, no baked background. */}
+        <Image
+          src="/releve-mark.png"
+          alt=""
+          width={40}
+          height={40}
+          className="mx-auto mb-4 h-10 w-10"
+        />
         <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[#8a7f6a]">
           together we rise · nous nous levons · relevé
         </p>
