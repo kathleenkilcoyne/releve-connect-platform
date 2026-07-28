@@ -35,6 +35,10 @@ type Initial = {
   mission: string;
   culture_note: string;
   website: string;
+  instagram: string;
+  tiktok: string;
+  facebook: string;
+  promo_video_url: string;
   address_line1: string;
   address_line2: string;
   city: string;
@@ -323,9 +327,14 @@ export default function StudioEditor({
         selected={selectedCerts}
       />
 
-      {/* ── 9 · Plain details (logistics, last) ─────────────────────────── */}
+      {/* ── 9 · Online & social ─────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-neutral-900">Studio details</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">Online &amp; social</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Where dancers and teachers can find you. All optional.
+          </p>
+        </div>
         <div>
           <label className={label}>Website</label>
           <input
@@ -336,6 +345,51 @@ export default function StudioEditor({
             className={input}
           />
         </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className={label}>Instagram</label>
+            <input
+              name="instagram"
+              placeholder="@yourstudio"
+              defaultValue={initial?.instagram ?? ""}
+              className={input}
+            />
+          </div>
+          <div>
+            <label className={label}>TikTok</label>
+            <input
+              name="tiktok"
+              placeholder="@yourstudio"
+              defaultValue={initial?.tiktok ?? ""}
+              className={input}
+            />
+          </div>
+          <div>
+            <label className={label}>Facebook</label>
+            <input
+              name="facebook"
+              placeholder="facebook.com/yourstudio"
+              defaultValue={initial?.facebook ?? ""}
+              className={input}
+            />
+          </div>
+        </div>
+        <div>
+          <label className={label}>Promotional video</label>
+          <input
+            name="promo_video_url"
+            type="url"
+            placeholder="YouTube or Vimeo link"
+            defaultValue={initial?.promo_video_url ?? ""}
+            className={input}
+          />
+          <p className={help}>Paste a YouTube or Vimeo link — a studio tour, a recital reel, whatever shows you best.</p>
+        </div>
+      </section>
+
+      {/* ── 10 · Plain details (logistics, last) ────────────────────────── */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-neutral-900">Studio details</h2>
         <div>
           <label className={label}>Year founded</label>
           <input

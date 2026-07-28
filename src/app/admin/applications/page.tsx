@@ -84,8 +84,8 @@ export default async function AdminApplicationsPage() {
         <Link href="/roster" className="text-neutral-700 underline">
           The Roster
         </Link>
-        <Link href="/studio/edit" className="text-neutral-700 underline">
-          Your studio
+        <Link href="/admin/studios" className="text-neutral-700 underline">
+          Founding Studios
         </Link>
         <Link href="/" className="text-neutral-500 underline">
           ← Back to Relevé

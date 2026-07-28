@@ -1,21 +1,17 @@
-// The Studios path — "Become a Founding Studio" (V1 three-paths).
+// The Studios path — "Become a Founding Studio" (invite-only, 2026-07-28).
 //
-// Studios are onboarded MANUALLY / white-glove by Kathleen in V1: five hand-
-// picked pilots, no self-serve signup, no billing. So this page is an INTEREST
-// form, not an account flow. It pitches the founding cohort and collects a note
-// that emails Kathleen (see studios/actions.ts).
-//
-// The existing /studio (singular) landing + /studio/edit self-serve profile
-// tools still exist for the white-glove flow once a studio is onboarded — this
-// page is the public front door that precedes them.
+// This is a PUBLIC INFORMATION PAGE ONLY — pitch, no form. Founding studios are
+// hand-picked and invited by name (spec: STUDIO-ONBOARDING-ONE-FLOW-FROM-KATHLEEN);
+// they never "express interest" through a form. The one interactive element is a
+// mailto link for a future cohort — it grants no access and starts no onboarding.
+// The actual setup lives behind a secure invitation at /studio/setup?token=…
 
 import Link from "next/link";
-import StudioInterestForm from "./StudioInterestForm";
 
 export const metadata = {
   title: "Become a Founding Studio — Relevé Connect",
   description:
-    "Relevé partners with a small founding cohort of studios. Tell us about yours and we'll be in touch — onboarding is personal, by invitation.",
+    "Relevé opens with a small, hand-picked founding cohort of studios — onboarding is personal and by invitation.",
 };
 
 export default function StudiosInterestPage() {
@@ -40,12 +36,21 @@ export default function StudiosInterestPage() {
       </ul>
 
       <div className="mt-10 rounded-xl border border-neutral-200 bg-neutral-50 p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-neutral-900">Tell us about your studio</h2>
+        <h2 className="text-xl font-semibold text-neutral-900">Joining is by invitation</h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-          Founding studios join by invitation. Share a few details and Kathleen will reach out to
-          walk you through it.
+          The founding cohort is hand-picked, and each studio is onboarded personally through a
+          private invitation link — there&apos;s no form to fill out here.
         </p>
-        <StudioInterestForm />
+        <p className="mt-4 text-sm leading-relaxed text-neutral-700">
+          Interested in a future Founding Studio cohort?{" "}
+          <a
+            href="mailto:info@releveconnect.com"
+            className="font-medium text-neutral-900 underline"
+          >
+            Contact Relevé Connect
+          </a>
+          .
+        </p>
       </div>
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">

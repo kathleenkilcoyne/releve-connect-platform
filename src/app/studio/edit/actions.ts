@@ -12,7 +12,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmployerProfileRow, addressChanged, type StudioRow } from "@/lib/studio/profile";
+import { emailSiteUrl } from "@/lib/email/send";
+import { sendStudioSubmittedAlert } from "@/lib/notifications";
 
 export type SaveState = {
   ok: boolean;
@@ -33,6 +36,10 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     uniqueNote: String(formData.get("unique_note") ?? ""),
     mission: String(formData.get("mission") ?? ""),
     website: String(formData.get("website") ?? ""),
+    instagram: String(formData.get("instagram") ?? ""),
+    tiktok: String(formData.get("tiktok") ?? ""),
+    facebook: String(formData.get("facebook") ?? ""),
+    promoVideoUrl: String(formData.get("promo_video_url") ?? ""),
     addressLine1: String(formData.get("address_line1") ?? ""),
     addressLine2: String(formData.get("address_line2") ?? ""),
     city: String(formData.get("city") ?? ""),
@@ -81,16 +88,30 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     { onConflict: "user_id" },
   );
 
-  // ---- Find any existing employer profile of mine --------------------------
+  // ---- Find MY existing employer profile -----------------------------------
+  // Invite-only: a studio profile is only ever created by an admin invitation
+  // (which also binds the owner). There is no create-from-nothing path here — if
+  // the signed-in user owns no profile, they haven't been invited, so refuse
+  // rather than mint a public-side profile outside the gate.
   const { data: existing } = await supabase
     .from("employer_profiles")
     .select(
-      "employer_id, address_line1, address_line2, city, state_province, postal_code, country",
+      "employer_id, status, address_line1, address_line2, city, state_province, postal_code, country",
     )
     .eq("owner_user_id", user.id)
     .maybeSingle();
 
-  const prevAddress = existing as unknown as (Partial<StudioRow> & { employer_id: string }) | null;
+  const prevAddress = existing as unknown as
+    | (Partial<StudioRow> & { employer_id: string; status: string | null })
+    | null;
+
+  if (!prevAddress?.employer_id) {
+    return {
+      ok: false,
+      message:
+        "We couldn't find your studio. Studio setup is by invitation — open your invitation link to begin.",
+    };
+  }
 
   // ---- Assemble the row to write -------------------------------------------
   // Loose record shape so a conditional map-pin reset doesn't fight the client's
@@ -118,9 +139,19 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     directions_note: row.directions_note,
     culture_note: row.culture_note,
     bio: row.bio,
+    instagram: row.instagram,
+    tiktok: row.tiktok,
+    facebook: row.facebook,
+    promo_video_url: row.promo_video_url,
     links,
     updated_at: new Date().toISOString(),
   };
+
+  // First real save moves an untouched invited studio into `in_progress` (draft).
+  // Later edits never regress a submitted/approved/live studio back to draft.
+  if (prevAddress.status === "invited" || prevAddress.status == null) {
+    writeRow.status = "in_progress";
+  }
 
   // If the address changed (or this is the first save), invalidate any stored map
   // pin so the later geocode backfill re-pins the studio.
@@ -130,29 +161,13 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     writeRow.geocoded_at = null;
   }
 
-  // ---- Insert or update ----------------------------------------------------
-  let employerId: string;
-  if (prevAddress?.employer_id) {
-    employerId = prevAddress.employer_id;
-    const { error } = await supabase
-      .from("employer_profiles")
-      .update(writeRow)
-      .eq("employer_id", employerId);
-    if (error) return { ok: false, message: `Could not save: ${error.message}` };
-  } else {
-    const { data: inserted, error } = await supabase
-      .from("employer_profiles")
-      .insert(writeRow)
-      .select("employer_id")
-      .single();
-    if (error || !inserted) {
-      return {
-        ok: false,
-        message: `Could not create your studio: ${error?.message ?? "unknown error"}`,
-      };
-    }
-    employerId = (inserted as { employer_id: string }).employer_id;
-  }
+  // ---- Update my own row (RLS: owner_user_id = auth.uid()) ------------------
+  const employerId = prevAddress.employer_id;
+  const { error } = await supabase
+    .from("employer_profiles")
+    .update(writeRow)
+    .eq("employer_id", employerId);
+  if (error) return { ok: false, message: `Could not save: ${error.message}` };
 
   // ---- Replace the vocab joins (styles / concentration / certs) ------------
   await replaceJoin(supabase, "employer_styles", "styles", "style_id", employerId, styles);
@@ -173,8 +188,73 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     certs,
   );
 
-  revalidatePath("/studio/edit");
+  revalidatePath("/studio/setup");
   return { ok: true, message: "Saved. Your studio profile is up to date." };
+}
+
+/**
+ * Submit the studio profile for Kathleen's review: `in_progress` → `submitted`.
+ *
+ * A studio does its own work up to `submitted`; `approved` and `live` are
+ * Kathleen's alone (nothing auto-publishes). This flips the status, mirrors it on
+ * the invite row (via the service role — the studio can't write that table), and
+ * alerts Kathleen. Location is still the one hard requirement, so a profile can't
+ * be submitted before it's been saved at least once with a city + state.
+ */
+export async function submitStudioForReview(_prev: SaveState, _formData: FormData): Promise<SaveState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Your session expired — please sign in again." };
+
+  const { data: mine } = await supabase
+    .from("employer_profiles")
+    .select("employer_id, name, status, city, state_province")
+    .eq("owner_user_id", user.id)
+    .maybeSingle();
+  const prof = mine as
+    | { employer_id: string; name: string | null; status: string | null; city: string | null; state_province: string | null }
+    | null;
+
+  if (!prof?.employer_id) {
+    return { ok: false, message: "We couldn't find your studio to submit." };
+  }
+  if (!prof.city || !prof.state_province || !(prof.name ?? "").trim()) {
+    return {
+      ok: false,
+      message: "Please save your studio name and location before submitting for review.",
+    };
+  }
+  if (prof.status === "approved" || prof.status === "live") {
+    return { ok: true, message: "Your studio has already been reviewed." };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("employer_profiles")
+    .update({ status: "submitted", submitted_at: now, updated_at: now })
+    .eq("employer_id", prof.employer_id);
+  if (error) return { ok: false, message: `Could not submit: ${error.message}` };
+
+  // Mirror the status onto the invite + alert Kathleen — both need the service
+  // role (the invite table is default-deny; the alert must not fail the submit).
+  const admin = createAdminClient();
+  await admin
+    .from("founding_studio_invites")
+    .update({ status: "submitted" })
+    .eq("employer_id", prof.employer_id);
+  await sendStudioSubmittedAlert({
+    studioName: prof.name ?? "(unnamed studio)",
+    contactEmail: user.email ?? null,
+    reviewUrl: `${emailSiteUrl()}/admin/studios`,
+  });
+
+  revalidatePath("/studio/setup");
+  return {
+    ok: true,
+    message: "Submitted for review. Kathleen will take a look and be in touch — nothing is public yet.",
+  };
 }
 
 /**

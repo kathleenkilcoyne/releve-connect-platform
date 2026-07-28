@@ -40,7 +40,10 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 8 | New intro request | A member sends a lean in-app intro request on the Roster (explicit user action; no contact revealed) | Talent | `intro-request.v1` | ✅ implemented |
 | 9 | Signature Experience — access & booking links | Stripe webhook confirms a $499 Signature Experience purchase | Buyer | `buyer-experience-confirmation.v1` | ✅ implemented |
 | 10 | Membership renewal reminder | Stripe `invoice.upcoming` (~2 weeks before the annual charge; lead time set in Stripe → Billing) | Member | `membership-renewal-reminder.v1` | ✅ implemented (dormant while free) |
-| 11 | New studio interest | A studio submits the **Become a Founding Studio** interest form (`/studios`, explicit action) | Admin (`ADMIN_ALERT_EMAIL`) | `studio-interest.v1` | ✅ implemented |
+| 11 | ~~New studio interest~~ | **RETIRED 2026-07-28** — the public interest form was removed when studio onboarding became invite-only. `sendStudioInterestAlert` is kept in code but no longer wired to any UI. | Admin (`ADMIN_ALERT_EMAIL`) | `studio-interest.v1` | ⛔ retired |
+| 12 | Founding Studio invitation | **Admin creates an invitation** in `/admin/studios` (or re-sends). Carries the secure `/studio/setup?token=…` link. | Studio owner | `studio-invitation.v1` | ✅ implemented |
+| 13 | Studio submitted for review | A studio flips its profile to `submitted` (its own "Submit for review" action) | Admin (`ADMIN_ALERT_EMAIL`) | `studio-submitted.v1` | ✅ implemented |
+| 14 | Your studio is live | **Admin publishes** a studio (`approved` → `live`) in `/admin/studios` | Studio owner | `studio-live.v1` | ✅ implemented |
 
 > Emails #4, #5, #6 are **manual-only** — they never fire automatically. Emails #1 and #2
 > are the only two that fire automatically on the apply flow. Per the guardrail, that's

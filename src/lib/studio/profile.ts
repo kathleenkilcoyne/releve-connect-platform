@@ -100,6 +100,10 @@ export type StudioInput = {
   uniqueNote: string | null | undefined;
   mission: string | null | undefined;
   website: string | null | undefined;
+  instagram: string | null | undefined;
+  tiktok: string | null | undefined;
+  facebook: string | null | undefined;
+  promoVideoUrl: string | null | undefined;
   addressLine1: string | null | undefined;
   addressLine2: string | null | undefined;
   city: string | null | undefined;
@@ -125,6 +129,10 @@ export type StudioRow = {
   unique_note: string | null;
   mission: string | null;
   website: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  facebook: string | null;
+  promo_video_url: string | null;
   address_line1: string | null;
   address_line2: string | null;
   // Location is REQUIRED (city + state at minimum) — buildEmployerProfileRow
@@ -188,6 +196,10 @@ export function buildEmployerProfileRow(
       unique_note: trimOrNull(input.uniqueNote),
       mission: trimOrNull(input.mission),
       website: trimOrNull(input.website),
+      instagram: trimOrNull(input.instagram),
+      tiktok: trimOrNull(input.tiktok),
+      facebook: trimOrNull(input.facebook),
+      promo_video_url: trimOrNull(input.promoVideoUrl),
       address_line1: trimOrNull(input.addressLine1),
       address_line2: trimOrNull(input.addressLine2),
       city,

@@ -14,7 +14,7 @@
 // live flow leaves undefined. The fee wording is preserved in APPLICATION_FEE_NOTE
 // for when payment is switched back on — do not delete it.
 
-import { body, emailSiteUrl, sendEmail } from "./email/send";
+import { body, emailSiteUrl, sendEmail, type SendResult } from "./email/send";
 
 /**
  * The ONLY approved wording for the $30 fee (pricing SSOT + CLAUDE.md §4G):
@@ -460,6 +460,89 @@ export async function sendStudioInterestAlert(input: {
       ].join("\n"),
       ...(input.message ? [`Message:\n${input.message}`] : []),
       "Reach out to onboard them personally — there is no self-serve signup.",
+    ),
+  });
+}
+
+// ===========================================================================
+// The Studios path — invite-only founding-studio onboarding
+// (spec: STUDIO-ONBOARDING-ONE-FLOW-FROM-KATHLEEN.md). The interest form is
+// retired; #11 above is historical. These are the live studio emails.
+// ===========================================================================
+
+/**
+ * EMAILS.md #12 — "Founding Studio invitation". Sent when Kathleen creates an
+ * invitation in /admin/studios. Carries the ONE secure setup link. The studio
+ * signs in as the invited email (Email OTP) and lands directly in setup.
+ */
+export async function sendStudioInvitation(input: {
+  to: string;
+  setupUrl: string;
+}): Promise<SendResult> {
+  return sendEmail({
+    to: input.to,
+    template: "studio-invitation.v1",
+    subject: "You're invited to become a Relevé Founding Studio",
+    text: body(
+      "You've been personally invited to join Relevé Connect as a Founding Studio.",
+      "Founding Studios help shape what Relevé becomes — a vetted roster of teachers " +
+        "and choreographers to hire from, one calendar for your faculty and families, " +
+        "and a hand to hold through setup.",
+      `Set up your studio here — sign in with this email address (${input.to}) when asked:`,
+      input.setupUrl,
+      "This link is just for you. You can save your progress and come back any time; " +
+        "nothing is public until we review it together.",
+    ),
+  });
+}
+
+/**
+ * EMAILS.md #13 — "Studio submitted for review". ONE internal alert to the admin
+ * (ADMIN_ALERT_EMAIL) when a studio flips its profile to `submitted`.
+ */
+export async function sendStudioSubmittedAlert(input: {
+  studioName: string;
+  contactEmail: string | null;
+  reviewUrl: string;
+}): Promise<void> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) {
+    console.warn(
+      "[notifications] ADMIN_ALERT_EMAIL unset — nobody will be told this studio submitted:",
+      { studio: input.studioName },
+    );
+    return;
+  }
+  await sendEmail({
+    to,
+    template: "studio-submitted.v1",
+    ...(input.contactEmail ? { replyTo: input.contactEmail } : {}),
+    subject: `Studio submitted for review — ${input.studioName}`,
+    text: body(
+      `${input.studioName} has finished its profile and submitted it for review.`,
+      ...(input.contactEmail ? [`Contact: ${input.contactEmail}`] : []),
+      `Review, approve, and publish it here: ${input.reviewUrl}`,
+    ),
+  });
+}
+
+/**
+ * EMAILS.md #14 — "Your studio is live" (optional). Sent when Kathleen publishes
+ * a studio (`approved` → `live`).
+ */
+export async function sendStudioLive(input: {
+  to: string;
+  studioName: string;
+  profileUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    template: "studio-live.v1",
+    subject: `${input.studioName} is live on Relevé`,
+    text: body(
+      `Congratulations — ${input.studioName} is now live on Relevé Connect.`,
+      `Your studio page: ${input.profileUrl}`,
+      "You can keep your details current any time by signing in with this email address.",
     ),
   });
 }
