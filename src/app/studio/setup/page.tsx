@@ -53,10 +53,9 @@ type EmployerFields = {
   student_count_band: string | null;
   staff_count: number | null;
   room_count: number | null;
-  nearest_transit: string | null;
+  accessible_by_train: boolean | null;
+  accessible_by_bus: boolean | null;
   car_required: boolean | null;
-  parking: string | null;
-  directions_note: string | null;
   culture_note: string | null;
   bio: string | null;
 };
@@ -74,7 +73,7 @@ const PROFILE_COLUMNS =
   "employer_id, status, name, artistic_director, unique_note, mission, website, instagram, " +
   "tiktok, facebook, promo_video_url, address_line1, address_line2, city, state_province, " +
   "postal_code, country, year_founded, student_count_band, staff_count, room_count, " +
-  "nearest_transit, car_required, parking, directions_note, culture_note, bio";
+  "accessible_by_train, accessible_by_bus, car_required, culture_note, bio";
 
 /** A plain, form-less notice page (used for every "can't proceed" case). */
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -339,10 +338,9 @@ export default async function StudioSetupPage({
           student_count_band: e?.student_count_band ?? "",
           staff_count: e?.staff_count != null ? String(e.staff_count) : "",
           room_count: e?.room_count != null ? String(e.room_count) : "",
-          nearest_transit: e?.nearest_transit ?? "",
-          car_required: e?.car_required == null ? "" : e.car_required ? "yes" : "no",
-          parking: e?.parking ?? "",
-          directions_note: e?.directions_note ?? "",
+          accessible_by_train: e?.accessible_by_train ?? false,
+          accessible_by_bus: e?.accessible_by_bus ?? false,
+          car_required: e?.car_required ?? false,
           culture_note: e?.culture_note ?? "",
           bio: e?.bio ?? "",
         }}

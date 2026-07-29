@@ -94,6 +94,16 @@ export function parseTriBool(raw: string | null | undefined): boolean | null {
   return null;
 }
 
+/**
+ * A checkbox: a checked box posts a value ("on" by default); an unchecked box
+ * posts nothing. So present/on/yes/true → true, absent → false (never null —
+ * a checkbox has no "unknown" state).
+ */
+export function parseCheckbox(raw: string | null | undefined): boolean {
+  const t = (raw ?? "").trim().toLowerCase();
+  return t === "on" || t === "yes" || t === "true" || t === "1";
+}
+
 export type StudioInput = {
   name: string | null | undefined;
   artisticDirector: string | null | undefined; // free text, comma/newline separated
@@ -114,10 +124,12 @@ export type StudioInput = {
   studentCountBand: string | null | undefined;
   staffCount: string | null | undefined;
   roomCount: string | null | undefined;
-  nearestTransit: string | null | undefined;
+  // "Getting there" — a simple Accessible-by checkbox row. `carRequired` is the
+  // existing column, reused for the "Car / parking" box. The retired free-text
+  // fields (nearestTransit / parking / directionsNote) are no longer read here.
+  accessibleByTrain: string | null | undefined;
+  accessibleByBus: string | null | undefined;
   carRequired: string | null | undefined;
-  parking: string | null | undefined;
-  directionsNote: string | null | undefined;
   cultureNote: string | null | undefined;
   bio: string | null | undefined;
 };
@@ -147,10 +159,10 @@ export type StudioRow = {
   student_count_band: StudentCountBand | null;
   staff_count: number | null;
   room_count: number | null;
-  nearest_transit: string | null;
-  car_required: boolean | null;
-  parking: ParkingKind | null;
-  directions_note: string | null;
+  // "Getting there" flags. car_required is reused for "Car / parking".
+  accessible_by_train: boolean;
+  accessible_by_bus: boolean;
+  car_required: boolean;
   bio: string | null;
 };
 
@@ -210,10 +222,9 @@ export function buildEmployerProfileRow(
       student_count_band: parseEnum(input.studentCountBand, STUDENT_COUNT_BANDS),
       staff_count: parseCount(input.staffCount),
       room_count: parseCount(input.roomCount),
-      nearest_transit: trimOrNull(input.nearestTransit),
-      car_required: parseTriBool(input.carRequired),
-      parking: parseEnum(input.parking, PARKING_KINDS),
-      directions_note: trimOrNull(input.directionsNote),
+      accessible_by_train: parseCheckbox(input.accessibleByTrain),
+      accessible_by_bus: parseCheckbox(input.accessibleByBus),
+      car_required: parseCheckbox(input.carRequired),
       bio: trimOrNull(input.bio),
     },
   };

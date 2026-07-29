@@ -39,10 +39,9 @@ const blank: StudioInput = {
   studentCountBand: "",
   staffCount: "",
   roomCount: "",
-  nearestTransit: "",
+  accessibleByTrain: "",
+  accessibleByBus: "",
   carRequired: "",
-  parking: "",
-  directionsNote: "",
   cultureNote: "",
   bio: "",
 };
@@ -158,8 +157,10 @@ describe("buildEmployerProfileRow", () => {
       expect(res.row.artistic_director).toEqual([]);
       expect(res.row.unique_note).toBeNull();
       expect(res.row.mission).toBeNull();
-      expect(res.row.parking).toBeNull();
-      expect(res.row.car_required).toBeNull();
+      // Unchecked accessibility boxes are false (a checkbox has no "unknown").
+      expect(res.row.accessible_by_train).toBe(false);
+      expect(res.row.accessible_by_bus).toBe(false);
+      expect(res.row.car_required).toBe(false);
     }
   });
 
@@ -185,10 +186,9 @@ describe("buildEmployerProfileRow", () => {
         studentCountBand: "100_199",
         staffCount: "8",
         roomCount: "3",
-        nearestTransit: "Walnut St (Montclair-Boonton Line); bus 28",
-        carRequired: "no",
-        parking: "street",
-        directionsNote: "Enter on Label St",
+        accessibleByTrain: "on",
+        accessibleByBus: "on",
+        carRequired: "on",
         cultureNote: "Warm, technique-forward",
         bio: "A community studio.",
       },
@@ -217,25 +217,36 @@ describe("buildEmployerProfileRow", () => {
         student_count_band: "100_199",
         staff_count: 8,
         room_count: 3,
-        nearest_transit: "Walnut St (Montclair-Boonton Line); bus 28",
-        car_required: false,
-        parking: "street",
-        directions_note: "Enter on Label St",
+        accessible_by_train: true,
+        accessible_by_bus: true,
+        car_required: true,
         bio: "A community studio.",
       });
     }
   });
 
-  it("drops out-of-vocab band/parking and a typo year rather than failing the save", () => {
+  it("drops an out-of-vocab band and a typo year rather than failing the save", () => {
     const res = buildEmployerProfileRow(
-      { ...blank, studentCountBand: "500", parking: "valet", yearFounded: "20205" },
+      { ...blank, studentCountBand: "500", yearFounded: "20205" },
       now,
     );
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.row.student_count_band).toBeNull();
-      expect(res.row.parking).toBeNull();
       expect(res.row.year_founded).toBeNull();
+    }
+  });
+
+  it("maps the Accessible-by checkboxes (present → true, absent → false)", () => {
+    const res = buildEmployerProfileRow(
+      { ...blank, accessibleByTrain: "on", accessibleByBus: "", carRequired: "on" },
+      now,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.row.accessible_by_train).toBe(true);
+      expect(res.row.accessible_by_bus).toBe(false);
+      expect(res.row.car_required).toBe(true);
     }
   });
 });
@@ -262,10 +273,9 @@ describe("addressChanged", () => {
     student_count_band: null,
     staff_count: null,
     room_count: null,
-    nearest_transit: null,
-    car_required: null,
-    parking: null,
-    directions_note: null,
+    accessible_by_train: false,
+    accessible_by_bus: false,
+    car_required: false,
     bio: null,
   };
 

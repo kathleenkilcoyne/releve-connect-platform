@@ -19,12 +19,7 @@
 
 import { useActionState } from "react";
 import { saveStudioProfile, type SaveState } from "./actions";
-import {
-  STUDENT_COUNT_BANDS,
-  STUDENT_COUNT_LABELS,
-  PARKING_KINDS,
-  PARKING_LABELS,
-} from "@/lib/studio/profile";
+import { STUDENT_COUNT_BANDS, STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
 
 type Option = { slug: string; label: string };
 
@@ -49,11 +44,11 @@ type Initial = {
   student_count_band: string;
   staff_count: string;
   room_count: string;
-  nearest_transit: string;
-  car_required: string; // "", "yes", "no"
-  parking: string;
+  // "Getting there" — Accessible-by checkboxes (car_required reused for Car).
+  accessible_by_train: boolean;
+  accessible_by_bus: boolean;
+  car_required: boolean;
   bio: string;
-  directions_note: string;
 } | null;
 
 const input =
@@ -270,53 +265,17 @@ export default function StudioEditor({
         </div>
       </section>
 
-      {/* ── 7 · Getting there (transportation) ──────────────────────────── */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Getting there</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            The practical details a sub needs to decide if they can reach you.
-          </p>
-        </div>
-        <div>
-          <label className={label}>Nearest train / bus</label>
-          <input
-            name="nearest_transit"
-            placeholder="e.g. Walnut St (Montclair-Boonton Line); NJT bus 28"
-            defaultValue={initial?.nearest_transit ?? ""}
-            className={input}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className={label}>Car required?</label>
-            <select name="car_required" defaultValue={initial?.car_required ?? ""} className={input}>
-              <option value="">—</option>
-              <option value="no">No — reachable by transit</option>
-              <option value="yes">Yes — car recommended</option>
-            </select>
+      {/* ── 7 · Getting there — simple "Accessible by" checkboxes ───────── */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-neutral-900">Getting there</h2>
+        <fieldset>
+          <legend className={label}>Accessible by:</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <AccessChip name="accessible_by_train" label="Train" checked={initial?.accessible_by_train ?? false} />
+            <AccessChip name="accessible_by_bus" label="Bus" checked={initial?.accessible_by_bus ?? false} />
+            <AccessChip name="car_required" label="Car / parking" checked={initial?.car_required ?? false} />
           </div>
-          <div>
-            <label className={label}>Parking</label>
-            <select name="parking" defaultValue={initial?.parking ?? ""} className={input}>
-              <option value="">—</option>
-              {PARKING_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {PARKING_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className={label}>Directions note (optional)</label>
-          <input
-            name="directions_note"
-            placeholder="e.g. Enter on Label St; studio is on the 2nd floor"
-            defaultValue={initial?.directions_note ?? ""}
-            className={input}
-          />
-        </div>
+        </fieldset>
       </section>
 
       {/* ── 8 · Certifications ──────────────────────────────────────────── */}
@@ -420,6 +379,18 @@ export default function StudioEditor({
         )}
       </div>
     </form>
+  );
+}
+
+// A single named boolean checkbox, styled as a chip (same look as CheckGroup's
+// items). A checked box posts "on" → parseCheckbox → true; unchecked posts
+// nothing → false.
+function AccessChip({ name, label, checked }: { name: string; label: string; checked: boolean }) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white">
+      <input type="checkbox" name={name} defaultChecked={checked} className="sr-only" />
+      {label}
+    </label>
   );
 }
 
