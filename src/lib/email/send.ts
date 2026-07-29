@@ -93,7 +93,9 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
 
 /** Absolute URL for links inside emails. Mirrors the Stripe siteUrl() helper. */
 export function emailSiteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+  // Fallback is PRODUCTION, never localhost: if NEXT_PUBLIC_SITE_URL is ever
+  // missing, an emailed link must still resolve to the live site, not a dev URL.
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://releveconnect.com").replace(/\/$/, "");
 }
 
 /**

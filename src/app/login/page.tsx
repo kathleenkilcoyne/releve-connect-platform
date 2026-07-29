@@ -36,13 +36,25 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Where to land after sign-in (e.g. /admin/studios). Captured ONCE on mount so
+  // it survives the email→code step transition — the code step is a React state
+  // change, and re-reading window.location.search later has proven unreliable, so
+  // we snapshot it here and carry it through to /auth/after-signin.
+  const [next, setNext] = useState<string | null>(null);
 
   // ── Say something when an old sign-in LINK fails ──
   // /auth/callback redirects here with ?error=link when a link is expired or
   // already used. Nothing read that parameter, so the person landed on a blank
   // form with no explanation and looped. Found the hard way on 2026-07-22.
   useEffect(() => {
-    const reason = new URLSearchParams(window.location.search).get("error");
+    const params = new URLSearchParams(window.location.search);
+    // Snapshot the post-login destination up front (only an internal path).
+    const nextParam = params.get("next");
+    if (nextParam && nextParam.startsWith("/")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNext(nextParam);
+    }
+    const reason = params.get("error");
     if (reason === "link") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(
@@ -105,9 +117,9 @@ export default function LoginPage() {
         setBusy(false);
         return;
       }
-      // Carry an optional post-login destination through (a studio signing in
-      // from /studio lands back on /studio/edit).
-      const next = new URLSearchParams(window.location.search).get("next");
+      // Carry the post-login destination through (captured on mount, so it can't
+      // be lost between the email and code steps). A signed-out admin who clicked
+      // the /admin/studios review link lands back there, not on the sign-in page.
       window.location.assign(
         "/auth/after-signin" + (next && next.startsWith("/") ? `?next=${encodeURIComponent(next)}` : ""),
       );
