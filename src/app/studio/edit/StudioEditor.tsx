@@ -56,15 +56,6 @@ const input =
 const label = "block text-xs font-medium text-neutral-600 mb-1";
 const help = "mt-1 text-xs leading-relaxed text-neutral-500";
 
-/** The gentle, non-interactive example chips under "What makes your studio unique?" */
-const UNIQUE_EXAMPLES = [
-  "Conservatory training",
-  "College preparation",
-  "Recreational dancers welcome",
-  "Strong acrobatics program",
-  "Performance company",
-];
-
 export default function StudioEditor({
   initial,
   styleOptions,
@@ -113,11 +104,10 @@ export default function StudioEditor({
       {/* ── 3 · The story: culture · unique · mission (all optional) ─────── */}
       <section className="space-y-6">
         <div>
-          <label className={label}>What&apos;s it like to teach here?</label>
+          <label className={label}>What is special about teaching at your school?</label>
           <textarea
             name="culture_note"
             rows={3}
-            placeholder="We value kindness, preparation, and professionalism — and dancers who lift each other up. Our faculty collaborate; they don't compete."
             defaultValue={initial?.culture_note ?? ""}
             className={input}
           />
@@ -132,7 +122,6 @@ export default function StudioEditor({
           <textarea
             name="unique_note"
             rows={3}
-            placeholder="Conservatory-level training with a heart for college prep — and a place where recreational dancers are valued as much as our pre-professional company."
             defaultValue={initial?.unique_note ?? ""}
             className={input}
           />
@@ -140,23 +129,12 @@ export default function StudioEditor({
             One or two sentences. What would a dancer or teacher feel here that they wouldn&apos;t
             feel anywhere else?
           </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {UNIQUE_EXAMPLES.map((ex) => (
-              <span
-                key={ex}
-                className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500"
-              >
-                {ex}
-              </span>
-            ))}
-          </div>
         </div>
 
         <div>
           <label className={label}>Your studio in one line.</label>
           <input
             name="mission"
-            placeholder="Training the whole artist — technique, character, and courage."
             defaultValue={initial?.mission ?? ""}
             className={input}
           />
