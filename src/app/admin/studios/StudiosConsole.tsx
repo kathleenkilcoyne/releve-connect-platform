@@ -5,6 +5,7 @@
 // success we refresh the server component so the list reflects the new state.
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { StudioRow } from "./page";
 
@@ -51,29 +52,6 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
             (data.email_sent === false ? " (email vendor not configured — link logged server-side)." : "."),
         });
         setEmail("");
-        router.refresh();
-      }
-    } catch {
-      setNotice({ ok: false, text: "Something went wrong. Please try again." });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function act(employerId: string, action: "approve" | "publish" | "unpublish") {
-    setBusy(true);
-    setNotice(null);
-    try {
-      const res = await fetch(`/api/admin/studios/${employerId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setNotice({ ok: false, text: data.error ?? `Could not ${action}.` });
-      } else {
-        setNotice({ ok: true, text: `Studio is now "${data.status}".` });
         router.refresh();
       }
     } catch {
@@ -171,33 +149,33 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                       </span>
                     </td>
                     <td className="py-3 pr-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* The review page is the entry point for reading the
+                            submission and deciding — Approve/Publish live there,
+                            never blind in this list. */}
                         {s.status === "submitted" && (
-                          <button
-                            onClick={() => act(s.employer_id, "approve")}
-                            disabled={busy}
-                            className="rounded-md border border-sky-300 px-2.5 py-1 text-xs font-medium text-sky-800 disabled:opacity-40"
+                          <Link
+                            href={`/admin/studios/${s.employer_id}`}
+                            className="rounded-md border border-sky-400 bg-sky-600 px-2.5 py-1 text-xs font-medium text-white"
                           >
-                            Approve
-                          </button>
+                            Review submission
+                          </Link>
                         )}
                         {s.status === "approved" && (
-                          <button
-                            onClick={() => act(s.employer_id, "publish")}
-                            disabled={busy}
-                            className="rounded-md border border-green-400 bg-green-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40"
+                          <Link
+                            href={`/admin/studios/${s.employer_id}`}
+                            className="rounded-md border border-green-400 px-2.5 py-1 text-xs font-medium text-green-800"
                           >
-                            Publish
-                          </button>
+                            Review &amp; publish
+                          </Link>
                         )}
                         {s.status === "live" && (
-                          <button
-                            onClick={() => act(s.employer_id, "unpublish")}
-                            disabled={busy}
-                            className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700 disabled:opacity-40"
+                          <Link
+                            href={`/admin/studios/${s.employer_id}`}
+                            className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700"
                           >
-                            Unpublish
-                          </button>
+                            View
+                          </Link>
                         )}
                         <button
                           onClick={() => resend(s.email)}
