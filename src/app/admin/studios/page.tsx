@@ -21,6 +21,7 @@ export type StudioRow = {
   status: string; // invited | in_progress | submitted | approved | live
   city: string | null;
   state_province: string | null;
+  public_slug: string | null;
   redeemed_at: string | null;
   submitted_at: string | null;
   created_at: string;
@@ -45,12 +46,12 @@ export default async function AdminStudiosPage() {
   const employerIds = invites.map((i) => i.employer_id);
   const profileByEmployer = new Map<
     string,
-    { name: string | null; status: string; city: string | null; state_province: string | null; submitted_at: string | null }
+    { name: string | null; status: string; city: string | null; state_province: string | null; public_slug: string | null; submitted_at: string | null }
   >();
   if (employerIds.length) {
     const { data: profData } = await db
       .from("employer_profiles")
-      .select("employer_id, name, status, city, state_province, submitted_at")
+      .select("employer_id, name, status, city, state_province, public_slug, submitted_at")
       .in("employer_id", employerIds);
     for (const p of (profData ?? []) as Array<{
       employer_id: string;
@@ -58,6 +59,7 @@ export default async function AdminStudiosPage() {
       status: string;
       city: string | null;
       state_province: string | null;
+      public_slug: string | null;
       submitted_at: string | null;
     }>) {
       profileByEmployer.set(p.employer_id, p);
@@ -73,6 +75,7 @@ export default async function AdminStudiosPage() {
       status: p?.status ?? "invited",
       city: p?.city ?? null,
       state_province: p?.state_province ?? null,
+      public_slug: p?.public_slug ?? null,
       redeemed_at: i.redeemed_at,
       submitted_at: p?.submitted_at ?? null,
       created_at: i.created_at,

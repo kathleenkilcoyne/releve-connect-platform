@@ -13,6 +13,7 @@
 // status is a mirror for the admin list.
 
 import { NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailSiteUrl } from "@/lib/email/send";
@@ -22,6 +23,18 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = { action?: "approve" | "publish" | "unpublish" };
+
+/** A clean URL slug from a studio name (for /studios/<slug>). "join" is a
+ *  reserved sub-path, so it's never allowed to win. */
+function slugBase(name: string | null): string {
+  const base = (name ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return !base || base === "join" ? "studio" : base;
+}
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const gate = await requireAdmin(req);
@@ -40,7 +53,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const { data: profRow, error: loadErr } = await db
     .from("employer_profiles")
-    .select("employer_id, name, status, owner_user_id")
+    .select("employer_id, name, status, owner_user_id, public_slug")
     .eq("employer_id", id)
     .single();
   if (loadErr || !profRow) {
@@ -51,6 +64,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     name: string | null;
     status: string;
     owner_user_id: string | null;
+    public_slug: string | null;
   };
   const now = new Date().toISOString();
 
@@ -86,7 +100,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const err = await transition(["approved"], "live", { live_at: now });
       if (err) return err;
 
-      // Optional "you're live" note to the studio owner.
+      // Ensure the now-live studio has a public URL slug for /studios/<slug>.
+      // Generate one only if it doesn't already have it (never rewrite a slug —
+      // a published URL should stay stable across unpublish/republish).
+      let slug = prof.public_slug;
+      if (!slug) {
+        let candidate = slugBase(prof.name);
+        const { data: clash } = await db
+          .from("employer_profiles")
+          .select("employer_id")
+          .eq("public_slug", candidate)
+          .maybeSingle();
+        if (clash && (clash as { employer_id: string }).employer_id !== id) {
+          candidate = `${candidate}-${randomBytes(2).toString("hex")}`;
+        }
+        const { error: slugErr } = await db
+          .from("employer_profiles")
+          .update({ public_slug: candidate })
+          .eq("employer_id", id);
+        if (!slugErr) slug = candidate;
+        else console.error("[admin publish] could not set public_slug:", slugErr.message);
+      }
+
+      // Optional "you're live" note to the studio owner — links to the profile.
       if (prof.owner_user_id) {
         const { data: ownerRow } = await db
           .from("users")
@@ -98,11 +134,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           await sendStudioLive({
             to: ownerEmail,
             studioName: prof.name || "Your studio",
-            profileUrl: `${emailSiteUrl()}/studios`,
+            profileUrl: slug ? `${emailSiteUrl()}/studios/${slug}` : `${emailSiteUrl()}/studios`,
           });
         }
       }
-      return NextResponse.json({ ok: true, status: "live" });
+      return NextResponse.json({ ok: true, status: "live", slug });
     }
 
     case "unpublish": {

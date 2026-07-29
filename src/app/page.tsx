@@ -166,7 +166,7 @@ export default function Home() {
             <PathCard
               eyebrow="Studios"
               subline="Bring your studio and your competition families into the ecosystem. By invitation."
-              href="/studios"
+              href="/studios/join"
               cta="Become a Founding Studio"
             />
             {/* Families — join through a participating studio; gated at /join. */}

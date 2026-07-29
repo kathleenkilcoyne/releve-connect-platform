@@ -170,12 +170,14 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                           </Link>
                         )}
                         {s.status === "live" && (
-                          <Link
-                            href={`/admin/studios/${s.employer_id}`}
+                          <a
+                            href={s.public_slug ? `/studios/${s.public_slug}` : "/studios"}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-700"
                           >
-                            View
-                          </Link>
+                            View public profile ↗
+                          </a>
                         )}
                         <button
                           onClick={() => resend(s.email)}
