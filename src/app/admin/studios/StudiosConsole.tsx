@@ -150,25 +150,21 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                     </td>
                     <td className="py-3 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* The review page is the entry point for reading the
-                            submission and deciding — Approve/Publish live there,
-                            never blind in this list. */}
-                        {s.status === "submitted" && (
+                        {/* Manage = the private admin review route (read the
+                            submission + Approve/Publish there). Shown for any
+                            studio with content to manage. */}
+                        {(s.status === "submitted" ||
+                          s.status === "approved" ||
+                          s.status === "live") && (
                           <Link
                             href={`/admin/studios/${s.employer_id}`}
                             className="rounded-md border border-sky-400 bg-sky-600 px-2.5 py-1 text-xs font-medium text-white"
                           >
-                            Review submission
+                            Manage studio
                           </Link>
                         )}
-                        {s.status === "approved" && (
-                          <Link
-                            href={`/admin/studios/${s.employer_id}`}
-                            className="rounded-md border border-green-400 px-2.5 py-1 text-xs font-medium text-green-800"
-                          >
-                            Review &amp; publish
-                          </Link>
-                        )}
+                        {/* Separate from Manage — only a LIVE studio has a public
+                            profile; opens it in a new tab. */}
                         {s.status === "live" && (
                           <a
                             href={s.public_slug ? `/studios/${s.public_slug}` : "/studios"}

@@ -226,7 +226,7 @@ export default async function PublicStudioProfile({
         </Section>
       )}
 
-      {scale.length > 0 && <Section title="Studio">{scale.join(" · ")}</Section>}
+      {scale.length > 0 && <Section title="Teaching staff">{scale.join(" · ")}</Section>}
       {p.year_founded != null && <Section title="Founded">{p.year_founded}</Section>}
       {accessibleBy.length > 0 && <Section title="Accessible by">{accessibleBy.join(" · ")}</Section>}
 
