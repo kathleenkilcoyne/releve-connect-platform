@@ -114,12 +114,15 @@ const inputCls =
   "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-neutral-500 focus:outline-none";
 
 export default function ScheduleEditor({
-  employerId,
+  endpointBase,
   classes,
   teachers,
   roster,
 }: {
-  employerId: string;
+  /** The classes collection endpoint, e.g. "/api/studio/schedule/classes" (studio
+   *  self-serve) or "/api/admin/studios/<id>/classes" (admin assist). POST here
+   *  to create; PATCH/DELETE "<endpointBase>/<classId>" to edit/remove. */
+  endpointBase: string;
   classes: ScheduleRow[];
   teachers: TeacherOption[];
   roster: { students: number; classes: number };
@@ -179,9 +182,7 @@ export default function ScheduleEditor({
       location: form.location || null,
     };
 
-    const url = editingId
-      ? `/api/admin/studios/${employerId}/classes/${editingId}`
-      : `/api/admin/studios/${employerId}/classes`;
+    const url = editingId ? `${endpointBase}/${editingId}` : endpointBase;
     try {
       const res = await fetch(url, {
         method: editingId ? "PATCH" : "POST",
@@ -210,7 +211,7 @@ export default function ScheduleEditor({
     setBusy(true);
     setNotice(null);
     try {
-      const res = await fetch(`/api/admin/studios/${employerId}/classes/${row.class_id}`, {
+      const res = await fetch(`${endpointBase}/${row.class_id}`, {
         method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));

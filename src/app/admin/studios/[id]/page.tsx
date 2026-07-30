@@ -332,7 +332,7 @@ export default async function StudioReviewPage({
       <div className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Schedule</h2>
         <ScheduleEditor
-          employerId={p.employer_id}
+          endpointBase={`/api/admin/studios/${p.employer_id}/classes`}
           classes={scheduleEntries}
           teachers={teacherOptions}
           roster={{ students: roster.students, classes: roster.classes }}

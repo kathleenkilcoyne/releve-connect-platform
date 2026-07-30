@@ -317,6 +317,16 @@ export default async function StudioSetupPage({
 
       <div className={`mt-5 rounded-lg border px-4 py-3 text-sm ${banner.tone}`}>{banner.text}</div>
 
+      <Link
+        href="/studio/schedule"
+        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-neutral-900 bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white"
+      >
+        Manage your schedule →
+      </Link>
+      <p className="mt-1 text-xs text-neutral-500">
+        Enter your comp calendar once; the right families see each event in their own This Week.
+      </p>
+
       <StudioEditor
         initial={{
           name: e?.name ?? "",
