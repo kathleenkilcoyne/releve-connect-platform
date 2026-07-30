@@ -13,6 +13,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
 import ReviewActions from "./ReviewActions";
+import FamilyJoinCode, { type FamilyCode } from "./FamilyJoinCode";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +168,17 @@ export default async function StudioReviewPage({
   const concentrations = labelsOf(concRes.data, "studio_concentrations");
   const certs = labelsOf(certRes.data, "certifications");
 
+  // Active FAMILY join code(s) for this studio (Brick B1). Reads the EXISTING
+  // family `studio_invites` table; the code is minted/replaced via the gated
+  // /family-code route and validated as-is by /join.
+  const { data: familyCodeRows } = await db
+    .from("studio_invites")
+    .select("code, use_count, max_uses, expires_at, created_at")
+    .eq("employer_id", id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+  const familyCodes = (familyCodeRows ?? []) as FamilyCode[];
+
   const address = [p.address_line1, p.address_line2, [p.city, p.state_province, p.postal_code].filter(Boolean).join(", "), p.country]
     .filter((line) => line && String(line).trim())
     .join("\n");
@@ -260,6 +272,12 @@ export default async function StudioReviewPage({
         <div className="mt-4">
           <ReviewActions employerId={p.employer_id} status={p.status} />
         </div>
+      </div>
+
+      {/* ── Family join code (Brick B1 · concierge) ── */}
+      <div className="mt-10 border-t border-neutral-200 pt-6">
+        <h2 className="text-lg font-semibold text-neutral-900">Family join code</h2>
+        <FamilyJoinCode employerId={p.employer_id} codes={familyCodes} />
       </div>
 
       <Link href="/admin/studios" className="mt-10 inline-block text-sm text-neutral-500 underline">
