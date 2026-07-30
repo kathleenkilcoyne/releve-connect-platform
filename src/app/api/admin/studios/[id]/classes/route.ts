@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
+import { setEventTargets } from "@/lib/studio/team-enrollments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,16 +53,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     .select("class_id")
     .single();
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+  const classId = (created as { class_id: string }).class_id;
 
-  // Enroll the current team roster into all of this studio's entries.
-  const roster = await reconcileTeamEnrollments(db, id);
-  if (roster.error) {
-    console.error("[admin classes] enrollment reconcile failed:", roster.error);
-  }
+  // Target it: the whole studio (studio_wide) or the picked dancers.
+  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
+  const t = await setEventTargets(db, id, classId, targets);
+  if (t.error) console.error("[admin classes] targeting failed:", t.error);
 
   return NextResponse.json({
     ok: true,
-    class_id: (created as { class_id: string }).class_id,
-    roster,
+    class_id: classId,
+    studio_wide: built.fields.studio_wide,
+    enrolled: t.enrolled,
   });
 }

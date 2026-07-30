@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
+import { setEventTargets } from "@/lib/studio/team-enrollments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,10 +64,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string; c
     .eq("class_id", classId);
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  const roster = await reconcileTeamEnrollments(db, id);
-  if (roster.error) console.error("[admin classes] enrollment reconcile failed:", roster.error);
+  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
+  const t = await setEventTargets(db, id, classId, targets);
+  if (t.error) console.error("[admin classes] targeting failed:", t.error);
 
-  return NextResponse.json({ ok: true, class_id: classId, roster });
+  return NextResponse.json({
+    ok: true,
+    class_id: classId,
+    studio_wide: built.fields.studio_wide,
+    enrolled: t.enrolled,
+  });
 }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string; classId: string }> }) {

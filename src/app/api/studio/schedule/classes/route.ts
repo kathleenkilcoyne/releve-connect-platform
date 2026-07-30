@@ -16,7 +16,7 @@ import { NextResponse } from "next/server";
 import { requireStudioAccess } from "@/lib/studio/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
+import { setEventTargets } from "@/lib/studio/team-enrollments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,13 +44,18 @@ export async function POST(req: Request) {
     .select("class_id")
     .single();
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
+  const classId = (created as { class_id: string }).class_id;
 
-  const roster = await reconcileTeamEnrollments(db, employerId);
-  if (roster.error) console.error("[studio classes] enrollment reconcile failed:", roster.error);
+  // Target it: the whole studio (studio_wide, no enrollments) or the picked
+  // dancers. Only dancers affiliated to this studio can be enrolled.
+  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
+  const t = await setEventTargets(db, employerId, classId, targets);
+  if (t.error) console.error("[studio classes] targeting failed:", t.error);
 
   return NextResponse.json({
     ok: true,
-    class_id: (created as { class_id: string }).class_id,
-    roster,
+    class_id: classId,
+    studio_wide: built.fields.studio_wide,
+    enrolled: t.enrolled,
   });
 }

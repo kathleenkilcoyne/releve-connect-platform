@@ -15,8 +15,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
-import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
-import ScheduleEditor, { type ScheduleRow, type TeacherOption } from "@/app/admin/studios/[id]/ScheduleEditor";
+import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
+import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -67,73 +67,26 @@ export default async function StudioSchedulePage() {
     .maybeSingle();
   const studioName = (prof as { name: string | null } | null)?.name?.trim() || "Your studio";
 
-  // Keep the team roster enrolled in the studio's active entries (idempotent), so
-  // a family that joined after an entry was made is picked up on this view.
-  const roster = await reconcileTeamEnrollments(db, employerId);
+  const { scheduleEntries, teacherOptions, roster } = await loadStudioScheduleData(db, employerId);
 
-  // Schedule entries for this studio.
-  const { data: classData } = await db
-    .from("studio_classes")
-    .select(
-      "class_id, title, kind, recurrence, default_start, default_end, series_start, series_end, room, location, teacher_profile_id",
-    )
-    .eq("employer_id", employerId)
-    .order("created_at", { ascending: true });
-  const scheduleRows = (classData ?? []) as Omit<ScheduleRow, "teacher_name">[];
-
-  // Roster: the dancers who joined via this studio's family code (affiliations),
-  // shown studio-safe (display name + age bracket only — never date of birth).
-  const { data: affRows } = await db
-    .from("affiliations")
-    .select("subject_id")
-    .eq("employer_id", employerId)
-    .eq("subject_kind", "student")
-    .eq("status", "active");
-  const rosterStudentIds = [
-    ...new Set(((affRows ?? []) as { subject_id: string }[]).map((r) => r.subject_id)),
-  ];
-  const rosterStudents = rosterStudentIds.length
-    ? (
-        (
-          await db
-            .from("students")
-            .select("student_id, display_name, age_range")
-            .in("student_id", rosterStudentIds)
-        ).data ?? []
-      ).map((s) => s as { student_id: string; display_name: string; age_range: string | null })
-    : [];
-  rosterStudents.sort((a, b) => a.display_name.localeCompare(b.display_name));
-
-  // Teacher options + names (talent affiliated to this studio as teacher/staff,
-  // plus anyone already assigned to an entry).
-  const { data: teacherAff } = await db
-    .from("affiliations")
-    .select("subject_id")
-    .eq("employer_id", employerId)
-    .eq("subject_kind", "talent")
-    .in("role", ["teacher", "staff"])
-    .eq("status", "active");
-  const teacherIds = new Set<string>([
-    ...((teacherAff ?? []) as { subject_id: string }[]).map((r) => r.subject_id),
-    ...(scheduleRows.map((r) => r.teacher_profile_id).filter(Boolean) as string[]),
-  ]);
-  const teacherNameById = new Map<string, string>();
-  if (teacherIds.size) {
-    const { data: tp } = await db
-      .from("talent_profiles")
-      .select("profile_id, display_name")
-      .in("profile_id", [...teacherIds]);
-    for (const t of (tp ?? []) as { profile_id: string; display_name: string | null }[]) {
-      teacherNameById.set(t.profile_id, t.display_name ?? "Teacher");
+  // The "Your dancers" list adds the studio-safe age bracket (never DOB); the
+  // schedule picker uses the name-only roster.
+  const rosterIds = roster.map((r) => r.student_id);
+  const ageById = new Map<string, string | null>();
+  if (rosterIds.length) {
+    const { data: ages } = await db
+      .from("students")
+      .select("student_id, age_range")
+      .in("student_id", rosterIds);
+    for (const s of (ages ?? []) as { student_id: string; age_range: string | null }[]) {
+      ageById.set(s.student_id, s.age_range);
     }
   }
-  const scheduleEntries: ScheduleRow[] = scheduleRows.map((r) => ({
-    ...r,
-    teacher_name: r.teacher_profile_id ? teacherNameById.get(r.teacher_profile_id) ?? null : null,
+  const rosterStudents = roster.map((r) => ({
+    student_id: r.student_id,
+    display_name: r.display_name,
+    age_range: ageById.get(r.student_id) ?? null,
   }));
-  const teacherOptions: TeacherOption[] = [...teacherNameById.entries()].map(
-    ([profile_id, display_name]) => ({ profile_id, display_name }),
-  );
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -194,7 +147,7 @@ export default async function StudioSchedulePage() {
           endpointBase="/api/studio/schedule/classes"
           classes={scheduleEntries}
           teachers={teacherOptions}
-          roster={{ students: roster.students, classes: roster.classes }}
+          roster={roster}
         />
       </section>
 

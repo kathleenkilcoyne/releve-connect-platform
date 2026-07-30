@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { requireStudioAccess } from "@/lib/studio/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
+import { setEventTargets } from "@/lib/studio/team-enrollments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,10 +63,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ classId: stri
     .eq("class_id", classId);
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  const roster = await reconcileTeamEnrollments(db, employerId);
-  if (roster.error) console.error("[studio classes] enrollment reconcile failed:", roster.error);
+  // Re-target: set the audience to exactly the new selection (add/remove reach
+  // only the affected families; everyone else is untouched).
+  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
+  const t = await setEventTargets(db, employerId, classId, targets);
+  if (t.error) console.error("[studio classes] targeting failed:", t.error);
 
-  return NextResponse.json({ ok: true, class_id: classId, roster });
+  return NextResponse.json({
+    ok: true,
+    class_id: classId,
+    studio_wide: built.fields.studio_wide,
+    enrolled: t.enrolled,
+  });
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ classId: string }> }) {

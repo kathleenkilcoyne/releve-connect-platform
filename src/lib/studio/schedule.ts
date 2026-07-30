@@ -7,6 +7,8 @@
 // series_start. This builder produces exactly those shapes and nothing outside
 // them, so every entry it creates is expandable.
 
+import { EVENT_TYPE_BY_SLUG, eventTypeFromKind } from "./event-types";
+
 /** The comp/college kinds the admin may create. No rec "class". */
 export const COMP_COLLEGE_KINDS = [
   "rehearsal",
@@ -46,7 +48,15 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
 
 export type ScheduleInput = {
   title?: string;
+  /** One of the nine event types (Slice 2). Drives kind + the family label. */
+  event_type?: string;
+  /** Legacy/fallback: the raw kind, used only when event_type is absent. */
   kind?: string;
+  /** Whole-studio target (Full Studio Event, or a whole-studio Parent Meeting). */
+  studio_wide?: boolean;
+  /** The targeted dancers (enrollments) — ignored when studio_wide. Consumed by
+   *  the route (setEventTargets), not by buildClassFields. */
+  student_ids?: string[];
   mode?: "recurring" | "oneoff";
   // recurring
   weekdays?: string[];
@@ -68,6 +78,8 @@ export type ScheduleInput = {
 export type ClassFields = {
   title: string;
   kind: CompCollegeKind;
+  event_type: string;
+  studio_wide: boolean;
   recurrence: string | null;
   default_start: string | null;
   default_end: string | null;
@@ -94,10 +106,22 @@ export function buildClassFields(
   if (!title) return { error: "Give the entry a title." };
   if (title.length > 200) return { error: "That title is too long." };
 
-  const kind = input.kind as CompCollegeKind;
-  if (!COMP_COLLEGE_KINDS.includes(kind)) {
-    return { error: "Choose a valid kind (rehearsal, competition, audition, workshop, performance, or deadline)." };
-  }
+  // The event TYPE is the source of truth (Slice 2): it derives the kind and
+  // whether the target is the whole studio. Fall back to the raw kind only for a
+  // legacy caller that never sends a type.
+  const eventType = input.event_type ?? eventTypeFromKind(input.kind ?? null);
+  const def = EVENT_TYPE_BY_SLUG[eventType];
+  if (!def) return { error: "Choose what you're scheduling." };
+  const kind = def.kind;
+
+  // Whole studio for the studio-wide types; for Parent Meeting (a choice) honour
+  // the studio's pick; targeted (enrollments) for everything else.
+  const studioWide =
+    def.target === "studio_wide"
+      ? true
+      : def.target === "choice"
+        ? Boolean(input.studio_wide)
+        : false;
 
   const startTime = clean(input.start_time);
   if (!startTime || !TIME_RE.test(startTime)) {
@@ -115,6 +139,8 @@ export function buildClassFields(
   const common = {
     title,
     kind,
+    event_type: eventType,
+    studio_wide: studioWide,
     default_start: startTime,
     default_end: endTime,
     teacher_profile_id: teacher,

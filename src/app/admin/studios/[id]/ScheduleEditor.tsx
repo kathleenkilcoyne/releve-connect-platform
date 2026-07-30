@@ -1,47 +1,41 @@
 "use client";
 
-// Admin — the schedule editor for one studio/team (Brick B2). Concierge tool:
-// Kathleen enters a comp/college team's rehearsals, competitions, auditions,
-// workshops, performances and deadlines here. Each entry is a row in the
-// EXISTING studio_classes table; the existing recurrence expander + This Week
-// read path turn it into the calendar the team's families and teachers see.
+// Smart Calendar — the studio's "What are you scheduling?" create flow (Slice 2),
+// reused by the admin assist view and the studio self-serve area.
 //
-// Every write hits the gated /classes route; on success we refresh the server
-// component so the list reflects the change (and the roster re-reconciles).
+// Adding an entry opens with the TYPE MENU. The chosen type sets the family-facing
+// label (the default title) AND drives the target-picker:
+//   · dancers      → a searchable multi-select from the roster (class / team /
+//                    duet / trio / private / competition / audition / performance)
+//   · studio_wide  → no picker; the whole studio (Full Studio Event)
+//   · choice       → whole studio OR a picked group (Parent Meeting)
+//
+// Storage never changes: one studio_class with an event_type; targeting is the
+// enrollments of the picked dancers (+ studio_wide for whole-studio). Writes hit
+// the gated endpoint; on success we refresh so the list reflects the change.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  COMP_COLLEGE_KINDS,
-  KIND_LABELS,
   WEEKDAY_TOKENS,
   WEEKDAY_LABELS,
   summarizeSchedule,
-  type CompCollegeKind,
   type WeekdayToken,
 } from "@/lib/studio/schedule";
+import { EVENT_TYPES, EVENT_TYPE_BY_SLUG, familyLabelFor } from "@/lib/studio/event-types";
+import type { ScheduleRow, TeacherOption, RosterEntry } from "@/lib/studio/schedule-data";
 
-export type ScheduleRow = {
-  class_id: string;
-  title: string;
-  kind: string;
-  recurrence: string | null;
-  default_start: string | null;
-  default_end: string | null;
-  series_start: string | null;
-  series_end: string | null;
-  room: string | null;
-  location: string | null;
-  teacher_profile_id: string | null;
-  teacher_name: string | null;
-};
-
-export type TeacherOption = { profile_id: string; display_name: string };
+export type { ScheduleRow, TeacherOption } from "@/lib/studio/schedule-data";
 
 type Mode = "recurring" | "oneoff";
+type Phase = "type" | "form";
+
 type FormState = {
+  eventType: string;
   title: string;
-  kind: CompCollegeKind;
+  titleTouched: boolean;
+  wholeStudio: boolean; // only meaningful for the "choice" type (Parent Meeting)
+  selected: Set<string>; // targeted student_ids
   mode: Mode;
   weekdays: Set<WeekdayToken>;
   everyOther: boolean;
@@ -56,8 +50,11 @@ type FormState = {
 };
 
 const EMPTY: FormState = {
+  eventType: "",
   title: "",
-  kind: "rehearsal",
+  titleTouched: false,
+  wholeStudio: true,
+  selected: new Set(),
   mode: "recurring",
   weekdays: new Set(),
   everyOther: false,
@@ -71,7 +68,6 @@ const EMPTY: FormState = {
   location: "",
 };
 
-/** "16:00:00" → "16:00" for an <input type=time>. */
 function hhmm(t: string | null): string {
   if (!t) return "";
   const m = /^(\d{2}:\d{2})/.exec(t);
@@ -88,14 +84,14 @@ function byDayTokens(recurrence: string | null): WeekdayToken[] {
     .filter((t): t is WeekdayToken => (WEEKDAY_TOKENS as readonly string[]).includes(t));
 }
 
-/** Pre-fill the form from an existing entry (for editing). */
 function fromRow(row: ScheduleRow): FormState {
   const recurring = Boolean(row.recurrence);
   return {
+    eventType: row.event_type ?? "company_rehearsal",
     title: row.title,
-    kind: (COMP_COLLEGE_KINDS as readonly string[]).includes(row.kind)
-      ? (row.kind as CompCollegeKind)
-      : "rehearsal",
+    titleTouched: true,
+    wholeStudio: row.studio_wide,
+    selected: new Set(row.target_student_ids),
     mode: recurring ? "recurring" : "oneoff",
     weekdays: new Set(byDayTokens(row.recurrence)),
     everyOther: /INTERVAL=2/i.test(row.recurrence ?? ""),
@@ -119,30 +115,46 @@ export default function ScheduleEditor({
   teachers,
   roster,
 }: {
-  /** The classes collection endpoint, e.g. "/api/studio/schedule/classes" (studio
-   *  self-serve) or "/api/admin/studios/<id>/classes" (admin assist). POST here
-   *  to create; PATCH/DELETE "<endpointBase>/<classId>" to edit/remove. */
   endpointBase: string;
   classes: ScheduleRow[];
   teachers: TeacherOption[];
-  roster: { students: number; classes: number };
+  roster: RosterEntry[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [phase, setPhase] = useState<Phase>("type");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const nameById = new Map(roster.map((r) => [r.student_id, r.display_name]));
+  const def = form.eventType ? EVENT_TYPE_BY_SLUG[form.eventType] : undefined;
+
   function startAdd() {
-    setForm(EMPTY);
+    setForm({ ...EMPTY, selected: new Set() });
     setEditingId(null);
+    setPhase("type");
+    setSearch("");
     setNotice(null);
     setOpen(true);
+  }
+  function pickType(slug: string) {
+    const d = EVENT_TYPE_BY_SLUG[slug];
+    setForm((f) => ({
+      ...f,
+      eventType: slug,
+      title: f.titleTouched && f.title ? f.title : familyLabelFor(slug, 0),
+      wholeStudio: d?.target === "studio_wide" ? true : d?.target === "choice" ? true : false,
+    }));
+    setPhase("form");
   }
   function startEdit(row: ScheduleRow) {
     setForm(fromRow(row));
     setEditingId(row.class_id);
+    setPhase("form");
+    setSearch("");
     setNotice(null);
     setOpen(true);
   }
@@ -161,14 +173,40 @@ export default function ScheduleEditor({
     });
   }
 
+  function toggleStudent(id: string) {
+    setForm((f) => {
+      const next = new Set(f.selected);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      // Keep the default title in step with the count for a duet/trio.
+      const title =
+        f.titleTouched || f.eventType !== "duet_trio"
+          ? f.title
+          : familyLabelFor("duet_trio", next.size);
+      return { ...f, selected: next, title };
+    });
+  }
+
+  /** Whether the current type targets specific dancers (needs a selection). */
+  const targetsDancers =
+    def?.target === "dancers" || (def?.target === "choice" && !form.wholeStudio);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (targetsDancers && form.selected.size === 0) {
+      setNotice({ ok: false, text: "Pick at least one dancer for this event." });
+      return;
+    }
     setBusy(true);
     setNotice(null);
 
+    const studioWide = def?.target === "studio_wide" ? true : def?.target === "choice" ? form.wholeStudio : false;
+
     const body = {
       title: form.title,
-      kind: form.kind,
+      event_type: form.eventType,
+      studio_wide: studioWide,
+      student_ids: studioWide ? [] : [...form.selected],
       mode: form.mode,
       weekdays: [...form.weekdays],
       every_other: form.everyOther,
@@ -207,13 +245,11 @@ export default function ScheduleEditor({
   }
 
   async function remove(row: ScheduleRow) {
-    if (!window.confirm(`Remove "${row.title}"? It will disappear from This Week for this team.`)) return;
+    if (!window.confirm(`Remove "${row.title}"? It will disappear from This Week for the families it was assigned to.`)) return;
     setBusy(true);
     setNotice(null);
     try {
-      const res = await fetch(`${endpointBase}/${row.class_id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`${endpointBase}/${row.class_id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setNotice({ ok: false, text: data.error ?? "Could not remove the entry." });
       else {
@@ -227,14 +263,25 @@ export default function ScheduleEditor({
     }
   }
 
+  /** Who an entry is for, in words. */
+  function audienceOf(row: ScheduleRow): string {
+    if (row.studio_wide) return "Whole studio";
+    const names = row.target_student_ids.map((id) => nameById.get(id) ?? "…").filter(Boolean);
+    if (names.length === 0) return "No dancers assigned";
+    if (names.length <= 3) return names.join(", ");
+    return `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
+  }
+
+  const filteredRoster = roster.filter((r) =>
+    r.display_name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
   return (
     <div>
       <p className="mt-1 text-sm text-neutral-600">
-        Enter this team&apos;s rehearsals, competitions, auditions, workshops, performances and
-        deadlines. Everyone enrolled at this studio ({roster.students}{" "}
-        {roster.students === 1 ? "dancer" : "dancers"}) is automatically on these team entries, so
-        they show up in each family&apos;s <span className="italic">This Week</span>. Comp/college
-        teams only — not weekly rec classes.
+        Enter each event once and pick who it&apos;s for — Relevé delivers it to exactly those
+        families&apos; <span className="italic">This Week</span>. Comp/college events only, not
+        weekly rec classes.
       </p>
 
       {/* Existing entries */}
@@ -248,18 +295,19 @@ export default function ScheduleEditor({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
-                      {KIND_LABELS[row.kind as CompCollegeKind] ?? row.kind}
+                      {EVENT_TYPE_BY_SLUG[row.event_type ?? ""]?.studioLabel ?? row.kind}
                     </span>
                     <span className="font-medium text-neutral-900">{row.title}</span>
                   </div>
                   <p className="mt-1 text-sm text-neutral-600">{summarizeSchedule(row)}</p>
-                  {(row.room || row.location || row.teacher_name) && (
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {[row.location, row.room, row.teacher_name ? `with ${row.teacher_name}` : null]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-xs text-neutral-500">
+                    <span className="font-medium">For:</span> {audienceOf(row)}
+                    {(row.location || row.room || row.teacher_name) &&
+                      " · " +
+                        [row.location, row.room, row.teacher_name ? `with ${row.teacher_name}` : null]
+                          .filter(Boolean)
+                          .join(" · ")}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -292,57 +340,154 @@ export default function ScheduleEditor({
         </button>
       )}
 
-      {open && (
-        <form onSubmit={submit} className="mt-4 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="mb-1 block text-xs font-medium text-neutral-600">Title</span>
-              <input
-                className={inputCls}
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="e.g. Senior Team Rehearsal, Regionals — Showstopper"
-                required
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-neutral-600">Kind</span>
-              <select
-                className={inputCls}
-                value={form.kind}
-                onChange={(e) => setForm({ ...form, kind: e.target.value as CompCollegeKind })}
+      {/* Step 1 — "What are you scheduling?" */}
+      {open && phase === "type" && (
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+          <h3 className="text-base font-semibold text-neutral-900">What are you scheduling?</h3>
+          <p className="mt-1 text-sm text-neutral-600">
+            Pick a type. We&apos;ll ask who it&apos;s for and put the right label on each
+            family&apos;s week.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {EVENT_TYPES.map((t) => (
+              <button
+                key={t.slug}
+                onClick={() => pickType(t.slug)}
+                className="rounded-xl border border-neutral-300 bg-white px-4 py-3 text-left hover:border-neutral-900"
               >
-                {COMP_COLLEGE_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {KIND_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <span className="block text-sm font-medium text-neutral-900">{t.studioLabel}</span>
+                <span className="mt-0.5 block text-xs text-neutral-500">{t.hint}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={cancel} className="mt-4 text-sm text-neutral-500 underline">
+            Cancel
+          </button>
+        </div>
+      )}
 
-            <div className="block">
-              <span className="mb-1 block text-xs font-medium text-neutral-600">Repeats</span>
-              <div className="flex gap-4 pt-2 text-sm">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={form.mode === "recurring"}
-                    onChange={() => setForm({ ...form, mode: "recurring" })}
-                  />
-                  Weekly
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="mode"
-                    checked={form.mode === "oneoff"}
-                    onChange={() => setForm({ ...form, mode: "oneoff" })}
-                  />
-                  One-off date
-                </label>
-              </div>
+      {/* Step 2 — the form for the chosen type */}
+      {open && phase === "form" && def && (
+        <form onSubmit={submit} className="mt-4 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+          <div className="flex items-center justify-between">
+            <span className="rounded-full bg-neutral-900 px-2.5 py-0.5 text-xs font-medium text-white">
+              {def.studioLabel}
+            </span>
+            {!editingId && (
+              <button
+                type="button"
+                onClick={() => setPhase("type")}
+                className="text-xs text-neutral-500 underline"
+              >
+                ← Change type
+              </button>
+            )}
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">
+              What families will see (title)
+            </span>
+            <input
+              className={inputCls}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
+              placeholder={def.familyLabel}
+              required
+            />
+          </label>
+
+          {/* ── Who is it for? (type-driven) ── */}
+          {def.target === "studio_wide" ? (
+            <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
+              <span className="font-medium text-neutral-900">Everyone at your studio</span> ({roster.length}{" "}
+              {roster.length === 1 ? "dancer" : "dancers"}) will see this. No need to pick dancers.
+            </div>
+          ) : (
+            <div>
+              {def.target === "choice" && (
+                <div className="mb-3 flex flex-wrap gap-4 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={form.wholeStudio}
+                      onChange={() => setForm({ ...form, wholeStudio: true })}
+                    />
+                    Whole studio
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={!form.wholeStudio}
+                      onChange={() => setForm({ ...form, wholeStudio: false })}
+                    />
+                    Just these families
+                  </label>
+                </div>
+              )}
+
+              {targetsDancers && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-neutral-600">
+                      Who is it for?
+                      {def.minDancers != null && (
+                        <span className="ml-1 text-neutral-400">
+                          ({def.minDancers === def.maxDancers ? `pick ${def.minDancers}` : `pick ${def.minDancers}–${def.maxDancers}`})
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs text-neutral-500">{form.selected.size} selected</span>
+                  </div>
+                  {roster.length === 0 ? (
+                    <p className="mt-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-500">
+                      No dancers on your roster yet — share your family join code first.
+                    </p>
+                  ) : (
+                    <>
+                      <input
+                        className={`${inputCls} mt-2`}
+                        placeholder="Search dancers…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                      <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-neutral-200 bg-white">
+                        {filteredRoster.map((r) => (
+                          <label
+                            key={r.student_id}
+                            className="flex cursor-pointer items-center gap-2 border-b border-neutral-100 px-3 py-2 text-sm last:border-b-0 hover:bg-neutral-50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={form.selected.has(r.student_id)}
+                              onChange={() => toggleStudent(r.student_id)}
+                            />
+                            <span className="text-neutral-800">{r.display_name}</span>
+                          </label>
+                        ))}
+                        {filteredRoster.length === 0 && (
+                          <p className="px-3 py-2 text-sm text-neutral-400">No match.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── When? ── */}
+          <div className="border-t border-neutral-200 pt-4">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Repeats</span>
+            <div className="flex gap-4 text-sm">
+              <label className="inline-flex items-center gap-2">
+                <input type="radio" checked={form.mode === "recurring"} onChange={() => setForm({ ...form, mode: "recurring" })} />
+                Weekly
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input type="radio" checked={form.mode === "oneoff"} onChange={() => setForm({ ...form, mode: "oneoff" })} />
+                One-off date
+              </label>
             </div>
           </div>
 
@@ -365,78 +510,42 @@ export default function ScheduleEditor({
                 </div>
               </div>
               <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
-                <input
-                  type="checkbox"
-                  checked={form.everyOther}
-                  onChange={(e) => setForm({ ...form, everyOther: e.target.checked })}
-                />
+                <input type="checkbox" checked={form.everyOther} onChange={(e) => setForm({ ...form, everyOther: e.target.checked })} />
                 Every other week
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-neutral-600">Starts on</span>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={form.seriesStart}
-                    onChange={(e) => setForm({ ...form, seriesStart: e.target.value })}
-                    required
-                  />
+                  <input type="date" className={inputCls} value={form.seriesStart} onChange={(e) => setForm({ ...form, seriesStart: e.target.value })} required />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-neutral-600">Ends on (optional)</span>
-                  <input
-                    type="date"
-                    className={inputCls}
-                    value={form.seriesEnd}
-                    onChange={(e) => setForm({ ...form, seriesEnd: e.target.value })}
-                  />
+                  <input type="date" className={inputCls} value={form.seriesEnd} onChange={(e) => setForm({ ...form, seriesEnd: e.target.value })} />
                 </label>
               </div>
             </div>
           ) : (
             <label className="block sm:w-1/2">
               <span className="mb-1 block text-xs font-medium text-neutral-600">Date</span>
-              <input
-                type="date"
-                className={inputCls}
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-                required
-              />
+              <input type="date" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
             </label>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-neutral-600">Start time</span>
-              <input
-                type="time"
-                className={inputCls}
-                value={form.startTime}
-                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                required
-              />
+              <input type="time" className={inputCls} value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} required />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-neutral-600">End time (optional)</span>
-              <input
-                type="time"
-                className={inputCls}
-                value={form.endTime}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-              />
+              <input type="time" className={inputCls} value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
             </label>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-neutral-600">Teacher (optional)</span>
-              <select
-                className={inputCls}
-                value={form.teacher}
-                onChange={(e) => setForm({ ...form, teacher: e.target.value })}
-              >
+              <select className={inputCls} value={form.teacher} onChange={(e) => setForm({ ...form, teacher: e.target.value })}>
                 <option value="">— none —</option>
                 {teachers.map((t) => (
                   <option key={t.profile_id} value={t.profile_id}>
@@ -447,30 +556,16 @@ export default function ScheduleEditor({
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-neutral-600">Room (optional)</span>
-              <input
-                className={inputCls}
-                value={form.room}
-                onChange={(e) => setForm({ ...form, room: e.target.value })}
-                placeholder="Studio A"
-              />
+              <input className={inputCls} value={form.room} onChange={(e) => setForm({ ...form, room: e.target.value })} placeholder="Studio A" />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-neutral-600">Location (optional)</span>
-              <input
-                className={inputCls}
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="Address or venue"
-              />
+              <input className={inputCls} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Address or venue" />
             </label>
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
-            >
+            <button type="submit" disabled={busy} className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40">
               {busy ? "Saving…" : editingId ? "Save changes" : "Add entry"}
             </button>
             <button type="button" onClick={cancel} className="text-sm text-neutral-500 underline">
