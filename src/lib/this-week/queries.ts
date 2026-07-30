@@ -30,7 +30,16 @@ interface ClassRow extends ClassTemplate {
   location: string | null;
   room: string | null;
   teacher_profile_id: string | null;
-  kind: "class" | "rehearsal" | "performance";
+  // The rec-class "class" stays for back-compat; the comp/college wedge (Brick
+  // B2) adds competition/audition/workshop/deadline alongside rehearsal/performance.
+  kind:
+    | "class"
+    | "rehearsal"
+    | "performance"
+    | "competition"
+    | "audition"
+    | "workshop"
+    | "deadline";
   status: string;
   employer_profiles: { name: string } | null;
 }

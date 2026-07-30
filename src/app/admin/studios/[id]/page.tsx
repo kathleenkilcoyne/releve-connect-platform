@@ -14,6 +14,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
 import ReviewActions from "./ReviewActions";
 import FamilyJoinCode, { type FamilyCode } from "./FamilyJoinCode";
+import ScheduleEditor, { type ScheduleRow, type TeacherOption } from "./ScheduleEditor";
+import { reconcileTeamEnrollments } from "@/lib/studio/team-enrollments";
 
 export const dynamic = "force-dynamic";
 
@@ -179,6 +181,52 @@ export default async function StudioReviewPage({
     .order("created_at", { ascending: false });
   const familyCodes = (familyCodeRows ?? []) as FamilyCode[];
 
+  // ── Schedule (Brick B2) ────────────────────────────────────────────────────
+  // First reconcile the team roster (idempotent): every dancer affiliated to
+  // this studio gets enrolled in its active entries, so a family that joined
+  // AFTER the schedule was built is picked up now, on this admin page view.
+  const roster = await reconcileTeamEnrollments(db, id);
+
+  const { data: classData } = await db
+    .from("studio_classes")
+    .select(
+      "class_id, title, kind, recurrence, default_start, default_end, series_start, series_end, room, location, teacher_profile_id",
+    )
+    .eq("employer_id", id)
+    .order("created_at", { ascending: true });
+  const scheduleRows = (classData ?? []) as Omit<ScheduleRow, "teacher_name">[];
+
+  // Teacher options + names: talent affiliated to this studio as teacher/staff,
+  // plus anyone already assigned to an entry (so an edit dropdown shows them).
+  const { data: teacherAff } = await db
+    .from("affiliations")
+    .select("subject_id")
+    .eq("employer_id", id)
+    .eq("subject_kind", "talent")
+    .in("role", ["teacher", "staff"])
+    .eq("status", "active");
+  const teacherIds = new Set<string>([
+    ...((teacherAff ?? []) as { subject_id: string }[]).map((r) => r.subject_id),
+    ...(scheduleRows.map((r) => r.teacher_profile_id).filter(Boolean) as string[]),
+  ]);
+  const teacherNameById = new Map<string, string>();
+  if (teacherIds.size) {
+    const { data: tp } = await db
+      .from("talent_profiles")
+      .select("profile_id, display_name")
+      .in("profile_id", [...teacherIds]);
+    for (const t of (tp ?? []) as { profile_id: string; display_name: string | null }[]) {
+      teacherNameById.set(t.profile_id, t.display_name ?? "Teacher");
+    }
+  }
+  const scheduleEntries: ScheduleRow[] = scheduleRows.map((r) => ({
+    ...r,
+    teacher_name: r.teacher_profile_id ? teacherNameById.get(r.teacher_profile_id) ?? null : null,
+  }));
+  const teacherOptions: TeacherOption[] = [...teacherNameById.entries()].map(
+    ([profile_id, display_name]) => ({ profile_id, display_name }),
+  );
+
   const address = [p.address_line1, p.address_line2, [p.city, p.state_province, p.postal_code].filter(Boolean).join(", "), p.country]
     .filter((line) => line && String(line).trim())
     .join("\n");
@@ -278,6 +326,17 @@ export default async function StudioReviewPage({
       <div className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Family join code</h2>
         <FamilyJoinCode employerId={p.employer_id} codes={familyCodes} />
+      </div>
+
+      {/* ── Schedule (Brick B2 · concierge) ── */}
+      <div className="mt-10 border-t border-neutral-200 pt-6">
+        <h2 className="text-lg font-semibold text-neutral-900">Schedule</h2>
+        <ScheduleEditor
+          employerId={p.employer_id}
+          classes={scheduleEntries}
+          teachers={teacherOptions}
+          roster={{ students: roster.students, classes: roster.classes }}
+        />
       </div>
 
       <Link href="/admin/studios" className="mt-10 inline-block text-sm text-neutral-500 underline">

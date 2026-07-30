@@ -27,16 +27,36 @@ import { formatTime, weekdayKeyOf } from "./week";
 export type ViewerRelation = "teacher" | "student";
 
 /**
- * The card's category. Intrinsic kinds (rehearsal, performance) win because
- * they are true for everyone; only a plain class is viewer-relative.
+ * The card's category. Intrinsic kinds (rehearsal, competition, audition,
+ * performance, deadline) are true for everyone and win; only a plain class or a
+ * workshop is viewer-relative (you teach it or you take it). New comp/college
+ * kinds map onto the EXISTING EventCategory palette so the calendar renders them
+ * with no UI change — the class title carries the specific name.
  */
 function categoryFor(
   kind: SessionWithClass["klass"]["kind"],
   relation: ViewerRelation,
 ): EventCategory {
-  if (kind === "performance") return "performance";
-  if (kind === "rehearsal") return "rehearsing";
-  return relation === "teacher" ? "teaching" : "taking";
+  switch (kind) {
+    case "performance":
+    case "competition": // a competition renders as a performance-style card
+      return "performance";
+    case "rehearsal":
+      return "rehearsing";
+    case "audition":
+      return "auditioning";
+    case "deadline":
+      return "deadline";
+    case "workshop":
+    case "class":
+    default:
+      return relation === "teacher" ? "teaching" : "taking";
+  }
+}
+
+/** Kinds that are a MOMENT, not a span — they never render an end time. */
+function isMomentKind(kind: SessionWithClass["klass"]["kind"]): boolean {
+  return kind === "class" || kind === "deadline";
 }
 
 /**
@@ -97,9 +117,9 @@ export function toCalendarEvent(
     title: klass.title,
     time: {
       start: formatTime(timeZone, startsAt),
-      // Only range-style cards show an end time; a class shows its start, which
-      // matches the mockup (the Swing availability band is the range case).
-      ...(endsAt && klass.kind !== "class" ? { end: formatTime(timeZone, endsAt) } : {}),
+      // Only range-style cards show an end time; a moment (a rec class, or a
+      // deadline) shows its start only, matching the mockup.
+      ...(endsAt && !isMomentKind(klass.kind) ? { end: formatTime(timeZone, endsAt) } : {}),
     },
     detail: detailFor(item, relation),
     ...(pay ? { pay } : {}),
