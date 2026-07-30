@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { mergeWeek, toCalendarEvents, toCommunications } from "./adapters";
+import { familyAccessFrom } from "./entitlement";
 import { buildPayMap } from "./pay";
 import {
   fetchCommunicationRows,
@@ -66,22 +67,17 @@ export interface LiveWeekPayload {
 
 /* ─────────────────────────────  Entitlement  ─────────────────────────────── */
 
-const ENTITLED: SubscriptionStatus[] = ["active", "trialing"];
-
 /**
- * The real entitlement check. Mirrors `hasFamilyAccess()` exactly so the rule
- * lives in one shape: access while active or trialing.
- *
- * A null status means the row was unreadable — which happens when a guardian
- * lacks the 'billing' permission. That is NOT a denial: a parent who can see the
- * calendar but not the invoice should still see the calendar. It resolves to
- * "none" for messaging purposes while access is granted on the calendar
- * permission they do hold.
+ * The real entitlement check. Delegates to the ONE shared rule (entitlement.ts)
+ * so it can never drift from the demo path's `hasFamilyAccess()`: active is
+ * always entitled; a free-pilot trial is entitled only until `trial_ends_at`
+ * passes; a null status (guardian without 'billing') still sees the calendar.
  */
-export function resolveFamilyAccess(status: string | null): AccessResult {
-  if (status === null) return { allowed: true, reason: "none" };
-  const reason = status as SubscriptionStatus;
-  return { allowed: ENTITLED.includes(reason), reason };
+export function resolveFamilyAccess(
+  status: string | null,
+  trialEndsAt: string | null = null,
+): AccessResult {
+  return familyAccessFrom(status, trialEndsAt);
 }
 
 /* ────────────────────────────  The live build  ───────────────────────────── */
@@ -207,7 +203,8 @@ export async function buildLiveWeek(
       id: child.family_id,
       displayName: "Your family",
       email: "",
-      subscriptionStatus: (subscription as SubscriptionStatus) ?? "none",
+      subscriptionStatus: (subscription.status as SubscriptionStatus | null) ?? "none",
+      trialEndsAt: subscription.trialEndsAt,
       managedStudentIds: guarded.map((g) => g.student_id),
     };
 
@@ -219,7 +216,7 @@ export async function buildLiveWeek(
         rollups: [], // students have no role dashboards
       },
       communications: toCommunications(commRows, DEFAULT_TIMEZONE, studioName, userId),
-      access: resolveFamilyAccess(subscription),
+      access: resolveFamilyAccess(subscription.status, subscription.trialEndsAt),
     });
   }
 

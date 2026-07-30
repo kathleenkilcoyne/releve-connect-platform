@@ -140,6 +140,9 @@ export interface GuardianAccount {
   email: string;
   /** REVENUE ON-RAMP: entitlement lives on the paying guardian account. */
   subscriptionStatus: SubscriptionStatus;
+  /** Free-pilot trial end (ISO). A trialing family is entitled only until this
+   *  passes; null = open-ended. Omitted in demo data (the sample is active). */
+  trialEndsAt?: string | null;
   /** The children this guardian owns/manages. */
   managedStudentIds: string[];
 }

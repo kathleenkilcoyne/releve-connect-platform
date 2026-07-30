@@ -18,6 +18,7 @@
 // a fully-populated week looks like, including the fields (attachments, pay)
 // that do not have database columns yet.
 
+import { familyAccessFrom } from "./entitlement";
 import type {
   Communication,
   AccessResult,
@@ -295,13 +296,10 @@ export function getCommunications(viewer: Viewer): Communication[] {
 }
 
 /**
- * The SINGLE family-subscription access check. Turning on billing later is a
- * change to this function's body only — every caller already asks it "may this
- * family see this?" Access is granted while trialing or active.
+ * The SINGLE family-subscription access check (demo path). Delegates to the one
+ * shared rule so the sample week and the live week can never disagree: active is
+ * always entitled; trialing is entitled only while the trial has not lapsed.
  */
 export function hasFamilyAccess(account: GuardianAccount): AccessResult {
-  const allowed =
-    account.subscriptionStatus === "active" ||
-    account.subscriptionStatus === "trialing";
-  return { allowed, reason: account.subscriptionStatus };
+  return familyAccessFrom(account.subscriptionStatus, account.trialEndsAt ?? null);
 }

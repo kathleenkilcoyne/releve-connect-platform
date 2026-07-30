@@ -490,25 +490,38 @@ export async function fetchCommunicationRows(
 
 /* ───────────────────────────  Family entitlement  ────────────────────────── */
 
+/** A family's entitlement inputs: the status plus the trial's end (for the free
+ *  pilot). Both null when nothing is readable (guardian without 'billing'). */
+export interface FamilySubscription {
+  status: string | null;
+  trialEndsAt: string | null;
+}
+
 /**
  * The family account's subscription state — the REVENUE seam's real source.
  * Guarded by `is_family_billing_member`, so a guardian without 'billing' gets
  * no row; that is treated as "no entitlement information", not "no access",
- * and the caller decides. Returns null when there is nothing readable.
+ * and the caller decides. Returns nulls when there is nothing readable.
+ *
+ * `trial_ends_at` rides along so the entitlement rule can expire a lapsed trial
+ * (lib/this-week/entitlement.ts) — free through the pilot, paywall in January.
  */
 export async function fetchFamilySubscription(
   supabase: Client,
   familyId: string,
-): Promise<string | null> {
+): Promise<FamilySubscription> {
   const { data, error } = await supabase
     .from("family_accounts")
-    .select("subscription_status")
+    .select("subscription_status, trial_ends_at")
     .eq("family_id", familyId)
     .maybeSingle();
 
   if (error) {
     console.error("[this-week] family account read failed:", error.message);
-    return null;
+    return { status: null, trialEndsAt: null };
   }
-  return (data?.subscription_status as string | undefined) ?? null;
+  return {
+    status: (data?.subscription_status as string | undefined) ?? null,
+    trialEndsAt: (data?.trial_ends_at as string | undefined) ?? null,
+  };
 }

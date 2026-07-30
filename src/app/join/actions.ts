@@ -117,9 +117,19 @@ export async function joinThroughStudio(
 
   let familyId = (existingFamily as { family_id?: string } | null)?.family_id;
   if (!familyId) {
+    // FREE PILOT: a joining family is on a real free trial through the pilot, so
+    // they can actually SEE This Week (the calendar is gated to active/trialing —
+    // a 'none' family would land on a blank paywall). The trial ends 2026-12-31,
+    // when the entitlement rule (lib/this-week/entitlement.ts) lets the paywall
+    // turn on by itself for January's paid plans. The subscription architecture
+    // is untouched — this just seeds the trial instead of 'none'.
     const { data: fam, error: famErr } = await admin
       .from("family_accounts")
-      .insert({ owner_user_id: user.id, subscription_status: "none" })
+      .insert({
+        owner_user_id: user.id,
+        subscription_status: "trialing",
+        trial_ends_at: "2026-12-31T23:59:59Z",
+      })
       .select("family_id")
       .single();
     if (famErr) {
