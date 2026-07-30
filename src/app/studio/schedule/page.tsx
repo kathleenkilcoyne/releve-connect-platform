@@ -17,10 +17,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
 import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
 import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
+import StudioRoster from "./StudioRoster";
 
 export const dynamic = "force-dynamic";
-
-const STUDENT_BAND = "text-xs text-neutral-500";
 
 /** A form-less notice (used when the signed-in user administers no studio). */
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -67,7 +66,10 @@ export default async function StudioSchedulePage() {
     .maybeSingle();
   const studioName = (prof as { name: string | null } | null)?.name?.trim() || "Your studio";
 
-  const { scheduleEntries, teacherOptions, roster } = await loadStudioScheduleData(db, employerId);
+  const { scheduleEntries, teacherOptions, roster, groups } = await loadStudioScheduleData(
+    db,
+    employerId,
+  );
 
   // The "Your dancers" list adds the studio-safe age bracket (never DOB); the
   // schedule picker uses the name-only roster.
@@ -103,8 +105,8 @@ export default async function StudioSchedulePage() {
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{studioName}</h1>
       <p className="mt-3 text-neutral-600">
-        Enter each event once and it appears in the right families&apos; <span className="italic">This
-        Week</span> automatically. Change it once and every affected family sees the change.
+        Build your studio&apos;s week in one place, and Relevé shares each schedule item with the
+        families who need it.
       </p>
 
       <nav aria-label="Studio" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-neutral-200 py-3 text-sm">
@@ -116,38 +118,23 @@ export default async function StudioSchedulePage() {
         </Link>
       </nav>
 
-      {/* ── Roster ── */}
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-neutral-900">Your dancers</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Everyone who joined with your family code ({rosterStudents.length}{" "}
-          {rosterStudents.length === 1 ? "dancer" : "dancers"}).
-        </p>
-        {rosterStudents.length === 0 ? (
-          <p className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
-            No dancers yet. Share your family join code (on your admin studio page) with your
-            competition families — each one who joins shows up here.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y divide-neutral-100 rounded-xl border border-neutral-200">
-            {rosterStudents.map((s) => (
-              <li key={s.student_id} className="flex items-center justify-between px-4 py-2.5">
-                <span className="font-medium text-neutral-900">{s.display_name}</span>
-                {s.age_range && <span className={STUDENT_BAND}>Age {s.age_range}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* ── Studio roster (groups + individual dancers) ── */}
+      <StudioRoster groups={groups} roster={rosterStudents} />
 
       {/* ── Schedule ── */}
       <section className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Schedule</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Add rehearsals, private lessons, competitions, meetings, and other important dates. Choose
+          the dancers or groups involved, and the event appears in each family&apos;s{" "}
+          <span className="italic">This Week</span>.
+        </p>
         <ScheduleEditor
           endpointBase="/api/studio/schedule/classes"
           classes={scheduleEntries}
           teachers={teacherOptions}
           roster={roster}
+          groups={groups}
         />
       </section>
 

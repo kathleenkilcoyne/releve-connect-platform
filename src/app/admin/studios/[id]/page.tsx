@@ -188,6 +188,7 @@ export default async function StudioReviewPage({
     scheduleEntries,
     teacherOptions,
     roster: scheduleRoster,
+    groups: scheduleGroups,
   } = await loadStudioScheduleData(db, id);
 
   const address = [p.address_line1, p.address_line2, [p.city, p.state_province, p.postal_code].filter(Boolean).join(", "), p.country]
@@ -299,6 +300,7 @@ export default async function StudioReviewPage({
           classes={scheduleEntries}
           teachers={teacherOptions}
           roster={scheduleRoster}
+          groups={scheduleGroups}
         />
       </div>
 

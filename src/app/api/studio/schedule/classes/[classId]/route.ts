@@ -13,7 +13,7 @@ import { NextResponse } from "next/server";
 import { requireStudioAccess } from "@/lib/studio/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { setEventTargets } from "@/lib/studio/team-enrollments";
+import { setEventTargeting } from "@/lib/studio/groups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,18 +63,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ classId: stri
     .eq("class_id", classId);
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  // Re-target: set the audience to exactly the new selection (add/remove reach
-  // only the affected families; everyone else is untouched).
-  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
-  const t = await setEventTargets(db, employerId, classId, targets);
-  if (t.error) console.error("[studio classes] targeting failed:", t.error);
-
-  return NextResponse.json({
-    ok: true,
-    class_id: classId,
+  // Re-target: groups + individually-added dancers (or whole studio). Enrollments
+  // recompute — add/remove reach only affected families; everyone else untouched.
+  await setEventTargeting(db, employerId, classId, {
     studio_wide: built.fields.studio_wide,
-    enrolled: t.enrolled,
+    group_ids: body.group_ids ?? [],
+    student_ids: body.student_ids ?? [],
   });
+
+  return NextResponse.json({ ok: true, class_id: classId, studio_wide: built.fields.studio_wide });
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ classId: string }> }) {

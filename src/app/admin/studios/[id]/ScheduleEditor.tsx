@@ -23,7 +23,7 @@ import {
   type WeekdayToken,
 } from "@/lib/studio/schedule";
 import { EVENT_TYPES, EVENT_TYPE_BY_SLUG, familyLabelFor } from "@/lib/studio/event-types";
-import type { ScheduleRow, TeacherOption, RosterEntry } from "@/lib/studio/schedule-data";
+import type { ScheduleRow, TeacherOption, RosterEntry, GroupEntry } from "@/lib/studio/schedule-data";
 
 export type { ScheduleRow, TeacherOption } from "@/lib/studio/schedule-data";
 
@@ -35,7 +35,8 @@ type FormState = {
   title: string;
   titleTouched: boolean;
   wholeStudio: boolean; // only meaningful for the "choice" type (Parent Meeting)
-  selected: Set<string>; // targeted student_ids
+  selectedGroups: Set<string>; // targeted group_ids
+  selected: Set<string>; // individually-added student_ids
   mode: Mode;
   weekdays: Set<WeekdayToken>;
   everyOther: boolean;
@@ -54,6 +55,7 @@ const EMPTY: FormState = {
   title: "",
   titleTouched: false,
   wholeStudio: true,
+  selectedGroups: new Set(),
   selected: new Set(),
   mode: "recurring",
   weekdays: new Set(),
@@ -91,7 +93,8 @@ function fromRow(row: ScheduleRow): FormState {
     title: row.title,
     titleTouched: true,
     wholeStudio: row.studio_wide,
-    selected: new Set(row.target_student_ids),
+    selectedGroups: new Set(row.target_group_ids),
+    selected: new Set(row.target_dancer_ids),
     mode: recurring ? "recurring" : "oneoff",
     weekdays: new Set(byDayTokens(row.recurrence)),
     everyOther: /INTERVAL=2/i.test(row.recurrence ?? ""),
@@ -114,11 +117,13 @@ export default function ScheduleEditor({
   classes,
   teachers,
   roster,
+  groups,
 }: {
   endpointBase: string;
   classes: ScheduleRow[];
   teachers: TeacherOption[];
   roster: RosterEntry[];
+  groups: GroupEntry[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -130,10 +135,12 @@ export default function ScheduleEditor({
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   const nameById = new Map(roster.map((r) => [r.student_id, r.display_name]));
+  const groupById = new Map(groups.map((g) => [g.group_id, g]));
   const def = form.eventType ? EVENT_TYPE_BY_SLUG[form.eventType] : undefined;
+  const groupsAllowed = Boolean(def?.groupsAllowed);
 
   function startAdd() {
-    setForm({ ...EMPTY, selected: new Set() });
+    setForm({ ...EMPTY, selectedGroups: new Set(), selected: new Set() });
     setEditingId(null);
     setPhase("type");
     setSearch("");
@@ -173,6 +180,15 @@ export default function ScheduleEditor({
     });
   }
 
+  function toggleGroup(id: string) {
+    setForm((f) => {
+      const next = new Set(f.selectedGroups);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return { ...f, selectedGroups: next };
+    });
+  }
+
   function toggleStudent(id: string) {
     setForm((f) => {
       const next = new Set(f.selected);
@@ -193,8 +209,8 @@ export default function ScheduleEditor({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (targetsDancers && form.selected.size === 0) {
-      setNotice({ ok: false, text: "Pick at least one dancer for this event." });
+    if (targetsDancers && form.selected.size === 0 && form.selectedGroups.size === 0) {
+      setNotice({ ok: false, text: "Pick a group or at least one dancer for this event." });
       return;
     }
     setBusy(true);
@@ -206,6 +222,7 @@ export default function ScheduleEditor({
       title: form.title,
       event_type: form.eventType,
       studio_wide: studioWide,
+      group_ids: studioWide || !groupsAllowed ? [] : [...form.selectedGroups],
       student_ids: studioWide ? [] : [...form.selected],
       mode: form.mode,
       weekdays: [...form.weekdays],
@@ -263,13 +280,24 @@ export default function ScheduleEditor({
     }
   }
 
-  /** Who an entry is for, in words. */
+  /** Who an entry is for, in words: its groups + individually-added dancers, and
+   *  how many families it actually reaches (the resolved, de-duped enrollments). */
   function audienceOf(row: ScheduleRow): string {
     if (row.studio_wide) return "Whole studio";
-    const names = row.target_student_ids.map((id) => nameById.get(id) ?? "…").filter(Boolean);
-    if (names.length === 0) return "No dancers assigned";
-    if (names.length <= 3) return names.join(", ");
-    return `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
+    const parts: string[] = [];
+    for (const gid of row.target_group_ids) {
+      const g = groupById.get(gid);
+      if (g) parts.push(`${g.name} (group)`);
+    }
+    for (const sid of row.target_dancer_ids) {
+      const n = nameById.get(sid);
+      if (n) parts.push(n);
+    }
+    if (parts.length === 0) return "No one assigned yet";
+    const reach = row.target_student_ids.length;
+    const label =
+      parts.length <= 3 ? parts.join(", ") : `${parts.slice(0, 3).join(", ")} +${parts.length - 3} more`;
+    return `${label} · reaches ${reach} ${reach === 1 ? "dancer" : "dancers"}`;
   }
 
   const filteredRoster = roster.filter((r) =>
@@ -278,12 +306,6 @@ export default function ScheduleEditor({
 
   return (
     <div>
-      <p className="mt-1 text-sm text-neutral-600">
-        Enter each event once and pick who it&apos;s for — Relevé delivers it to exactly those
-        families&apos; <span className="italic">This Week</span>. Comp/college events only, not
-        weekly rec classes.
-      </p>
-
       {/* Existing entries */}
       <div className="mt-4">
         {classes.length === 0 ? (
@@ -427,10 +449,44 @@ export default function ScheduleEditor({
               )}
 
               {targetsDancers && (
-                <div>
+                <div className="space-y-3">
+                  <span className="block text-xs font-medium text-neutral-600">Who should receive this?</span>
+
+                  {groupsAllowed && (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-neutral-500">Groups &amp; classes (one tap targets everyone in it)</span>
+                        <span className="text-xs text-neutral-400">{form.selectedGroups.size} selected</span>
+                      </div>
+                      {groups.length === 0 ? (
+                        <p className="mt-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-500">
+                          No groups yet — create them in <span className="font-medium">Studio roster</span> above.
+                        </p>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {groups.map((g) => {
+                            const on = form.selectedGroups.has(g.group_id);
+                            return (
+                              <label
+                                key={g.group_id}
+                                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm ${on ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300"}`}
+                              >
+                                <input type="checkbox" className="sr-only" checked={on} onChange={() => toggleGroup(g.group_id)} />
+                                {g.name}{" "}
+                                <span className={on ? "text-neutral-300" : "text-neutral-400"}>
+                                  ({g.member_ids.length})
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-neutral-600">
-                      Who is it for?
+                    <span className="text-xs text-neutral-500">
+                      {groupsAllowed ? "Also individual dancers" : "Dancers"}
                       {def.minDancers != null && (
                         <span className="ml-1 text-neutral-400">
                           ({def.minDancers === def.maxDancers ? `pick ${def.minDancers}` : `pick ${def.minDancers}–${def.maxDancers}`})

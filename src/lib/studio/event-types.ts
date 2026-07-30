@@ -29,6 +29,9 @@ export interface EventTypeDef {
   /** For `dancers`: how many the picker expects (guidance, softly enforced). */
   minDancers?: number;
   maxDancers?: number;
+  /** May this type be targeted at reusable GROUPS (as well as individual dancers)?
+   *  A class/team/comp yes; a duet/trio/private is inherently an individual pick. */
+  groupsAllowed?: boolean;
   /** Maps onto the existing studio_classes.kind so This Week colours it sensibly. */
   kind: CompCollegeKind;
 }
@@ -38,16 +41,18 @@ export const EVENT_TYPES: EventTypeDef[] = [
     slug: "class",
     studioLabel: "Class",
     familyLabel: "Class",
-    hint: "A class — pick the dancers in it.",
+    hint: "A class — pick its group, or dancers.",
     target: "dancers",
+    groupsAllowed: true,
     kind: "rehearsal",
   },
   {
     slug: "company_rehearsal",
     studioLabel: "Company / Team Rehearsal",
     familyLabel: "Company Rehearsal",
-    hint: "Your team rehearses — pick the team.",
+    hint: "Your team rehearses — pick the team (a group).",
     target: "dancers",
+    groupsAllowed: true,
     kind: "rehearsal",
   },
   {
@@ -84,30 +89,34 @@ export const EVENT_TYPES: EventTypeDef[] = [
     familyLabel: "Parent Meeting",
     hint: "The whole studio, or just a specific group.",
     target: "choice",
+    groupsAllowed: true,
     kind: "deadline",
   },
   {
     slug: "competition",
     studioLabel: "Competition",
     familyLabel: "Competition",
-    hint: "A team/class or selected dancers.",
+    hint: "A team/class (group) or selected dancers.",
     target: "dancers",
+    groupsAllowed: true,
     kind: "competition",
   },
   {
     slug: "audition",
     studioLabel: "Audition",
     familyLabel: "Audition",
-    hint: "A team/class or selected dancers.",
+    hint: "A team/class (group) or selected dancers.",
     target: "dancers",
+    groupsAllowed: true,
     kind: "audition",
   },
   {
     slug: "performance",
     studioLabel: "Performance",
     familyLabel: "Performance",
-    hint: "A team/class or selected dancers.",
+    hint: "A team/class (group) or selected dancers.",
     target: "dancers",
+    groupsAllowed: true,
     kind: "performance",
   },
 ];

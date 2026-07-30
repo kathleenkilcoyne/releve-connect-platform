@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildClassFields, type ScheduleInput } from "@/lib/studio/schedule";
-import { setEventTargets } from "@/lib/studio/team-enrollments";
+import { setEventTargeting } from "@/lib/studio/groups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,15 +55,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
   const classId = (created as { class_id: string }).class_id;
 
-  // Target it: the whole studio (studio_wide) or the picked dancers.
-  const targets = built.fields.studio_wide ? [] : body.student_ids ?? [];
-  const t = await setEventTargets(db, id, classId, targets);
-  if (t.error) console.error("[admin classes] targeting failed:", t.error);
-
-  return NextResponse.json({
-    ok: true,
-    class_id: classId,
+  await setEventTargeting(db, id, classId, {
     studio_wide: built.fields.studio_wide,
-    enrolled: t.enrolled,
+    group_ids: body.group_ids ?? [],
+    student_ids: body.student_ids ?? [],
   });
+
+  return NextResponse.json({ ok: true, class_id: classId, studio_wide: built.fields.studio_wide });
 }

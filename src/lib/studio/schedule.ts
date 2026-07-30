@@ -54,8 +54,10 @@ export type ScheduleInput = {
   kind?: string;
   /** Whole-studio target (Full Studio Event, or a whole-studio Parent Meeting). */
   studio_wide?: boolean;
-  /** The targeted dancers (enrollments) — ignored when studio_wide. Consumed by
-   *  the route (setEventTargets), not by buildClassFields. */
+  /** The targeted GROUPS — ignored when studio_wide. Consumed by the route
+   *  (setEventTargeting), not by buildClassFields. */
+  group_ids?: string[];
+  /** Individually-added dancers — ignored when studio_wide. Consumed by the route. */
   student_ids?: string[];
   mode?: "recurring" | "oneoff";
   // recurring

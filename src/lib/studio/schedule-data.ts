@@ -20,21 +20,28 @@ export type ScheduleRow = {
   location: string | null;
   teacher_profile_id: string | null;
   teacher_name: string | null;
-  /** The dancers this event targets (its enrollments). Empty for studio_wide. */
+  /** The GROUPS this event targets (source of truth for editing). */
+  target_group_ids: string[];
+  /** The individually-added dancers this event targets (source, on top of groups). */
+  target_dancer_ids: string[];
+  /** The resolved roster (enrollments) — the families it actually reaches. */
   target_student_ids: string[];
 };
 
 export type TeacherOption = { profile_id: string; display_name: string };
 export type RosterEntry = { student_id: string; display_name: string };
+export type GroupEntry = { group_id: string; name: string; member_ids: string[] };
 
 const CLASS_COLUMNS =
   "class_id, title, kind, event_type, studio_wide, recurrence, default_start, default_end, " +
   "series_start, series_end, room, location, teacher_profile_id";
 
-export async function loadStudioScheduleData(
-  db: SupabaseClient,
-  employerId: string,
-): Promise<{ scheduleEntries: ScheduleRow[]; teacherOptions: TeacherOption[]; roster: RosterEntry[] }> {
+export async function loadStudioScheduleData(db: SupabaseClient, employerId: string): Promise<{
+  scheduleEntries: ScheduleRow[];
+  teacherOptions: TeacherOption[];
+  roster: RosterEntry[];
+  groups: GroupEntry[];
+}> {
   // Entries for this studio.
   const { data: classData } = await db
     .from("studio_classes")
@@ -43,24 +50,61 @@ export async function loadStudioScheduleData(
     .order("created_at", { ascending: true });
   const classes = (classData ?? []) as unknown as Omit<
     ScheduleRow,
-    "teacher_name" | "target_student_ids"
+    "teacher_name" | "target_student_ids" | "target_group_ids" | "target_dancer_ids"
   >[];
   const classIds = classes.map((c) => c.class_id);
 
-  // The dancers each entry targets (its enrollments).
-  const targetsByClass = new Map<string, string[]>();
+  // Per-event targets: resolved enrollments, targeted groups, added dancers.
+  const enrByClass = new Map<string, string[]>();
+  const groupsByClass = new Map<string, string[]>();
+  const dancersByClass = new Map<string, string[]>();
   if (classIds.length) {
-    const { data: enr } = await db
-      .from("enrollments")
-      .select("class_id, student_id")
-      .in("class_id", classIds)
-      .eq("status", "active");
+    const [{ data: enr }, { data: cg }, { data: cd }] = await Promise.all([
+      db.from("enrollments").select("class_id, student_id").in("class_id", classIds).eq("status", "active"),
+      db.from("studio_class_groups").select("class_id, group_id").in("class_id", classIds),
+      db.from("studio_class_dancers").select("class_id, student_id").in("class_id", classIds),
+    ]);
     for (const e of (enr ?? []) as { class_id: string; student_id: string }[]) {
-      const list = targetsByClass.get(e.class_id) ?? [];
-      list.push(e.student_id);
-      targetsByClass.set(e.class_id, list);
+      const l = enrByClass.get(e.class_id) ?? [];
+      l.push(e.student_id);
+      enrByClass.set(e.class_id, l);
+    }
+    for (const g of (cg ?? []) as { class_id: string; group_id: string }[]) {
+      const l = groupsByClass.get(g.class_id) ?? [];
+      l.push(g.group_id);
+      groupsByClass.set(g.class_id, l);
+    }
+    for (const d of (cd ?? []) as { class_id: string; student_id: string }[]) {
+      const l = dancersByClass.get(d.class_id) ?? [];
+      l.push(d.student_id);
+      dancersByClass.set(d.class_id, l);
     }
   }
+
+  // The studio's reusable groups + their members.
+  const { data: groupRows } = await db
+    .from("studio_groups")
+    .select("group_id, name")
+    .eq("employer_id", employerId)
+    .order("name", { ascending: true });
+  const groupList = (groupRows ?? []) as { group_id: string; name: string }[];
+  const membersByGroup = new Map<string, string[]>();
+  if (groupList.length) {
+    const { data: mem } = await db
+      .from("studio_group_members")
+      .select("group_id, student_id")
+      .in("group_id", groupList.map((g) => g.group_id));
+    for (const m of (mem ?? []) as { group_id: string; student_id: string }[]) {
+      const l = membersByGroup.get(m.group_id) ?? [];
+      l.push(m.student_id);
+      membersByGroup.set(m.group_id, l);
+    }
+  }
+  const groups: GroupEntry[] = groupList.map((g) => ({
+    group_id: g.group_id,
+    name: g.name,
+    member_ids: membersByGroup.get(g.group_id) ?? [],
+  }));
 
   // Roster: dancers affiliated to this studio (studio-safe fields only).
   const { data: affRows } = await db
@@ -112,11 +156,13 @@ export async function loadStudioScheduleData(
   const scheduleEntries: ScheduleRow[] = classes.map((c) => ({
     ...c,
     teacher_name: c.teacher_profile_id ? teacherNameById.get(c.teacher_profile_id) ?? null : null,
-    target_student_ids: targetsByClass.get(c.class_id) ?? [],
+    target_group_ids: groupsByClass.get(c.class_id) ?? [],
+    target_dancer_ids: dancersByClass.get(c.class_id) ?? [],
+    target_student_ids: enrByClass.get(c.class_id) ?? [],
   }));
   const teacherOptions: TeacherOption[] = [...teacherNameById.entries()].map(
     ([profile_id, display_name]) => ({ profile_id, display_name }),
   );
 
-  return { scheduleEntries, teacherOptions, roster };
+  return { scheduleEntries, teacherOptions, roster, groups };
 }
