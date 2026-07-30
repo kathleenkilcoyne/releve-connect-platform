@@ -163,15 +163,17 @@ export default async function ApplyPage({
 
       {existing?.draft_saved_at && (
         <p className="mt-5 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
-          <span className="font-medium text-neutral-900">Welcome back.</span> We&apos;ve restored
-          your application from{" "}
+          <span className="font-medium text-neutral-900">
+            Welcome back. Your application is saved — continue right where you left off.
+          </span>{" "}
+          We restored it from{" "}
           {new Date(existing.draft_saved_at).toLocaleString("en-US", {
             month: "short",
             day: "numeric",
             hour: "numeric",
             minute: "2-digit",
           })}
-          . Nothing has been submitted yet.
+          , and nothing has been submitted yet.
         </p>
       )}
 
