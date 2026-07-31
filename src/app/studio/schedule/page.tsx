@@ -71,25 +71,6 @@ export default async function StudioSchedulePage() {
     employerId,
   );
 
-  // The "Your dancers" list adds the studio-safe age bracket (never DOB); the
-  // schedule picker uses the name-only roster.
-  const rosterIds = roster.map((r) => r.student_id);
-  const ageById = new Map<string, string | null>();
-  if (rosterIds.length) {
-    const { data: ages } = await db
-      .from("students")
-      .select("student_id, age_range")
-      .in("student_id", rosterIds);
-    for (const s of (ages ?? []) as { student_id: string; age_range: string | null }[]) {
-      ageById.set(s.student_id, s.age_range);
-    }
-  }
-  const rosterStudents = roster.map((r) => ({
-    student_id: r.student_id,
-    display_name: r.display_name,
-    age_range: ageById.get(r.student_id) ?? null,
-  }));
-
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
@@ -118,8 +99,8 @@ export default async function StudioSchedulePage() {
         </Link>
       </nav>
 
-      {/* ── Studio roster (groups + individual dancers) ── */}
-      <StudioRoster groups={groups} roster={rosterStudents} />
+      {/* ── Company Roster (dancers + groups) ── */}
+      <StudioRoster groups={groups} roster={roster} />
 
       {/* ── Schedule ── */}
       <section className="mt-10 border-t border-neutral-200 pt-6">

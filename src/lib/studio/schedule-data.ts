@@ -29,7 +29,16 @@ export type ScheduleRow = {
 };
 
 export type TeacherOption = { profile_id: string; display_name: string };
-export type RosterEntry = { student_id: string; display_name: string };
+export type RosterEntry = {
+  student_id: string;
+  display_name: string;
+  /** The studio's Age Division for this dancer (studio-scoped affiliations.division). */
+  division: string | null;
+  /** Read-only reference from the family-owned students record. */
+  age_range: string | null;
+  /** Whether a guardian is linked (from the family join). */
+  connection: "connected" | "pending";
+};
 export type GroupEntry = { group_id: string; name: string; member_ids: string[] };
 
 const CLASS_COLUMNS =
@@ -106,25 +115,38 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
     member_ids: membersByGroup.get(g.group_id) ?? [],
   }));
 
-  // Roster: dancers affiliated to this studio (studio-safe fields only).
+  // Roster: dancers affiliated to this studio, each with the studio's Age Division
+  // (studio-scoped), the age-range reference (family-owned, read-only), and their
+  // parent-connection status. Studio-safe — never date of birth.
   const { data: affRows } = await db
     .from("affiliations")
-    .select("subject_id")
+    .select("subject_id, division")
     .eq("employer_id", employerId)
     .eq("subject_kind", "student")
     .eq("status", "active");
-  const rosterIds = [
-    ...new Set(((affRows ?? []) as { subject_id: string }[]).map((r) => r.subject_id)),
-  ];
+  const divisionByStudent = new Map<string, string | null>();
+  for (const r of (affRows ?? []) as { subject_id: string; division: string | null }[]) {
+    divisionByStudent.set(r.subject_id, r.division);
+  }
+  const rosterIds = [...divisionByStudent.keys()];
+
   let roster: RosterEntry[] = [];
   if (rosterIds.length) {
-    const { data: studentRows } = await db
-      .from("students")
-      .select("student_id, display_name")
-      .in("student_id", rosterIds);
-    roster = ((studentRows ?? []) as { student_id: string; display_name: string }[]).map((s) => ({
+    const [{ data: studentRows }, { data: guardRows }] = await Promise.all([
+      db.from("students").select("student_id, display_name, age_range").in("student_id", rosterIds),
+      db.from("guardianships").select("student_id").in("student_id", rosterIds),
+    ]);
+    const connected = new Set(
+      ((guardRows ?? []) as { student_id: string }[]).map((g) => g.student_id),
+    );
+    roster = (
+      (studentRows ?? []) as { student_id: string; display_name: string; age_range: string | null }[]
+    ).map((s) => ({
       student_id: s.student_id,
       display_name: s.display_name,
+      division: divisionByStudent.get(s.student_id) ?? null,
+      age_range: s.age_range,
+      connection: connected.has(s.student_id) ? ("connected" as const) : ("pending" as const),
     }));
     roster.sort((a, b) => a.display_name.localeCompare(b.display_name));
   }

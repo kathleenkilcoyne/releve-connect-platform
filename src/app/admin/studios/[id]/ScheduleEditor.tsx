@@ -14,7 +14,7 @@
 // enrollments of the picked dancers (+ studio_wide for whole-studio). Writes hit
 // the gated endpoint; on success we refresh so the list reflects the change.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   WEEKDAY_TOKENS,
@@ -133,6 +133,14 @@ export default function ScheduleEditor({
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Set a notice; a success one clears itself after ~4s so nothing lingers. */
+  function flash(next: { ok: boolean; text: string } | null) {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(next);
+    if (next && next.ok) noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+  }
 
   const nameById = new Map(roster.map((r) => [r.student_id, r.display_name]));
   const groupById = new Map(groups.map((g) => [g.group_id, g]));
@@ -248,7 +256,7 @@ export default function ScheduleEditor({
       if (!res.ok) {
         setNotice({ ok: false, text: data.error ?? "Could not save the entry." });
       } else {
-        setNotice({ ok: true, text: editingId ? "Entry updated." : "Entry added." });
+        flash({ ok: true, text: editingId ? "Entry updated." : "Entry added." });
         setOpen(false);
         setEditingId(null);
         setForm(EMPTY);
@@ -270,7 +278,7 @@ export default function ScheduleEditor({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setNotice({ ok: false, text: data.error ?? "Could not remove the entry." });
       else {
-        setNotice({ ok: true, text: "Entry removed." });
+        flash({ ok: true, text: "Entry removed." });
         router.refresh();
       }
     } catch {
@@ -542,7 +550,7 @@ export default function ScheduleEditor({
               </label>
               <label className="inline-flex items-center gap-2">
                 <input type="radio" checked={form.mode === "oneoff"} onChange={() => setForm({ ...form, mode: "oneoff" })} />
-                One-off date
+                One time event
               </label>
             </div>
           </div>
@@ -582,7 +590,7 @@ export default function ScheduleEditor({
             </div>
           ) : (
             <label className="block sm:w-1/2">
-              <span className="mb-1 block text-xs font-medium text-neutral-600">Date</span>
+              <span className="mb-1 block text-xs font-medium text-neutral-600">Event Date</span>
               <input type="date" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
             </label>
           )}

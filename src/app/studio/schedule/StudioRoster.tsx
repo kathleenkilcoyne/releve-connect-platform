@@ -1,32 +1,33 @@
 "use client";
 
-// Smart Calendar — the "Studio roster" section (Slice C). Two areas:
-//   · Groups & classes — reusable named groups the studio schedules against
-//     (Jazz 3, Teen Company…). Create, rename, edit membership, delete. A dancer
-//     may belong to several groups. Editing a group's members recomputes every
-//     event that targets it (server-side).
-//   · Individual dancers — the flat list of everyone connected via the family code.
+// Smart Calendar — the "Company Roster" (2026-07-31 refinement). Two views:
+//   1. All Company Dancers — the MAIN roster: every dancer once, with the studio's
+//      Age Division (editable inline), the age-range reference, and their
+//      parent-connection status. Answers "who is in the company?"
+//   2. Groups & classes — reusable groups the studio schedules against. Answers
+//      "how are they organized for scheduling?"
 //
-// Boundary: groups exist ONLY for schedule targeting — no registration, tuition,
-// costumes, attendance, or payroll. Writes hit the gated /groups routes; on
-// success we refresh so counts and lists reflect the change.
+// Age Division is STUDIO-controlled (stored on the studio-scoped affiliation),
+// never derived from age. Boundary: groups + divisions exist ONLY for scheduling
+// — no registration, tuition, costumes, attendance, or payroll. Success notices
+// auto-dismiss so nothing lingers between the roster and the schedule.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { GroupEntry } from "@/lib/studio/schedule-data";
-
-type RosterStudent = { student_id: string; display_name: string; age_range: string | null };
+import type { GroupEntry, RosterEntry } from "@/lib/studio/schedule-data";
+import { AGE_DIVISIONS } from "@/lib/studio/divisions";
 
 export default function StudioRoster({
   groups,
   roster,
 }: {
   groups: GroupEntry[];
-  roster: RosterStudent[];
+  roster: RosterEntry[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -35,11 +36,22 @@ export default function StudioRoster({
   const [editName, setEditName] = useState("");
   const [editMembers, setEditMembers] = useState<Set<string>>(new Set());
 
+  const [savingDivision, setSavingDivision] = useState<string | null>(null);
+
   const nameById = new Map(roster.map((r) => [r.student_id, r.display_name]));
+
+  /** A success/info flash that clears itself after ~4s (nothing lingers). */
+  function flash(next: { ok: boolean; text: string } | null) {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(next);
+    if (next && next.ok) {
+      noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+    }
+  }
 
   async function call(url: string, method: string, body?: unknown): Promise<boolean> {
     setBusy(true);
-    setNotice(null);
+    flash(null);
     try {
       const res = await fetch(url, {
         method,
@@ -48,16 +60,37 @@ export default function StudioRoster({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNotice({ ok: false, text: data.error ?? "Something went wrong." });
+        flash({ ok: false, text: data.error ?? "Something went wrong." });
         return false;
       }
       router.refresh();
       return true;
     } catch {
-      setNotice({ ok: false, text: "Something went wrong. Please try again." });
+      flash({ ok: false, text: "Something went wrong. Please try again." });
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function setDivision(studentId: string, division: string) {
+    setSavingDivision(studentId);
+    try {
+      const res = await fetch(`/api/studio/schedule/roster/${studentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ division }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) flash({ ok: false, text: data.error ?? "Couldn't set the division." });
+      else {
+        flash({ ok: true, text: "Division updated." });
+        router.refresh();
+      }
+    } catch {
+      flash({ ok: false, text: "Something went wrong. Please try again." });
+    } finally {
+      setSavingDivision(null);
     }
   }
 
@@ -66,7 +99,7 @@ export default function StudioRoster({
     if (await call("/api/studio/schedule/groups", "POST", { name: newName })) {
       setNewName("");
       setCreating(false);
-      setNotice({ ok: true, text: "Group created." });
+      flash({ ok: true, text: "Group created." });
     }
   }
 
@@ -74,7 +107,7 @@ export default function StudioRoster({
     setEditingId(g.group_id);
     setEditName(g.name);
     setEditMembers(new Set(g.member_ids));
-    setNotice(null);
+    flash(null);
   }
 
   function toggleMember(id: string) {
@@ -94,7 +127,7 @@ export default function StudioRoster({
       })
     ) {
       setEditingId(null);
-      setNotice({ ok: true, text: "Group saved." });
+      flash({ ok: true, text: "Group saved." });
     }
   }
 
@@ -102,27 +135,72 @@ export default function StudioRoster({
     if (!window.confirm(`Delete "${g.name}"? Events that targeted it will drop its members.`)) return;
     if (await call(`/api/studio/schedule/groups/${g.group_id}`, "DELETE")) {
       if (editingId === g.group_id) setEditingId(null);
-      setNotice({ ok: true, text: "Group deleted." });
+      flash({ ok: true, text: "Group deleted." });
     }
   }
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-neutral-900">Studio roster</h2>
+      <h2 className="text-lg font-semibold text-neutral-900">Company Roster</h2>
       <p className="mt-1 text-sm text-neutral-600">
-        View the dancers currently connected to your studio, organized into the groups and classes
-        you schedule.
+        Everyone in your company, and how they&apos;re organized for scheduling.
       </p>
 
-      {/* ── Groups & classes ── */}
+      {/* ── 1. All Company Dancers (the main roster) ── */}
       <div className="mt-4">
+        <h3 className="text-sm font-semibold text-neutral-800">
+          All Company Dancers ({roster.length})
+        </h3>
+        {roster.length === 0 ? (
+          <p className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            No dancers yet. Share your family join code with your competition families — each one who
+            joins shows up here.
+          </p>
+        ) : (
+          <ul className="mt-2 divide-y divide-neutral-100 rounded-xl border border-neutral-200">
+            {roster.map((s) => (
+              <li
+                key={s.student_id}
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
+              >
+                <span className="font-medium text-neutral-900">{s.display_name}</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                  <select
+                    aria-label={`Age Division for ${s.display_name}`}
+                    value={s.division ?? ""}
+                    disabled={savingDivision === s.student_id}
+                    onChange={(e) => setDivision(s.student_id, e.target.value)}
+                    className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-800 focus:border-neutral-500 focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="">— Division —</option>
+                    {AGE_DIVISIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  {s.age_range && <span>· Age {s.age_range}</span>}
+                  <span
+                    className={s.connection === "connected" ? "text-green-700" : "text-amber-700"}
+                  >
+                    · {s.connection === "connected" ? "Parent connected" : "Invite pending"}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ── 2. Groups & classes ── */}
+      <div className="mt-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-neutral-800">Groups &amp; classes</h3>
           {!creating && (
             <button
               onClick={() => {
                 setCreating(true);
-                setNotice(null);
+                flash(null);
               }}
               className="rounded-md border border-neutral-900 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white"
             >
@@ -247,28 +325,6 @@ export default function StudioRoster({
                     </button>
                   </div>
                 )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* ── Individual dancers ── */}
-      <div className="mt-6">
-        <h3 className="text-sm font-semibold text-neutral-800">
-          Individual dancers ({roster.length})
-        </h3>
-        {roster.length === 0 ? (
-          <p className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
-            No dancers yet. Share your family join code with your competition families — each one who
-            joins shows up here.
-          </p>
-        ) : (
-          <ul className="mt-2 divide-y divide-neutral-100 rounded-xl border border-neutral-200">
-            {roster.map((s) => (
-              <li key={s.student_id} className="flex items-center justify-between px-4 py-2.5">
-                <span className="font-medium text-neutral-900">{s.display_name}</span>
-                {s.age_range && <span className="text-xs text-neutral-500">Age {s.age_range}</span>}
               </li>
             ))}
           </ul>
