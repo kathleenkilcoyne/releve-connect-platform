@@ -18,6 +18,7 @@ import { AVA_VIEWER, KATHLEEN, getThisWeek } from "@/lib/this-week/data";
 import type { LiveWeekPayload } from "@/lib/this-week/live";
 import type { ProfessionalViewer, WeekBundle } from "@/lib/this-week/types";
 import { ChildWeek } from "./ChildWeek";
+import { FamilyWeekView } from "./FamilyWeekView";
 import { DashboardRollup } from "./DashboardRollup";
 import { GreetingBand, type GreetingTrack } from "./GreetingBand";
 import { FilterBar, type FilterValue } from "./FilterBar";
@@ -31,7 +32,6 @@ export function ThisWeekScreen({
   payload,
   greeting,
   initialView,
-  initialStudentId,
 }: {
   mode: "live" | "demo";
   weekOffset: number;
@@ -40,8 +40,6 @@ export function ThisWeekScreen({
   greeting?: { message: string; track: GreetingTrack | null };
   /** Force the opening surface (set by the family-join redirect). */
   initialView?: ViewKey;
-  /** Open on this specific dancer among a family's children (join redirect). */
-  initialStudentId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -54,19 +52,11 @@ export function ThisWeekScreen({
   const proBundle: WeekBundle | null =
     mode === "live" ? (payload?.professional ?? null) : demoPro;
 
-  // Which dancer to show. Normally the first (guardianships are ordered
-  // primary-first); when the join redirect names a specific child, open on that
-  // one so a just-enrolled dancer is the one selected.
-  const liveStudent =
-    (initialStudentId
-      ? payload?.students.find(
-          (s) => s.bundle.viewer.kind === "student" && s.bundle.viewer.student.id === initialStudentId,
-        )
-      : undefined) ??
-    payload?.students[0] ??
-    null;
-  const studentBundle: WeekBundle | null =
-    mode === "live" ? (liveStudent?.bundle ?? null) : demoStudent;
+  // The family / self side: one merged week in live mode; the pass-one sample
+  // child bundle in demo mode.
+  const liveFamily = mode === "live" ? (payload?.family ?? null) : null;
+  const demoStudentBundle: WeekBundle | null = mode === "demo" ? demoStudent : null;
+  const hasStudentView = Boolean(mode === "live" ? liveFamily : demoStudentBundle);
 
   // Open on whichever view the member actually has. A guardian with no talent
   // profile should land on their child's week, not an empty professional one —
@@ -89,8 +79,15 @@ export function ThisWeekScreen({
       ? proBundle.events.filter((e) => e.category === filter)
       : (proBundle?.events ?? []);
 
-  const showSwitch = Boolean(proBundle && studentBundle);
-  const activeView: ViewKey = view === "student" && !studentBundle ? "professional" : view;
+  const showSwitch = Boolean(proBundle && hasStudentView);
+  const activeView: ViewKey = view === "student" && !hasStudentView ? "professional" : view;
+
+  const studentLabel =
+    mode === "demo"
+      ? "Ava · Student"
+      : liveFamily?.selfManaged
+        ? `${liveFamily.childNames[0] ?? "You"} · You`
+        : `${liveFamily && liveFamily.childNames.length ? liveFamily.childNames.join(" · ") : "Family"} · Family`;
 
   return (
     <main className="this-week-scope mx-auto min-h-screen w-full max-w-2xl flex-1 px-5 py-8 sm:px-6 sm:py-10">
@@ -129,11 +126,7 @@ export function ThisWeekScreen({
             value={activeView}
             onChange={setView}
             professionalLabel={`${pro?.displayName ?? "You"} · ${pro?.roles.join(" · ") ?? ""}`}
-            studentLabel={`${
-              studentBundle?.viewer.kind === "student"
-                ? studentBundle.viewer.student.displayName
-                : "Student"
-            } · Student`}
+            studentLabel={studentLabel}
           />
         </div>
       )}
@@ -178,15 +171,13 @@ export function ThisWeekScreen({
             </div>
           )}
         </div>
-      ) : studentBundle ? (
+      ) : mode === "live" && liveFamily ? (
         <div className="mt-8">
-          <ChildWeek
-            bundle={studentBundle}
-            communications={liveStudent?.communications}
-            access={liveStudent?.access}
-            weekOffset={weekOffset}
-            onWeekChange={goToWeek}
-          />
+          <FamilyWeekView data={liveFamily} weekOffset={weekOffset} onWeekChange={goToWeek} />
+        </div>
+      ) : demoStudentBundle ? (
+        <div className="mt-8">
+          <ChildWeek bundle={demoStudentBundle} weekOffset={weekOffset} onWeekChange={goToWeek} />
         </div>
       ) : null}
 

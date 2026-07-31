@@ -15,14 +15,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { mergeWeek, toCalendarEvents, toCommunications } from "./adapters";
 import { familyAccessFrom } from "./entitlement";
+import { mergeFamilyWeek, familyChildNames, type ChildStream } from "./family";
 import { buildPayMap } from "./pay";
 import {
+  fetchAffiliatedEmployerIds,
   fetchCommunicationRows,
   fetchEarningsForSessions,
   fetchEngagements,
+  fetchFamilyStudioWide,
   fetchFamilySubscription,
   fetchGuardedStudents,
   fetchPersonalEvents,
+  fetchSelfMembers,
   fetchStudentWeek,
   fetchSwingRadius,
   fetchTeachingWeek,
@@ -31,14 +35,13 @@ import {
 } from "./queries";
 import type {
   AccessResult,
+  CalendarEvent,
   Communication,
   DashboardRollup,
-  GuardianAccount,
-  StudentProfile,
-  SubscriptionStatus,
   WeekBundle,
+  WeekRange,
 } from "./types";
-import { resolveWeek } from "./week";
+import { resolveWeek, type ResolvedWeek } from "./week";
 
 type Client = SupabaseClient;
 
@@ -50,18 +53,31 @@ type Client = SupabaseClient;
  */
 const DEFAULT_TIMEZONE = "America/New_York";
 
-/** One child's week plus everything that hangs off it. */
-export interface StudentWeek {
-  bundle: WeekBundle;
-  communications: Communication[];
+/**
+ * ONE merged week for a whole family (or a self-managed member). Every child's
+ * enrolled items and the family-level studio-wide items, de-duped by session id
+ * and labeled by child (`event.who`) — see mergeFamilyWeek.
+ */
+export interface FamilyWeek {
+  week: WeekRange;
+  events: CalendarEvent[];
+  /** The children in this family (for the header); one entry for a self member. */
+  childNames: string[];
+  /** The studio name(s) these items come from. */
+  studioNames: string[];
+  /** True for the guardian-less college path (per-self, no sibling merge). */
+  selfManaged: boolean;
   access: AccessResult;
+  communications: Communication[];
 }
 
 /** Everything `/this-week` needs for one signed-in member. */
 export interface LiveWeekPayload {
   professional: WeekBundle | null;
-  students: StudentWeek[];
-  /** True when the member has no classes and no children — nothing to show. */
+  /** The merged family / self week (null when the member guards no one and is
+   *  not a self-managed dancer). */
+  family: FamilyWeek | null;
+  /** True when the member has no professional and no family week — nothing to show. */
   isEmpty: boolean;
 }
 
@@ -169,63 +185,97 @@ export async function buildLiveWeek(
     };
   }
 
-  /* ── Each child's week ───────────────────────────────────────────────── */
-  const students: StudentWeek[] = [];
-  for (const child of guarded) {
-    // A guardian without the 'calendar' permission gets no schedule at all —
-    // RLS would return nothing anyway; skipping avoids rendering a false empty.
-    const canSeeCalendar = child.permissions.includes("calendar");
-
-    const sessions = canSeeCalendar
-      ? await fetchStudentWeek(supabase, admin, child.student_id, week)
-      : [];
-
-    const [commRows, subscription] = await Promise.all([
-      child.permissions.includes("messages") || canSeeCalendar
-        ? fetchCommunicationRows(supabase, child.student_id)
-        : Promise.resolve([]),
-      fetchFamilySubscription(supabase, child.family_id),
-    ]);
-
-    const studioName = sessions[0]?.studioName ?? "Your studio";
-
-    const student: StudentProfile = {
-      id: child.student_id,
-      displayName: child.display_name,
-      guardianId: child.family_id,
-      isMinor: true, // students carries only minors; adulthood transfers the record.
-      visibility: "family_only",
-      studioAffiliation: sessions[0]?.studioName ?? undefined,
-      managedByLabel: "managed by you",
-    };
-
-    const guardian: GuardianAccount = {
-      id: child.family_id,
-      displayName: "Your family",
-      email: "",
-      subscriptionStatus: (subscription.status as SubscriptionStatus | null) ?? "none",
-      trialEndsAt: subscription.trialEndsAt,
-      managedStudentIds: guarded.map((g) => g.student_id),
-    };
-
-    students.push({
-      bundle: {
-        viewer: { kind: "student", student, guardian },
-        week,
-        events: toCalendarEvents(sessions, "student", DEFAULT_TIMEZONE),
-        rollups: [], // students have no role dashboards
-      },
-      communications: toCommunications(commRows, DEFAULT_TIMEZONE, studioName, userId),
-      access: resolveFamilyAccess(subscription.status, subscription.trialEndsAt),
-    });
+  /* ── The merged family week ──────────────────────────────────────────── */
+  // One personalized week for the whole family: every child's enrolled items PLUS
+  // the family-level studio-wide items, merged and de-duped by session id. The
+  // studio-wide lane is resolved ONCE here (not per child) — that is the guard
+  // against a Full Studio Event surfacing twice in a two-child family.
+  let family: FamilyWeek | null = null;
+  if (guarded.length > 0) {
+    family = await buildFamilyWeek(supabase, admin, userId, guarded, week, false);
+  } else {
+    // No children guarded → maybe a self-managed adult (the college team). Their
+    // week resolves per-self, no guardian layer.
+    const selfMembers = await fetchSelfMembers(supabase);
+    if (selfMembers.length > 0) {
+      family = await buildFamilyWeek(supabase, admin, userId, selfMembers, week, true);
+    }
   }
 
   return {
     professional,
-    students,
-    isEmpty:
-      (professional?.events.length ?? 0) === 0 &&
-      students.every((s) => s.bundle.events.length === 0),
+    family,
+    isEmpty: (professional?.events.length ?? 0) === 0 && (family?.events.length ?? 0) === 0,
+  };
+}
+
+/**
+ * Resolve and merge a set of "members" (a guardian's children, or a single
+ * self-managed adult) into ONE week. Shared by the guardian path and the
+ * self-managed college path; `selfManaged` only changes framing + comms, not the
+ * merge/de-dupe (studio-wide is always resolved once, de-duped by session id).
+ */
+async function buildFamilyWeek(
+  supabase: Client,
+  admin: Client,
+  userId: string,
+  members: Awaited<ReturnType<typeof fetchGuardedStudents>>,
+  week: ResolvedWeek,
+  selfManaged: boolean,
+): Promise<FamilyWeek> {
+  const familyId = members[0]?.family_id ?? "";
+
+  // Per-member enrolled streams (only members whose guardian holds 'calendar';
+  // for a self member the permission set is theirs).
+  const childStreams: ChildStream[] = [];
+  const calendarStudentIds: string[] = [];
+  for (const m of members) {
+    if (!m.permissions.includes("calendar")) continue;
+    calendarStudentIds.push(m.student_id);
+    const sessions = await fetchStudentWeek(supabase, admin, m.student_id, week);
+    childStreams.push({ childId: m.student_id, childName: m.display_name, sessions });
+  }
+
+  // Studio-wide events at the family's studio(s) — resolved ONCE, de-duped in the
+  // merge by session id (never per child).
+  const employerIds = await fetchAffiliatedEmployerIds(supabase, calendarStudentIds);
+  const studioWide = await fetchFamilyStudioWide(supabase, admin, employerIds, week);
+
+  const events = mergeFamilyWeek(childStreams, studioWide, DEFAULT_TIMEZONE);
+  // A self member's whole week is their own — the per-child "who" label is noise.
+  if (selfManaged) for (const e of events) delete e.who;
+
+  // One family account → one entitlement (guardian's children share it).
+  const subscription = await fetchFamilySubscription(supabase, familyId);
+  const access = resolveFamilyAccess(subscription.status, subscription.trialEndsAt);
+
+  const studioNames = [
+    ...new Set(
+      [...childStreams.flatMap((s) => s.sessions), ...studioWide]
+        .map((x) => x.studioName)
+        .filter((n): n is string => Boolean(n)),
+    ),
+  ];
+  const primaryStudio = studioNames[0] ?? "your studio";
+
+  // Merged communications across all members, de-duped by id.
+  const commsById = new Map<string, Communication>();
+  for (const m of members) {
+    if (!(m.permissions.includes("messages") || m.permissions.includes("calendar"))) continue;
+    const rows = await fetchCommunicationRows(supabase, m.student_id);
+    for (const c of toCommunications(rows, DEFAULT_TIMEZONE, primaryStudio, userId)) {
+      commsById.set(c.id, c);
+    }
+  }
+
+  return {
+    week,
+    events,
+    childNames: familyChildNames(members.map((m) => ({ childId: m.student_id, childName: m.display_name, sessions: [] }))),
+    studioNames,
+    selfManaged,
+    access,
+    communications: [...commsById.values()],
   };
 }
 

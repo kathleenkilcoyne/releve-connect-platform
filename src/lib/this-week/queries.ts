@@ -273,6 +273,38 @@ export async function fetchGuardedStudents(supabase: Client): Promise<GuardedStu
 }
 
 /**
+ * The signed-in user's OWN self-managed record (the college-team adult path,
+ * Option A) — a `students` row whose adulthood was transferred to them. No
+ * guardianship; they read it via the `students_self_read` RLS policy, which
+ * already scopes SELECT to their own transferred record. Returned in the same
+ * shape as a guarded child so the merge can treat both the same way; a self
+ * member holds their own calendar + messages.
+ */
+export async function fetchSelfMembers(supabase: Client): Promise<GuardedStudent[]> {
+  const { data, error } = await supabase
+    .from("students")
+    .select("student_id, display_name, family_id, age_range")
+    .not("transferred_to_user_id", "is", null);
+
+  if (error) {
+    console.error("[this-week] self-member read failed:", error.message);
+    return [];
+  }
+  return ((data ?? []) as {
+    student_id: string;
+    display_name: string;
+    family_id: string;
+    age_range: string | null;
+  }[]).map((s) => ({
+    student_id: s.student_id,
+    display_name: s.display_name,
+    family_id: s.family_id,
+    age_range: s.age_range,
+    permissions: ["calendar", "messages"],
+  }));
+}
+
+/**
  * A student's week: the classes they are enrolled in, and those classes'
  * sessions. Served by `guardian_calendar_for_class`, so it requires the
  * 'calendar' permission — a guardian granted only 'messages' correctly sees
@@ -309,6 +341,64 @@ export async function fetchStudentWeek(
     return [];
   }
 
+  const classes = (data ?? []) as unknown as ClassRow[];
+  if (classes.length === 0) return [];
+
+  await materialiseSessions(admin, classes, week);
+  const sessions = await readSessions(supabase, classes.map((c) => c.class_id), week);
+  return joinSessions(sessions, classes);
+}
+
+/* ────────────────────────  Family-level studio-wide  ──────────────────────── */
+
+/**
+ * The studios a set of students are affiliated to (active). RLS lets a guardian
+ * read their OWN children's affiliations (`affiliations_select`), so this runs as
+ * the caller.
+ */
+export async function fetchAffiliatedEmployerIds(
+  supabase: Client,
+  studentIds: string[],
+): Promise<string[]> {
+  if (studentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("affiliations")
+    .select("employer_id")
+    .in("subject_id", studentIds)
+    .eq("subject_kind", "student")
+    .eq("status", "active");
+  if (error) {
+    console.error("[this-week] affiliation read failed:", error.message);
+    return [];
+  }
+  return [...new Set(((data ?? []) as { employer_id: string }[]).map((r) => r.employer_id))];
+}
+
+/**
+ * The studio-wide events at a family's studios — resolved ONCE at the family
+ * level (never per child) so the merge can de-dupe them by session id. A
+ * studio-wide event carries no enrollments, so it is served by the
+ * `family_sees_studio_wide` RLS lane, not `guardian_calendar_for_class`.
+ */
+export async function fetchFamilyStudioWide(
+  supabase: Client,
+  admin: Client,
+  employerIds: string[],
+  week: ResolvedWeek,
+): Promise<SessionWithClass[]> {
+  if (employerIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("studio_classes")
+    .select(CLASS_SELECT)
+    .in("employer_id", employerIds)
+    .eq("studio_wide", true)
+    .eq("status", "active");
+
+  if (error) {
+    console.error("[this-week] studio-wide class read failed:", error.message);
+    return [];
+  }
   const classes = (data ?? []) as unknown as ClassRow[];
   if (classes.length === 0) return [];
 

@@ -81,6 +81,10 @@ export interface CalendarEvent {
   attachments?: Attachment[];
   /** Teaching / booked cards carry pay rate + status; others omit it. */
   pay?: PayInfo;
+  /** In a merged multi-child family week, whose item this is ("Ryan"). A
+   *  whole-family item (Full Studio Event) leaves this unset — it is labeled for
+   *  the family, not tagged to one child. */
+  who?: string;
 }
 
 /** Spec-named alias. Import `CalendarEvent` in code; `Event` exists for parity. */

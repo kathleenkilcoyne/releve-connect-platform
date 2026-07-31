@@ -29,6 +29,13 @@ export function EventCard({ event }: { event: CalendarEvent }) {
       style={{ borderLeft: `6px solid ${categoryColor(event.category)}` }}
     >
       <div className="px-4 py-3.5 sm:px-5">
+        {/* In a merged family week, whose item this is. Whole-family items leave
+            this unset and are labeled by their type instead. */}
+        {event.who && (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--rc-muted)]">
+            {event.who}
+          </p>
+        )}
         <div className="flex items-start justify-between gap-3">
           <h3 className="rc-serif text-lg font-semibold leading-snug text-[var(--rc-ink)]">
             {event.title}
