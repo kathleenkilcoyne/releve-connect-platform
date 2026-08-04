@@ -36,7 +36,11 @@ export type RosterEntry = {
   division: string | null;
   /** Read-only reference from the family-owned students record. */
   age_range: string | null;
-  /** Whether a guardian is linked (from the family join). */
+  /**
+   * Whether the dancer's account is linked. For a competition family, that means
+   * a guardian joined; for a self-managed adult (college team), it means the
+   * dancer redeemed the team code themselves. Either way "connected" = reachable.
+   */
   connection: "connected" | "pending";
 };
 export type GroupEntry = { group_id: string; name: string; member_ids: string[] };
@@ -133,20 +137,33 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
   let roster: RosterEntry[] = [];
   if (rosterIds.length) {
     const [{ data: studentRows }, { data: guardRows }] = await Promise.all([
-      db.from("students").select("student_id, display_name, age_range").in("student_id", rosterIds),
+      db
+        .from("students")
+        .select("student_id, display_name, age_range, transferred_to_user_id")
+        .in("student_id", rosterIds),
       db.from("guardianships").select("student_id").in("student_id", rosterIds),
     ]);
     const connected = new Set(
       ((guardRows ?? []) as { student_id: string }[]).map((g) => g.student_id),
     );
     roster = (
-      (studentRows ?? []) as { student_id: string; display_name: string; age_range: string | null }[]
+      (studentRows ?? []) as {
+        student_id: string;
+        display_name: string;
+        age_range: string | null;
+        transferred_to_user_id: string | null;
+      }[]
     ).map((s) => ({
       student_id: s.student_id,
       display_name: s.display_name,
       division: divisionByStudent.get(s.student_id) ?? null,
       age_range: s.age_range,
-      connection: connected.has(s.student_id) ? ("connected" as const) : ("pending" as const),
+      // A guardian link OR a self-managed adult (transferred to their own account)
+      // both count as connected/reachable.
+      connection:
+        connected.has(s.student_id) || s.transferred_to_user_id
+          ? ("connected" as const)
+          : ("pending" as const),
     }));
     roster.sort((a, b) => a.display_name.localeCompare(b.display_name));
   }

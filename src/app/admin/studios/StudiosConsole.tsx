@@ -27,6 +27,7 @@ const STATUS_TONE: Record<string, string> = {
 export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [orgType, setOrgType] = useState<"studio" | "college_team">("studio");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -38,7 +39,7 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
       const res = await fetch("/api/admin/studio-invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), org_type: orgType }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -87,18 +88,29 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
     <div className="mt-8">
       {/* Create invitation */}
       <form onSubmit={createInvite} className="rounded-xl border border-neutral-200 bg-neutral-50 p-5">
-        <label className="block text-sm font-medium text-neutral-800">Invite a studio</label>
+        <label className="block text-sm font-medium text-neutral-800">
+          {orgType === "college_team" ? "Invite a college team" : "Invite a studio"}
+        </label>
         <p className="mt-1 text-xs text-neutral-500">
-          Enter the studio owner&apos;s email. We create their private profile and email them a secure
-          setup link. Re-entering an email re-sends the same link.
+          Enter the {orgType === "college_team" ? "coach" : "studio owner"}&apos;s email. We create
+          their private profile and email them a secure setup link. Re-entering an email re-sends the
+          same link.
         </p>
         <div className="mt-3 flex flex-wrap gap-3">
+          <select
+            value={orgType}
+            onChange={(ev) => setOrgType(ev.target.value as "studio" | "college_team")}
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+          >
+            <option value="studio">Studio</option>
+            <option value="college_team">College team</option>
+          </select>
           <input
             type="email"
             required
             value={email}
             onChange={(ev) => setEmail(ev.target.value)}
-            placeholder="owner@studio.com"
+            placeholder={orgType === "college_team" ? "coach@college.edu" : "owner@studio.com"}
             className="min-w-[16rem] flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
           />
           <button

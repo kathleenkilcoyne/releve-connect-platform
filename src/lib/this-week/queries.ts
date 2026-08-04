@@ -223,7 +223,9 @@ export async function fetchTeachingWeek(
 export interface GuardedStudent {
   student_id: string;
   display_name: string;
-  family_id: string;
+  /** The family that pays — null for a self-managed adult (college team), who
+   *  has no family_account. */
+  family_id: string | null;
   age_range: string | null;
   /** Guardian's own permission set — gates which surfaces render. */
   permissions: string[];
@@ -293,7 +295,7 @@ export async function fetchSelfMembers(supabase: Client): Promise<GuardedStudent
   return ((data ?? []) as {
     student_id: string;
     display_name: string;
-    family_id: string;
+    family_id: string | null;
     age_range: string | null;
   }[]).map((s) => ({
     student_id: s.student_id,

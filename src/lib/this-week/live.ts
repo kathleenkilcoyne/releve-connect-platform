@@ -223,7 +223,8 @@ async function buildFamilyWeek(
   week: ResolvedWeek,
   selfManaged: boolean,
 ): Promise<FamilyWeek> {
-  const familyId = members[0]?.family_id ?? "";
+  // A guardian's children share one family_account; a self-managed adult has none.
+  const familyId = members[0]?.family_id ?? null;
 
   // Per-member enrolled streams (only members whose guardian holds 'calendar';
   // for a self member the permission set is theirs).
@@ -245,8 +246,13 @@ async function buildFamilyWeek(
   // A self member's whole week is their own — the per-child "who" label is noise.
   if (selfManaged) for (const e of events) delete e.who;
 
-  // One family account → one entitlement (guardian's children share it).
-  const subscription = await fetchFamilySubscription(supabase, familyId);
+  // One family account → one entitlement (guardian's children share it). A
+  // self-managed adult has no family_account: null status resolves to "allowed"
+  // (free through the pilot, same as a guardian without 'billing'), and we skip
+  // the query rather than pass an empty string to a uuid filter.
+  const subscription = familyId
+    ? await fetchFamilySubscription(supabase, familyId)
+    : { status: null, trialEndsAt: null };
   const access = resolveFamilyAccess(subscription.status, subscription.trialEndsAt);
 
   const studioNames = [

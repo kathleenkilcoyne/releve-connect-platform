@@ -18,6 +18,7 @@ import { resolveStudioForUser } from "@/lib/studio/access";
 import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
 import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
 import StudioRoster from "./StudioRoster";
+import TeamJoinCode, { type TeamCode } from "./TeamJoinCode";
 
 export const dynamic = "force-dynamic";
 
@@ -61,21 +62,39 @@ export default async function StudioSchedulePage() {
 
   const { data: prof } = await db
     .from("employer_profiles")
-    .select("name")
+    .select("name, org_type")
     .eq("employer_id", employerId)
     .maybeSingle();
-  const studioName = (prof as { name: string | null } | null)?.name?.trim() || "Your studio";
+  const p = prof as { name: string | null; org_type: string | null } | null;
+  const isTeam = p?.org_type === "college_team";
+  const orgName = p?.name?.trim() || (isTeam ? "Your team" : "Your studio");
 
   const { scheduleEntries, teacherOptions, roster, groups } = await loadStudioScheduleData(
     db,
     employerId,
   );
 
+  // A college team's coach-facing team join code (separate from family codes).
+  let teamCode: TeamCode | null = null;
+  if (isTeam) {
+    const { data: tc } = await db
+      .from("studio_invites")
+      .select("code, use_count")
+      .eq("employer_id", employerId)
+      .eq("kind", "team")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const row = tc as { code: string; use_count: number } | null;
+    teamCode = row ? { code: row.code, use_count: row.use_count } : null;
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Relevé · Studio schedule
+          {isTeam ? "Relevé · College team schedule" : "Relevé · Studio schedule"}
         </p>
         <form action="/auth/signout" method="post">
           <button className="text-sm text-neutral-500 underline" type="submit">
@@ -84,31 +103,35 @@ export default async function StudioSchedulePage() {
         </form>
       </div>
 
-      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{studioName}</h1>
+      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{orgName}</h1>
       <p className="mt-3 text-neutral-600">
-        Build your studio&apos;s week in one place, and Relevé shares each schedule item with the
-        families who need it.
+        {isTeam
+          ? "Build your college team's week in one place, and Relevé shares each schedule item with the dancers who need it."
+          : "Build your studio's week in one place, and Relevé shares each schedule item with the families who need it."}
       </p>
 
-      <nav aria-label="Studio" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-neutral-200 py-3 text-sm">
+      <nav aria-label={isTeam ? "Team" : "Studio"} className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-neutral-200 py-3 text-sm">
         <Link href="/studio/setup" className="text-neutral-700 underline">
-          Studio profile
+          {isTeam ? "Team profile" : "Studio profile"}
         </Link>
         <Link href="/this-week" className="text-neutral-700 underline">
           This Week
         </Link>
       </nav>
 
-      {/* ── Company Roster (dancers + groups) ── */}
-      <StudioRoster groups={groups} roster={roster} />
+      {/* ── Roster (dancers + groups) ── */}
+      <StudioRoster groups={groups} roster={roster} isTeam={isTeam} />
+
+      {/* ── Team join code (college teams only) ── */}
+      {isTeam && <TeamJoinCode code={teamCode} />}
 
       {/* ── Schedule ── */}
       <section className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Schedule</h2>
         <p className="mt-1 text-sm text-neutral-600">
           Add rehearsals, private lessons, competitions, meetings, and other important dates. Choose
-          the dancers or groups involved, and the event appears in each family&apos;s{" "}
-          <span className="italic">This Week</span>.
+          the dancers or groups involved, and the event appears in each{" "}
+          {isTeam ? "dancer" : "family"}&apos;s <span className="italic">This Week</span>.
         </p>
         <ScheduleEditor
           endpointBase="/api/studio/schedule/classes"

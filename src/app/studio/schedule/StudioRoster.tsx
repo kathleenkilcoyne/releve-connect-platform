@@ -20,9 +20,12 @@ import { AGE_DIVISIONS } from "@/lib/studio/divisions";
 export default function StudioRoster({
   groups,
   roster,
+  isTeam = false,
 }: {
   groups: GroupEntry[];
   roster: RosterEntry[];
+  /** A college team relabels the roster + join-code wording; default is a studio. */
+  isTeam?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -141,20 +144,25 @@ export default function StudioRoster({
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-neutral-900">Company Roster</h2>
+      <h2 className="text-lg font-semibold text-neutral-900">
+        {isTeam ? "Team Roster" : "Company Roster"}
+      </h2>
       <p className="mt-1 text-sm text-neutral-600">
-        Everyone in your company, and how they&apos;re organized for scheduling.
+        {isTeam
+          ? "Everyone on your team, and how they're organized for scheduling."
+          : "Everyone in your company, and how they're organized for scheduling."}
       </p>
 
-      {/* ── 1. All Company Dancers (the main roster) ── */}
+      {/* ── 1. All dancers (the main roster) ── */}
       <div className="mt-4">
         <h3 className="text-sm font-semibold text-neutral-800">
-          All Company Dancers ({roster.length})
+          {isTeam ? "All Team Dancers" : "All Company Dancers"} ({roster.length})
         </h3>
         {roster.length === 0 ? (
           <p className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
-            No dancers yet. Share your family join code with your competition families — each one who
-            joins shows up here.
+            {isTeam
+              ? "No dancers yet. Share your team join code with your adult dancers — each one who joins shows up here."
+              : "No dancers yet. Share your family join code with your competition families — each one who joins shows up here."}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-neutral-100 rounded-xl border border-neutral-200">
@@ -183,7 +191,14 @@ export default function StudioRoster({
                   <span
                     className={s.connection === "connected" ? "text-green-700" : "text-amber-700"}
                   >
-                    · {s.connection === "connected" ? "Parent connected" : "Invite pending"}
+                    ·{" "}
+                    {s.connection === "connected"
+                      ? isTeam
+                        ? "Joined"
+                        : "Parent connected"
+                      : isTeam
+                        ? "Not joined yet"
+                        : "Invite pending"}
                   </span>
                 </div>
               </li>

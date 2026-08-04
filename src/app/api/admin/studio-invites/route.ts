@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
-  let body: { email?: string };
+  let body: { email?: string; org_type?: string };
   try {
     body = await req.json();
   } catch {
@@ -38,6 +38,10 @@ export async function POST(req: Request) {
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Please provide a valid email address." }, { status: 400 });
   }
+
+  // A studio (default) or a college team. Both onboard through the same
+  // owner-invite flow; org_type just relabels and drives the adult-join path.
+  const orgType = body.org_type === "college_team" ? "college_team" : "studio";
 
   const db = createAdminClient();
 
@@ -67,7 +71,7 @@ export async function POST(req: Request) {
     // blank; the studio fills it (required) during setup.
     const { data: profRow, error: profErr } = await db
       .from("employer_profiles")
-      .insert({ owner_user_id: null, name: "", status: "invited" })
+      .insert({ owner_user_id: null, name: "", status: "invited", org_type: orgType })
       .select("employer_id")
       .single();
     if (profErr || !profRow) {

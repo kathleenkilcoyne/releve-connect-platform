@@ -63,7 +63,7 @@ export async function joinThroughStudio(
   // ---- THE GATE: the code must resolve to an active participating studio ----
   const { data: invite, error: inviteErr } = await admin
     .from("studio_invites")
-    .select("invite_id, employer_id, status, max_uses, use_count, expires_at")
+    .select("invite_id, employer_id, status, kind, max_uses, use_count, expires_at")
     .ilike("code", code)
     .maybeSingle();
 
@@ -74,6 +74,15 @@ export async function joinThroughStudio(
 
   const invalid = { ok: false, message: "That join code isn't valid. Please check with your studio." };
   if (!invite) return invalid;
+  // Keep SEPARATE from the college-team flow: a team code is not redeemable here
+  // (it would wrongly create a guardian + minor). Send adult team dancers to /team-join.
+  if (invite.kind === "team") {
+    return {
+      ok: false,
+      message:
+        "That's a college-team join code — it's for adult dancers. Please use the college team join page instead.",
+    };
+  }
   if (invite.status !== "active") return invalid;
   if (invite.expires_at && new Date(invite.expires_at as string) < new Date()) return invalid;
   if (
