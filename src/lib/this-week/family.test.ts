@@ -148,3 +148,49 @@ describe("mergeFamilyWeek — de-dupe + labeling", () => {
     expect(familyChildNames(children)).toEqual(["Ryan", "Sophie"]);
   });
 });
+
+// Safeguard #3, proven at the DELIVERED-WEEK layer (what a family actually sees).
+//
+// The audience-change math is the pure diff (targeting.test.ts). Here we prove
+// its consequence end-to-end: each family's This Week is an INDEPENDENT merge of
+// only that family's children's enrolled streams. When the studio re-targets a
+// duet, resolveEventEnrollments drops/adds exactly the affected enrollment, so
+// the removed family's stream loses the session, the remaining family's keeps
+// it, and an unrelated family — merged from its own streams — never had it.
+//
+// A duet is ONE studio_class (session id "duet_1"); Ava and Mia are in DIFFERENT
+// families, so each reads the same session in its own independent merge.
+describe("audience-change isolation — safeguard #3 at the delivered week", () => {
+  const duet = () => sess("duet_1", "Contemporary Duet", "2026-07-29T22:00:00.000Z");
+
+  it("REMOVE from a duet: the removed family stops seeing it; the partner keeps it; an unrelated family never had it", () => {
+    // Before the change: Ava (family A) and Mia (family B) are both enrolled.
+    const avaBefore = mergeFamilyWeek([{ childId: "ava", childName: "Ava", sessions: [duet()] }], [], NY);
+    expect(avaBefore.some((e) => e.id === "duet_1")).toBe(true);
+
+    // Studio removes Ava → her enrollment is gone → her stream no longer has it.
+    const avaAfter = mergeFamilyWeek([{ childId: "ava", childName: "Ava", sessions: [] }], [], NY);
+    expect(avaAfter.some((e) => e.id === "duet_1")).toBe(false);
+
+    // Mia's family is a separate merge — still enrolled, still sees it.
+    const miaAfter = mergeFamilyWeek([{ childId: "mia", childName: "Mia", sessions: [duet()] }], [], NY);
+    expect(miaAfter.find((e) => e.id === "duet_1")?.who).toBe("Mia");
+
+    // An unrelated family (Noah) is built from its OWN streams — never had it.
+    const noah = mergeFamilyWeek([{ childId: "noah", childName: "Noah", sessions: [] }], [], NY);
+    expect(noah.some((e) => e.id === "duet_1")).toBe(false);
+  });
+
+  it("ADD to a duet: the newly-added family starts seeing it; an unrelated family is untouched", () => {
+    // Mia was already in the duet; the studio now adds Ava.
+    const avaBefore = mergeFamilyWeek([{ childId: "ava", childName: "Ava", sessions: [] }], [], NY);
+    expect(avaBefore.some((e) => e.id === "duet_1")).toBe(false);
+
+    const avaAfter = mergeFamilyWeek([{ childId: "ava", childName: "Ava", sessions: [duet()] }], [], NY);
+    expect(avaAfter.find((e) => e.id === "duet_1")?.who).toBe("Ava");
+
+    // Unrelated family never enters either merge.
+    const noah = mergeFamilyWeek([{ childId: "noah", childName: "Noah", sessions: [] }], [], NY);
+    expect(noah.some((e) => e.id === "duet_1")).toBe(false);
+  });
+});

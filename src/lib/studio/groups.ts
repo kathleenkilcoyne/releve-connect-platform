@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { setEventTargets } from "./team-enrollments";
+import { unionTargetedDancers } from "./targeting";
 
 // Reusable groups + the derive-and-recompute engine for the Smart Calendar
 // (Slice C). Groups are persistent named rosters scoped to one studio. An event
@@ -77,23 +78,31 @@ export async function resolveEventEnrollments(
     .eq("class_id", classId);
   const groupIds = ((grpRows ?? []) as { group_id: string }[]).map((r) => r.group_id);
 
-  const union = new Set<string>();
+  // One list per targeted group, so a dancer in two groups de-dupes to one
+  // enrollment (safeguard #1, at the enrollment-set level).
+  const groupMemberLists: string[][] = [];
   if (groupIds.length) {
     const { data: memRows } = await admin
       .from("studio_group_members")
-      .select("student_id")
+      .select("group_id, student_id")
       .in("group_id", groupIds);
-    for (const m of (memRows ?? []) as { student_id: string }[]) union.add(m.student_id);
+    const byGroup = new Map<string, string[]>();
+    for (const m of (memRows ?? []) as { group_id: string; student_id: string }[]) {
+      const l = byGroup.get(m.group_id) ?? [];
+      l.push(m.student_id);
+      byGroup.set(m.group_id, l);
+    }
+    groupMemberLists.push(...byGroup.values());
   }
   const { data: dancerRows } = await admin
     .from("studio_class_dancers")
     .select("student_id")
     .eq("class_id", classId);
-  for (const d of (dancerRows ?? []) as { student_id: string }[]) union.add(d.student_id);
+  const addedDancers = ((dancerRows ?? []) as { student_id: string }[]).map((d) => d.student_id);
 
-  // setEventTargets sets enrollments to exactly this set (and re-filters to
-  // affiliated dancers), de-duped by the enrollments unique key.
-  await setEventTargets(admin, employerId, classId, [...union]);
+  // setEventTargets sets enrollments to exactly this distinct set (and re-filters
+  // to affiliated dancers), de-duped by the enrollments unique key.
+  await setEventTargets(admin, employerId, classId, unionTargetedDancers(groupMemberLists, addedDancers));
 }
 
 /** Set an event's targets (groups + individually-added dancers + studio_wide),

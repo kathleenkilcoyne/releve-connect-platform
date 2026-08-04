@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { diffEnrollments } from "./targeting";
 
 // Event targeting for the Smart Calendar (Slice 2).
 //
@@ -48,24 +49,27 @@ export async function setEventTargets(
     .eq("class_id", classId);
   if (exErr) return { enrolled: 0, error: exErr.message };
   const existing = (existingRows ?? []) as { enrollment_id: string; student_id: string }[];
-  const existingStudents = new Set(existing.map((e) => e.student_id));
 
-  // 3. Remove the ones no longer targeted.
-  const toDelete = existing.filter((e) => !validSet.has(e.student_id)).map((e) => e.enrollment_id);
-  if (toDelete.length) {
-    const { error: delErr } = await admin
-      .from("enrollments")
-      .delete()
-      .in("enrollment_id", toDelete);
+  // 3. The minimal add/remove that moves the current roster to exactly `valid`.
+  // The pure diff (safeguard #3): removed families stop seeing it, added start,
+  // everyone already enrolled and still targeted is left untouched.
+  const { toAdd, toRemove } = diffEnrollments(
+    existing.map((e) => e.student_id),
+    [...validSet],
+  );
+
+  // Remove the ones no longer targeted (map student ids back to enrollment ids).
+  if (toRemove.length) {
+    const removeSet = new Set(toRemove);
+    const enrollmentIds = existing.filter((e) => removeSet.has(e.student_id)).map((e) => e.enrollment_id);
+    const { error: delErr } = await admin.from("enrollments").delete().in("enrollment_id", enrollmentIds);
     if (delErr) return { enrolled: 0, error: delErr.message };
   }
 
-  // 4. Add the newly targeted ones.
-  const toAdd = valid
-    .filter((s) => !existingStudents.has(s))
-    .map((student_id) => ({ student_id, class_id: classId, status: "active" as const }));
+  // Add the newly targeted ones.
   if (toAdd.length) {
-    const { error: addErr } = await admin.from("enrollments").insert(toAdd);
+    const rows = toAdd.map((student_id) => ({ student_id, class_id: classId, status: "active" as const }));
+    const { error: addErr } = await admin.from("enrollments").insert(rows);
     if (addErr) return { enrolled: 0, error: addErr.message };
   }
 
