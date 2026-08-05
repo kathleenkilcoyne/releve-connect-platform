@@ -42,6 +42,7 @@ import type {
   WeekRange,
 } from "./types";
 import { resolveWeek, type ResolvedWeek } from "./week";
+import { memberLabelOf, DEFAULT_MEMBER_LABEL } from "@/lib/studio/team-types";
 
 type Client = SupabaseClient;
 
@@ -63,10 +64,15 @@ export interface FamilyWeek {
   events: CalendarEvent[];
   /** The children in this family (for the header); one entry for a self member. */
   childNames: string[];
-  /** The studio name(s) these items come from. */
+  /** The studio / team name(s) these items come from. For a self member this is
+   *  resolved from their active affiliation, so the team shows even before any
+   *  events exist. */
   studioNames: string[];
-  /** True for the guardian-less college path (per-self, no sibling merge). */
+  /** True for the guardian-less dance-team path (per-self, no sibling merge). */
   selfManaged: boolean;
+  /** What the team calls its members (from the org's member_label), defaulting to
+   *  "Team Members". Used for the self-managed header line. */
+  memberLabel: string;
   access: AccessResult;
   communications: Communication[];
 }
@@ -255,13 +261,32 @@ async function buildFamilyWeek(
     : { status: null, trialEndsAt: null };
   const access = resolveFamilyAccess(subscription.status, subscription.trialEndsAt);
 
-  const studioNames = [
-    ...new Set(
-      [...childStreams.flatMap((s) => s.sessions), ...studioWide]
-        .map((x) => x.studioName)
-        .filter((n): n is string => Boolean(n)),
-    ),
-  ];
+  // Studio/team names derived from scheduled items (existing behavior).
+  const orgNames = new Set(
+    [...childStreams.flatMap((s) => s.sessions), ...studioWide]
+      .map((x) => x.studioName)
+      .filter((n): n is string => Boolean(n)),
+  );
+
+  // For a self member, resolve the team identity from their ACTIVE AFFILIATION
+  // (employerIds), so the team appears immediately on join — before any events
+  // exist — and carry the org's member_label for the header. Guardians are
+  // unchanged (their names come from scheduled items above).
+  let memberLabel = DEFAULT_MEMBER_LABEL;
+  if (selfManaged && employerIds.length > 0) {
+    const { data: orgs } = await admin
+      .from("employer_profiles")
+      .select("name, member_label")
+      .in("employer_id", employerIds);
+    const rows = (orgs ?? []) as { name: string | null; member_label: string | null }[];
+    for (const r of rows) {
+      const n = (r.name ?? "").trim();
+      if (n) orgNames.add(n);
+    }
+    memberLabel = memberLabelOf(rows[0]?.member_label);
+  }
+
+  const studioNames = [...orgNames];
   const primaryStudio = studioNames[0] ?? "your studio";
 
   // Merged communications across all members, de-duped by id.
@@ -280,6 +305,7 @@ async function buildFamilyWeek(
     childNames: familyChildNames(members.map((m) => ({ childId: m.student_id, childName: m.display_name, sessions: [] }))),
     studioNames,
     selfManaged,
+    memberLabel,
     access,
     communications: [...commsById.values()],
   };

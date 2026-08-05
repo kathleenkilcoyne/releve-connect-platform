@@ -23,8 +23,16 @@ export interface FamilyWeekData {
   childNames: string[];
   studioNames: string[];
   selfManaged: boolean;
+  /** What the team calls its members (self-managed header line). */
+  memberLabel: string;
   access: AccessResult;
   communications: Communication[];
+}
+
+/** "Team Members" → "Team Member", "Dancers" → "Dancer". Leaves non-plurals be. */
+function singularMember(label: string): string {
+  const t = label.trim();
+  return t.endsWith("s") ? t.slice(0, -1) : t;
 }
 
 export function FamilyWeekView({
@@ -36,11 +44,14 @@ export function FamilyWeekView({
   weekOffset?: number;
   onWeekChange?: (next: number) => void;
 }) {
-  const { events, childNames, studioNames, selfManaged, access, communications } = data;
+  const { events, childNames, studioNames, selfManaged, memberLabel, access, communications } = data;
   const studioLabel = studioNames.join(" · ") || "your studio";
-  const heading = selfManaged ? childNames[0] ?? "Your week" : "Your family";
+  // A self member leads with their TEAM name; the sub-line names their role using
+  // the team's own singularized member_label ("Self-managed team member" /
+  // "Self-managed dancer").
+  const heading = selfManaged ? studioNames[0] || "Your team" : "Your family";
   const whoLabel = selfManaged
-    ? "Self-managed"
+    ? `Self-managed ${singularMember(memberLabel).toLowerCase()}`
     : childNames.length > 0
       ? childNames.join(" · ")
       : "Your dancers";
@@ -80,12 +91,17 @@ export function FamilyWeekView({
           </span>
         </div>
         <p className="rc-serif mt-1 text-lg italic text-[var(--rc-muted)]">{whoLabel}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--rc-muted)]">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--rc-gold-soft)] px-2.5 py-1 font-medium text-[var(--rc-ink)]">
-            {selfManaged ? "Access" : "Family access"} · {access.reason}
-          </span>
-          {studioNames.length > 0 && <span>Affiliated studio: {studioLabel}</span>}
-        </div>
+        {/* A self-managed member isn't gated by a family subscription, so the
+            "Access · {reason}" badge (which would read "none") is not shown, and
+            the team is already the heading. Guardians keep their access badge. */}
+        {!selfManaged && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--rc-muted)]">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--rc-gold-soft)] px-2.5 py-1 font-medium text-[var(--rc-ink)]">
+              Family access · {access.reason}
+            </span>
+            {studioNames.length > 0 && <span>Affiliated studio: {studioLabel}</span>}
+          </div>
+        )}
       </header>
 
       {alerts.length > 0 && (
