@@ -167,7 +167,9 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
       {/* The list */}
       <div className="mt-8 overflow-x-auto">
         {studios.length === 0 ? (
-          <p className="text-sm text-neutral-500">No studios yet. Invite one above.</p>
+          <p className="text-sm text-neutral-500">
+            {isTeam ? "No dance teams yet. Invite one above." : "No studios yet. Invite one above."}
+          </p>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
