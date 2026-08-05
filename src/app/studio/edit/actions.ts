@@ -55,6 +55,9 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     carRequired: String(formData.get("car_required") ?? ""),
     cultureNote: String(formData.get("culture_note") ?? ""),
     bio: String(formData.get("bio") ?? ""),
+    brandAccent: String(formData.get("brand_accent") ?? ""),
+    brandAccent2: String(formData.get("brand_accent_2") ?? ""),
+    teamMotto: String(formData.get("team_motto") ?? ""),
   });
   if (!parsed.ok) return { ok: false, message: parsed.message };
   const row = parsed.row;
@@ -141,6 +144,9 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     tiktok: row.tiktok,
     facebook: row.facebook,
     promo_video_url: row.promo_video_url,
+    brand_accent: row.brand_accent,
+    brand_accent_2: row.brand_accent_2,
+    team_motto: row.team_motto,
     links,
     updated_at: new Date().toISOString(),
   };

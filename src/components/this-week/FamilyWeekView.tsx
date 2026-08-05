@@ -13,7 +13,9 @@ import type {
   MessageComm,
   NoteComm,
 } from "@/lib/this-week/types";
+import type { OrgBrand } from "@/lib/studio/branding";
 import { AnnouncementCard, ChangeAlert, MessageBubble, NoteChip } from "./comms";
+import { TeamBrandHeader } from "./TeamBrandHeader";
 import { WeekNav } from "./WeekNav";
 import { WeekView } from "./WeekView";
 
@@ -25,6 +27,8 @@ export interface FamilyWeekData {
   selfManaged: boolean;
   /** What the team calls its members (self-managed header line). */
   memberLabel: string;
+  /** The affiliated org's branding (logo/accents/motto) for the co-branded header. */
+  brand: OrgBrand | null;
   access: AccessResult;
   communications: Communication[];
 }
@@ -44,7 +48,7 @@ export function FamilyWeekView({
   weekOffset?: number;
   onWeekChange?: (next: number) => void;
 }) {
-  const { events, childNames, studioNames, selfManaged, memberLabel, access, communications } = data;
+  const { events, childNames, studioNames, selfManaged, memberLabel, brand, access, communications } = data;
   const studioLabel = studioNames.join(" · ") || "your studio";
   // A self member leads with their TEAM name; the sub-line names their role using
   // the team's own singularized member_label ("Self-managed team member" /
@@ -83,6 +87,14 @@ export function FamilyWeekView({
 
   return (
     <div className="space-y-7">
+      {/* Co-branded band — the member's own org, above the calendar. Relevé's own
+          mark stays in the top chrome; this personalizes, it doesn't replace. */}
+      {brand && (
+        <div className="border-b border-[var(--rc-hairline)] pb-5">
+          <TeamBrandHeader brand={brand} />
+        </div>
+      )}
+
       <header>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="rc-serif text-3xl font-semibold text-[var(--rc-ink)]">{heading}</h1>

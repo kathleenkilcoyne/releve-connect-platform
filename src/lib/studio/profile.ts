@@ -1,6 +1,8 @@
 // Studio (§7) — pure normalization/validation for the light studio profile.
 // Dependency-free so the rules can be unit-tested without a DB or React. The
 // /studio/edit save action builds the employer_profiles row from this.
+
+import { normalizeHex, normalizeMotto, MOTTO_MAX } from "./branding";
 //
 // Studios are the buyer side (light onboarding, no vetting) — but the fields a
 // sub needs to decide "can I get there?" are structured + controlled so the
@@ -132,6 +134,10 @@ export type StudioInput = {
   carRequired: string | null | undefined;
   cultureNote: string | null | undefined;
   bio: string | null | undefined;
+  // Organization branding (optional). Accents are hex; the motto is <= 60 chars.
+  brandAccent: string | null | undefined;
+  brandAccent2: string | null | undefined;
+  teamMotto: string | null | undefined;
 };
 
 export type StudioRow = {
@@ -164,6 +170,10 @@ export type StudioRow = {
   accessible_by_bus: boolean;
   car_required: boolean;
   bio: string | null;
+  // Branding (normalized): invalid hex → null; motto trimmed (<= 60, enforced above).
+  brand_accent: string | null;
+  brand_accent_2: string | null;
+  team_motto: string | null;
 };
 
 export type StudioParseResult =
@@ -199,6 +209,14 @@ export function buildEmployerProfileRow(
     };
   }
 
+  const motto = normalizeMotto(input.teamMotto);
+  if (motto && motto.length > MOTTO_MAX) {
+    return {
+      ok: false,
+      message: `Your motto is a little long — please keep it to ${MOTTO_MAX} characters or fewer.`,
+    };
+  }
+
   return {
     ok: true,
     row: {
@@ -226,6 +244,9 @@ export function buildEmployerProfileRow(
       accessible_by_bus: parseCheckbox(input.accessibleByBus),
       car_required: parseCheckbox(input.carRequired),
       bio: trimOrNull(input.bio),
+      brand_accent: normalizeHex(input.brandAccent),
+      brand_accent_2: normalizeHex(input.brandAccent2),
+      team_motto: motto,
     },
   };
 }

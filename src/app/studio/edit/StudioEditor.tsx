@@ -17,9 +17,16 @@
 // Checkbox groups (styles / concentration / certs) submit checked values as
 // arrays.
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveStudioProfile, type SaveState } from "./actions";
 import { STUDENT_COUNT_BANDS, STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
+import {
+  MOTTO_MAX,
+  accentIsWashedOut,
+  monogramFrom,
+  normalizeHex,
+  readableTextColor,
+} from "@/lib/studio/branding";
 
 type Option = { slug: string; label: string };
 
@@ -49,6 +56,10 @@ type Initial = {
   accessible_by_bus: boolean;
   car_required: boolean;
   bio: string;
+  logo_url: string;
+  brand_accent: string;
+  brand_accent_2: string;
+  team_motto: string;
 } | null;
 
 const input =
@@ -140,6 +151,9 @@ export default function StudioEditor({
           />
         </div>
       </section>
+
+      {/* ── 3b · Branding (logo/mascot · accents · motto) ───────────────── */}
+      <BrandingSection initial={initial} />
 
       {/* ── 4 · Location (REQUIRED: city + state) ───────────────────────── */}
       <section className="space-y-4">
@@ -357,6 +371,156 @@ export default function StudioEditor({
         )}
       </div>
     </form>
+  );
+}
+
+// Branding — logo/mascot upload (sets logo_url via a gated route), up to two
+// accent colors, and a short motto. A live preview shows the co-branded tile as
+// a member will see it, with a COMPUTED accessible foreground so any accent stays
+// legible; the accent-washed-out warning is a soft nudge, never a block.
+function BrandingSection({ initial }: { initial: Initial }) {
+  const [logoUrl, setLogoUrl] = useState(initial?.logo_url ?? "");
+  const [accent, setAccent] = useState(initial?.brand_accent ?? "");
+  const [accent2, setAccent2] = useState(initial?.brand_accent_2 ?? "");
+  const [motto, setMotto] = useState(initial?.team_motto ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const normAccent = normalizeHex(accent);
+  const tileBg = normAccent ?? "#f4f1ea";
+  const tileFg = readableTextColor(normAccent ?? "#f4f1ea");
+  const previewName = initial?.name?.trim() || "Your Team";
+  const washed = accentIsWashedOut(accent);
+
+  async function onLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setNotice(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/studio/branding/logo", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setNotice({ ok: false, text: data.error ?? "Upload failed." });
+      else {
+        setLogoUrl(data.url);
+        setNotice({ ok: true, text: "Logo uploaded." });
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong uploading your logo." });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900">Branding</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Your logo, colors, and motto appear above your members&apos; calendar in Relevé — this
+          personalizes their view, it never replaces Relevé. All optional.
+        </p>
+      </div>
+
+      {/* Live preview of the co-branded tile. */}
+      <div className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+        <span
+          className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-lg font-semibold"
+          style={{ backgroundColor: tileBg, color: tileFg }}
+        >
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            monogramFrom(previewName)
+          )}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-neutral-900">{previewName}</p>
+          {motto.trim() && <p className="truncate text-sm italic text-neutral-500">{motto.trim()}</p>}
+        </div>
+      </div>
+
+      <div>
+        <label className={label}>Logo or mascot</label>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/svg+xml"
+          onChange={onLogoChange}
+          disabled={uploading}
+          className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+        />
+        <p className={help}>PNG, JPG, or SVG, up to 2 MB. {uploading ? "Uploading…" : ""}</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={label}>Primary accent (optional)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={normAccent ?? "#111111"}
+              onChange={(ev) => setAccent(ev.target.value)}
+              className="h-9 w-10 shrink-0 cursor-pointer rounded border border-neutral-300"
+              aria-label="Primary accent color picker"
+            />
+            <input
+              name="brand_accent"
+              value={accent}
+              onChange={(ev) => setAccent(ev.target.value)}
+              placeholder="#1a1a2e"
+              className={input}
+            />
+          </div>
+          {washed && (
+            <p className="mt-1 text-xs text-amber-700">
+              This accent is very light and may look washed out — a deeper color reads better.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className={label}>Secondary accent (optional)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={normalizeHex(accent2) ?? "#111111"}
+              onChange={(ev) => setAccent2(ev.target.value)}
+              className="h-9 w-10 shrink-0 cursor-pointer rounded border border-neutral-300"
+              aria-label="Secondary accent color picker"
+            />
+            <input
+              name="brand_accent_2"
+              value={accent2}
+              onChange={(ev) => setAccent2(ev.target.value)}
+              placeholder="#c9a24b"
+              className={input}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className={label}>Motto (optional)</label>
+        <input
+          name="team_motto"
+          value={motto}
+          maxLength={MOTTO_MAX}
+          onChange={(ev) => setMotto(ev.target.value)}
+          placeholder="e.g. Together we rise"
+          className={input}
+        />
+        <p className={help}>
+          {motto.trim().length}/{MOTTO_MAX} characters.
+        </p>
+      </div>
+
+      {notice && (
+        <p className={`text-sm ${notice.ok ? "text-green-700" : "text-red-600"}`}>{notice.text}</p>
+      )}
+    </section>
   );
 }
 

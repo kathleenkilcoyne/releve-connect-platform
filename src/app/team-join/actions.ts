@@ -48,6 +48,8 @@ type EmployerRow = {
   org_type: string | null;
   team_type: string | null;
   member_label: string | null;
+  logo_url: string | null;
+  brand_accent: string | null;
 };
 
 /** Look up a team invite + its org. Read-only; shared by validate and join. */
@@ -81,7 +83,7 @@ async function resolveTeamCode(
 
   const { data: empRow } = await admin
     .from("employer_profiles")
-    .select("name, org_type, team_type, member_label")
+    .select("name, org_type, team_type, member_label, logo_url, brand_accent")
     .eq("employer_id", invite.employer_id)
     .maybeSingle();
   const employer = empRow as EmployerRow | null;
@@ -92,7 +94,14 @@ async function resolveTeamCode(
 }
 
 export type ValidateResult =
-  | { valid: true; orgName: string; team_type: string | null; memberLabel: string }
+  | {
+      valid: true;
+      orgName: string;
+      team_type: string | null;
+      memberLabel: string;
+      logoUrl: string | null;
+      accent: string | null;
+    }
   | { valid: false; reason: "invalid" | "family" | "expired" };
 
 /**
@@ -112,6 +121,8 @@ export async function validateTeamCode(codeRaw: string): Promise<ValidateResult>
     orgName: (resolved.employer.name ?? "").trim() || "your team",
     team_type: resolved.employer.team_type,
     memberLabel: memberLabelOf(resolved.employer.member_label),
+    logoUrl: resolved.employer.logo_url,
+    accent: resolved.employer.brand_accent,
   };
 }
 

@@ -58,6 +58,10 @@ type EmployerFields = {
   car_required: boolean | null;
   culture_note: string | null;
   bio: string | null;
+  logo_url: string | null;
+  brand_accent: string | null;
+  brand_accent_2: string | null;
+  team_motto: string | null;
 };
 
 type Invite = {
@@ -73,7 +77,8 @@ const PROFILE_COLUMNS =
   "employer_id, status, name, artistic_director, unique_note, mission, website, instagram, " +
   "tiktok, facebook, promo_video_url, address_line1, address_line2, city, state_province, " +
   "postal_code, country, year_founded, student_count_band, staff_count, room_count, " +
-  "accessible_by_train, accessible_by_bus, car_required, culture_note, bio";
+  "accessible_by_train, accessible_by_bus, car_required, culture_note, bio, " +
+  "logo_url, brand_accent, brand_accent_2, team_motto";
 
 /** A plain, form-less notice page (used for every "can't proceed" case). */
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -353,6 +358,10 @@ export default async function StudioSetupPage({
           car_required: e?.car_required ?? false,
           culture_note: e?.culture_note ?? "",
           bio: e?.bio ?? "",
+          logo_url: e?.logo_url ?? "",
+          brand_accent: e?.brand_accent ?? "",
+          brand_accent_2: e?.brand_accent_2 ?? "",
+          team_motto: e?.team_motto ?? "",
         }}
         styleOptions={styleOptions}
         concentrationOptions={concentrationOptions}

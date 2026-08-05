@@ -44,6 +44,9 @@ const blank: StudioInput = {
   carRequired: "",
   cultureNote: "",
   bio: "",
+  brandAccent: "",
+  brandAccent2: "",
+  teamMotto: "",
 };
 
 describe("parseCount", () => {
@@ -191,6 +194,9 @@ describe("buildEmployerProfileRow", () => {
         carRequired: "on",
         cultureNote: "Warm, technique-forward",
         bio: "A community studio.",
+        brandAccent: "#1a1a2e",
+        brandAccent2: "",
+        teamMotto: "Together we rise",
       },
       now,
     );
@@ -221,6 +227,9 @@ describe("buildEmployerProfileRow", () => {
         accessible_by_bus: true,
         car_required: true,
         bio: "A community studio.",
+        brand_accent: "#1a1a2e",
+        brand_accent_2: null,
+        team_motto: "Together we rise",
       });
     }
   });
@@ -248,6 +257,24 @@ describe("buildEmployerProfileRow", () => {
       expect(res.row.accessible_by_bus).toBe(false);
       expect(res.row.car_required).toBe(true);
     }
+  });
+
+  it("normalizes branding accents and keeps a valid motto", () => {
+    const res = buildEmployerProfileRow(
+      { ...blank, brandAccent: "#ABC", brandAccent2: "not-a-color", teamMotto: "  Rise together  " },
+      now,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.row.brand_accent).toBe("#aabbcc"); // expanded + lowercased
+      expect(res.row.brand_accent_2).toBeNull(); // invalid hex dropped
+      expect(res.row.team_motto).toBe("Rise together"); // trimmed
+    }
+  });
+
+  it("rejects a motto longer than 60 characters", () => {
+    const res = buildEmployerProfileRow({ ...blank, teamMotto: "a".repeat(61) }, now);
+    expect(res.ok).toBe(false);
   });
 });
 
@@ -277,6 +304,9 @@ describe("addressChanged", () => {
     accessible_by_bus: false,
     car_required: false,
     bio: null,
+    brand_accent: null,
+    brand_accent_2: null,
+    team_motto: null,
   };
 
   it("is true when there is no previous row (first save → needs a pin)", () => {

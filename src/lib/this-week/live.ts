@@ -43,6 +43,7 @@ import type {
 } from "./types";
 import { resolveWeek, type ResolvedWeek } from "./week";
 import { memberLabelOf, DEFAULT_MEMBER_LABEL } from "@/lib/studio/team-types";
+import type { OrgBrand } from "@/lib/studio/branding";
 
 type Client = SupabaseClient;
 
@@ -73,6 +74,9 @@ export interface FamilyWeek {
   /** What the team calls its members (from the org's member_label), defaulting to
    *  "Team Members". Used for the self-managed header line. */
   memberLabel: string;
+  /** The primary affiliated org's branding (logo/accents/motto), for the
+   *  co-branded header. Null when there is no affiliated org. */
+  brand: OrgBrand | null;
   access: AccessResult;
   communications: Communication[];
 }
@@ -268,22 +272,44 @@ async function buildFamilyWeek(
       .filter((n): n is string => Boolean(n)),
   );
 
-  // For a self member, resolve the team identity from their ACTIVE AFFILIATION
-  // (employerIds), so the team appears immediately on join — before any events
-  // exist — and carry the org's member_label for the header. Guardians are
-  // unchanged (their names come from scheduled items above).
+  // Resolve the primary affiliated org's identity + BRANDING from the member's
+  // ACTIVE AFFILIATION (employerIds), NOT from schedule items — so the co-branded
+  // header renders for both self members and families, even before any events
+  // exist. For a self member we also fold the org name into studioNames and carry
+  // its member_label; guardians keep their session-derived names.
   let memberLabel = DEFAULT_MEMBER_LABEL;
-  if (selfManaged && employerIds.length > 0) {
+  let brand: OrgBrand | null = null;
+  if (employerIds.length > 0) {
     const { data: orgs } = await admin
       .from("employer_profiles")
-      .select("name, member_label")
+      .select("employer_id, name, member_label, logo_url, brand_accent, brand_accent_2, team_motto")
       .in("employer_id", employerIds);
-    const rows = (orgs ?? []) as { name: string | null; member_label: string | null }[];
-    for (const r of rows) {
-      const n = (r.name ?? "").trim();
-      if (n) orgNames.add(n);
+    const rows = (orgs ?? []) as {
+      employer_id: string;
+      name: string | null;
+      member_label: string | null;
+      logo_url: string | null;
+      brand_accent: string | null;
+      brand_accent_2: string | null;
+      team_motto: string | null;
+    }[];
+    const primary = rows.find((r) => r.employer_id === employerIds[0]) ?? rows[0];
+    if (primary) {
+      memberLabel = memberLabelOf(primary.member_label);
+      brand = {
+        name: (primary.name ?? "").trim() || (selfManaged ? "Your team" : "Your studio"),
+        logoUrl: primary.logo_url,
+        accent: primary.brand_accent,
+        accent2: primary.brand_accent_2,
+        motto: primary.team_motto,
+      };
     }
-    memberLabel = memberLabelOf(rows[0]?.member_label);
+    if (selfManaged) {
+      for (const r of rows) {
+        const n = (r.name ?? "").trim();
+        if (n) orgNames.add(n);
+      }
+    }
   }
 
   const studioNames = [...orgNames];
@@ -306,6 +332,7 @@ async function buildFamilyWeek(
     studioNames,
     selfManaged,
     memberLabel,
+    brand,
     access,
     communications: [...commsById.values()],
   };

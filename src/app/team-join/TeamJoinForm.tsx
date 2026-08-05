@@ -14,6 +14,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { joinDanceTeam, type TeamJoinState } from "./actions";
+import { monogramFrom, normalizeHex, readableTextColor } from "@/lib/studio/branding";
 
 export type TeamJoinView =
   | { step: "step1"; signedIn: boolean; presetCode: string; error?: string }
@@ -24,6 +25,8 @@ export type TeamJoinView =
       orgName: string;
       teamTypeLabel: string;
       memberLabel: string;
+      logoUrl: string | null;
+      accent: string | null;
     };
 
 const INITIAL: TeamJoinState = { ok: false, message: "" };
@@ -108,6 +111,35 @@ function StepOne({
   );
 }
 
+/** The org's logo, or an accent-tinted monogram tile, shown next to its name. */
+function BrandTile({
+  name,
+  logoUrl,
+  accent,
+}: {
+  name: string;
+  logoUrl: string | null;
+  accent: string | null;
+}) {
+  const normAccent = normalizeHex(accent);
+  const style = normAccent
+    ? { backgroundColor: normAccent, color: readableTextColor(normAccent) }
+    : { backgroundColor: "#f4f1ea", color: "#111111" };
+  return (
+    <span
+      className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-base font-semibold"
+      style={style}
+    >
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logoUrl} alt={`${name} logo`} className="h-full w-full object-cover" />
+      ) : (
+        monogramFrom(name)
+      )}
+    </span>
+  );
+}
+
 /* ── STEP 2 — org revealed, team_type language ─────────────────────────────── */
 function StepTwo({
   view,
@@ -142,9 +174,12 @@ function StepTwo({
 
   return (
     <>
-      <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-        <p className="text-xl font-semibold text-neutral-900">You&apos;re joining {view.orgName}</p>
-        <p className="mt-1 text-sm text-neutral-600">{view.teamTypeLabel}</p>
+      <div className="mt-4 flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+        <BrandTile name={view.orgName} logoUrl={view.logoUrl} accent={view.accent} />
+        <div className="min-w-0">
+          <p className="text-xl font-semibold text-neutral-900">You&apos;re joining {view.orgName}</p>
+          <p className="mt-1 text-sm text-neutral-600">{view.teamTypeLabel}</p>
+        </div>
       </div>
 
       <form action={formAction} className="mt-8 space-y-5">

@@ -54,6 +54,8 @@ export default async function TeamJoinPage({
         orgName: v.orgName,
         teamTypeLabel: teamTypeLabel(v.team_type),
         memberLabel: v.memberLabel,
+        logoUrl: v.logoUrl,
+        accent: v.accent,
       };
     } else {
       view = { step: "step1", signedIn, presetCode, error: TEAM_JOIN_ERRORS[v.reason] };
