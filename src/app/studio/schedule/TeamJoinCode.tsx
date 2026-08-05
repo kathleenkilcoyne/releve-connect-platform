@@ -1,19 +1,26 @@
 "use client";
 
-// College team (B3, Gate 2) — the coach's own Team join code panel.
+// Dance team — the Team Director's own Team join code panel.
 //
 // This is SEPARATE from the competition-studio family join code. A team code is
-// shared with ADULT dancers, who redeem it through the adult pathway (Gate 3) —
-// never the family /join. Redeeming it creates a self-managed adult account with
-// NO guardian, minor, or family record, and does NOT place anyone on the
-// professional Roster or Swing.
+// shared with ADULT members, who redeem it through the adult dance-team pathway
+// (/team-join) — never the family /join. Redeeming it creates a self-managed
+// adult account with NO guardian, minor, or family record, and does NOT place
+// anyone on the professional Roster or Swing.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type TeamCode = { code: string; use_count: number };
 
-export default function TeamJoinCode({ code }: { code: TeamCode | null }) {
+export default function TeamJoinCode({
+  code,
+  memberLabel = "Team Members",
+}: {
+  code: TeamCode | null;
+  memberLabel?: string;
+}) {
+  const membersLower = memberLabel.toLowerCase();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -75,10 +82,10 @@ export default function TeamJoinCode({ code }: { code: TeamCode | null }) {
     <section className="mt-10 border-t border-neutral-200 pt-6">
       <h2 className="text-lg font-semibold text-neutral-900">Team join code</h2>
       <p className="mt-1 text-sm text-neutral-600">
-        Share this with your <span className="font-medium">adult</span> college-team dancers. Each one
-        enters it on the team join page and gets a self-managed account connected to your team — no
-        parent or guardian involved. It is separate from any studio&apos;s family code, and joining
-        does <span className="font-medium">not</span> add anyone to the Relevé Roster or The Swing.
+        Share this with your <span className="font-medium">adult</span> {membersLower}. Each one
+        enters it on the dance team join page and gets a self-managed account connected to your team.
+        It is separate from any studio&apos;s family code, and joining does{" "}
+        <span className="font-medium">not</span> add anyone to the Relevé Roster or The Swing.
       </p>
 
       {code ? (
@@ -97,7 +104,7 @@ export default function TeamJoinCode({ code }: { code: TeamCode | null }) {
 
           <div className="mt-3">
             <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Shareable link (for adult dancers)
+              Shareable link (for your {membersLower})
             </label>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <code className="break-all rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-800">
@@ -113,7 +120,7 @@ export default function TeamJoinCode({ code }: { code: TeamCode | null }) {
           </div>
 
           <p className="mt-3 text-xs text-neutral-500">
-            {code.use_count} {code.use_count === 1 ? "dancer has" : "dancers have"} joined · unlimited
+            {code.use_count} {code.use_count === 1 ? "member has" : "members have"} joined · unlimited
             uses · no expiry
           </p>
 

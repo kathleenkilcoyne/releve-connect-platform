@@ -1,53 +1,63 @@
 "use server";
 
-// "Join Your College Team" — the ADULT, self-managed join pathway (B3, Gate 3).
+// "Join your dance team" — the ADULT, self-managed join pathway (Dance Teams
+// umbrella; generalized from the original college-team flow).
 //
-// This is DELIBERATELY SEPARATE from the family /join (joinThroughStudio):
-//   · It accepts ONLY a team code (studio_invites.kind = 'team'); a family code
-//     is refused here (and a team code is refused at /join). They never cross.
-//   · It creates a SELF-MANAGED ADULT record — a `students` row transferred to the
-//     dancer's OWN account (transferred_to_user_id = auth.uid()), with NO
-//     guardian, NO minor-under-guardian relationship, and NO family_account
-//     (family_id stays null). The self-member RLS (Slice 3) then lets them read
-//     their own week.
-//   · It connects them to the team via an affiliation, and NOTHING else. It does
-//     NOT create a talent_profile, Swing, or Roster entry — that is a separate
-//     opt-in + approval later.
+// Two server entry points, both under the service role:
+//   · validateTeamCode(code) — READ-ONLY. Resolves a team code to its org so the
+//     page can reveal "You're joining {OrgName}" and switch to the team's
+//     team_type language. Creates NOTHING.
+//   · joinDanceTeam(...)      — the WRITE. Creates a self-managed adult record
+//     (a `students` row transferred to the dancer's own account: family_id null,
+//     visibility 'self_managed', NO guardian, NO family_account) and an
+//     affiliation to the team, and NOTHING else — no talent_profile, no Swing,
+//     no Roster. Those remain a separate opt-in + approval later.
 //
-// Runs under the service role: the caller is authenticated (we key the record to
-// their own user.id), and the team code is the team's authorization to add them.
+// This is DELIBERATELY SEPARATE from the family /join: it accepts ONLY a team
+// code (studio_invites.kind = 'team'); a family code is refused here (and a team
+// code is refused at /join). They can never cross-redeem.
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { JOIN_INTENT_COOKIE } from "@/lib/auth/destination";
+import { memberLabelOf } from "@/lib/studio/team-types";
+import { TEAM_JOIN_ERRORS } from "./errors";
 
-export type TeamJoinState = { ok: boolean; message: string };
+export type TeamJoinState = {
+  ok: boolean;
+  message: string;
+  /** Set on success so the page can show "Welcome to {OrgName}…" then send them
+   *  to their week. */
+  done?: boolean;
+  orgName?: string;
+};
 
-export async function joinCollegeTeam(
-  _prev: TeamJoinState,
-  formData: FormData,
-): Promise<TeamJoinState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: "Your session expired — please sign in again." };
+type InviteRow = {
+  invite_id: string;
+  employer_id: string;
+  status: string;
+  kind: string;
+  max_uses: number | null;
+  use_count: number;
+  expires_at: string | null;
+};
 
-  const str = (k: string) => String(formData.get(k) ?? "").trim();
-  const code = str("team_code").toUpperCase();
-  const dancerName = str("dancer_name");
-  const adult = formData.get("adult_confirm") === "on";
+type EmployerRow = {
+  name: string | null;
+  org_type: string | null;
+  team_type: string | null;
+  member_label: string | null;
+};
 
-  if (!code) return { ok: false, message: "Please enter your team's join code." };
-  if (!dancerName) return { ok: false, message: "Please enter your name." };
-  if (!adult) {
-    return { ok: false, message: "Please confirm you're joining as an adult dancer (18 or older)." };
-  }
-
-  const admin = createAdminClient();
-
+/** Look up a team invite + its org. Read-only; shared by validate and join. */
+async function resolveTeamCode(
+  admin: ReturnType<typeof createAdminClient>,
+  code: string,
+): Promise<
+  | { ok: true; invite: InviteRow; employer: EmployerRow }
+  | { ok: false; reason: "invalid" | "family" | "expired" }
+> {
   const { data: inviteRow, error: inviteErr } = await admin
     .from("studio_invites")
     .select("invite_id, employer_id, status, kind, max_uses, use_count, expires_at")
@@ -55,46 +65,82 @@ export async function joinCollegeTeam(
     .maybeSingle();
   if (inviteErr) {
     console.error("[team-join] invite lookup failed:", inviteErr.message);
-    return { ok: false, message: "Something went wrong — please try again in a moment." };
+    return { ok: false, reason: "invalid" };
   }
-  const invite = inviteRow as {
-    invite_id: string;
-    employer_id: string;
-    status: string;
-    kind: string;
-    max_uses: number | null;
-    use_count: number;
-    expires_at: string | null;
-  } | null;
-
-  const invalid = {
-    ok: false,
-    message: "That team join code isn't valid. Please check with your coach.",
-  };
-  if (!invite) return invalid;
+  const invite = inviteRow as InviteRow | null;
+  if (!invite) return { ok: false, reason: "invalid" };
   // Keep SEPARATE from the family flow: only a team code is redeemable here.
-  if (invite.kind !== "team") {
-    return {
-      ok: false,
-      message:
-        "That looks like a studio family code, not a college-team code. If you're a parent joining a studio, use the family join page instead.",
-    };
+  if (invite.kind !== "team") return { ok: false, reason: "family" };
+  if (invite.status !== "active") return { ok: false, reason: "expired" };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+    return { ok: false, reason: "expired" };
   }
-  if (invite.status !== "active") return invalid;
-  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return invalid;
   if (invite.max_uses != null && invite.use_count >= invite.max_uses) {
-    return { ok: false, message: "That team code has been fully used. Please ask your coach for a new one." };
+    return { ok: false, reason: "expired" };
   }
 
-  const employerId = invite.employer_id;
-
-  // Defensive: the code must belong to a college team.
   const { data: empRow } = await admin
     .from("employer_profiles")
-    .select("org_type")
-    .eq("employer_id", employerId)
+    .select("name, org_type, team_type, member_label")
+    .eq("employer_id", invite.employer_id)
     .maybeSingle();
-  if ((empRow as { org_type?: string } | null)?.org_type !== "college_team") return invalid;
+  const employer = empRow as EmployerRow | null;
+  // Defensive: the code must belong to a dance team.
+  if (!employer || employer.org_type !== "dance_team") return { ok: false, reason: "invalid" };
+
+  return { ok: true, invite, employer };
+}
+
+export type ValidateResult =
+  | { valid: true; orgName: string; team_type: string | null; memberLabel: string }
+  | { valid: false; reason: "invalid" | "family" | "expired" };
+
+/**
+ * READ-ONLY resolve of a team code for the reveal step. Creates nothing. The
+ * page calls this once the dancer is signed in and has entered a code.
+ */
+export async function validateTeamCode(codeRaw: string): Promise<ValidateResult> {
+  const code = (codeRaw ?? "").trim().toUpperCase();
+  if (!code) return { valid: false, reason: "invalid" };
+
+  const admin = createAdminClient();
+  const resolved = await resolveTeamCode(admin, code);
+  if (!resolved.ok) return { valid: false, reason: resolved.reason };
+
+  return {
+    valid: true,
+    orgName: (resolved.employer.name ?? "").trim() || "your team",
+    team_type: resolved.employer.team_type,
+    memberLabel: memberLabelOf(resolved.employer.member_label),
+  };
+}
+
+export async function joinDanceTeam(
+  _prev: TeamJoinState,
+  formData: FormData,
+): Promise<TeamJoinState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: TEAM_JOIN_ERRORS.sessionLost };
+
+  const str = (k: string) => String(formData.get(k) ?? "").trim();
+  const code = str("team_code").toUpperCase();
+  const dancerName = str("dancer_name");
+  const adult = formData.get("adult_confirm") === "on";
+
+  if (!code) return { ok: false, message: TEAM_JOIN_ERRORS.invalid };
+  if (!dancerName) return { ok: false, message: TEAM_JOIN_ERRORS.noName };
+  if (!adult) return { ok: false, message: TEAM_JOIN_ERRORS.notConfirmed };
+
+  const admin = createAdminClient();
+
+  const resolved = await resolveTeamCode(admin, code);
+  if (!resolved.ok) return { ok: false, message: TEAM_JOIN_ERRORS[resolved.reason] };
+  const { invite, employer } = resolved;
+  const employerId = invite.employer_id;
+  const orgName = (employer.name ?? "").trim() || "your team";
 
   // Ensure an account row — a self-managed dancer is a 'consumer'. Never downgrade
   // an existing admin/talent/employer just because they joined a team.
@@ -167,6 +213,7 @@ export async function joinCollegeTeam(
   // Clear any stale family join-intent cookie so a later sign-in isn't bounced to /join.
   (await cookies()).set(JOIN_INTENT_COOKIE, "", { path: "/", maxAge: 0 });
 
-  // Land on their own week (the self-managed view resolves per-self, Slice 3).
-  redirect("/this-week?view=student");
+  // Success — the page shows "Welcome to {OrgName}…" then sends them to their
+  // week (the self-managed view resolves per-self).
+  return { ok: true, done: true, orgName, message: "" };
 }

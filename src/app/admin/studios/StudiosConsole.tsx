@@ -8,6 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { StudioRow } from "./page";
+import { TEAM_TYPES, TEAM_TYPE_OPTION_LABELS, type TeamType } from "@/lib/studio/team-types";
 
 const STATUS_LABEL: Record<string, string> = {
   invited: "Invited",
@@ -27,9 +28,12 @@ const STATUS_TONE: Record<string, string> = {
 export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [orgType, setOrgType] = useState<"studio" | "college_team">("studio");
+  const [orgType, setOrgType] = useState<"studio" | "dance_team">("studio");
+  const [teamType, setTeamType] = useState<TeamType>("college");
+  const [memberLabel, setMemberLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const isTeam = orgType === "dance_team";
 
   async function createInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -39,7 +43,13 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
       const res = await fetch("/api/admin/studio-invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), org_type: orgType }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          org_type: orgType,
+          ...(isTeam
+            ? { team_type: teamType, member_label: memberLabel.trim() || null }
+            : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -89,28 +99,27 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
       {/* Create invitation */}
       <form onSubmit={createInvite} className="rounded-xl border border-neutral-200 bg-neutral-50 p-5">
         <label className="block text-sm font-medium text-neutral-800">
-          {orgType === "college_team" ? "Invite a college team" : "Invite a studio"}
+          {isTeam ? "Invite a dance team" : "Invite a studio"}
         </label>
         <p className="mt-1 text-xs text-neutral-500">
-          Enter the {orgType === "college_team" ? "coach" : "studio owner"}&apos;s email. We create
-          their private profile and email them a secure setup link. Re-entering an email re-sends the
-          same link.
+          Enter the {isTeam ? "Team Director" : "studio owner"}&apos;s email. We create their private
+          profile and email them a secure setup link. Re-entering an email re-sends the same link.
         </p>
         <div className="mt-3 flex flex-wrap gap-3">
           <select
             value={orgType}
-            onChange={(ev) => setOrgType(ev.target.value as "studio" | "college_team")}
+            onChange={(ev) => setOrgType(ev.target.value as "studio" | "dance_team")}
             className="rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
           >
             <option value="studio">Studio</option>
-            <option value="college_team">College team</option>
+            <option value="dance_team">Dance team</option>
           </select>
           <input
             type="email"
             required
             value={email}
             onChange={(ev) => setEmail(ev.target.value)}
-            placeholder={orgType === "college_team" ? "coach@college.edu" : "owner@studio.com"}
+            placeholder={isTeam ? "director@team.org" : "owner@studio.com"}
             className="min-w-[16rem] flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
           />
           <button
@@ -121,6 +130,35 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
             {busy ? "Working…" : "Send invitation"}
           </button>
         </div>
+
+        {/* Dance-team flavor (display-only) + what the team calls its members. */}
+        {isTeam && (
+          <div className="mt-3 flex flex-wrap gap-3">
+            <label className="flex flex-col text-xs font-medium text-neutral-600">
+              Team type
+              <select
+                value={teamType}
+                onChange={(ev) => setTeamType(ev.target.value as TeamType)}
+                className="mt-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-normal text-neutral-800 focus:border-neutral-500 focus:outline-none"
+              >
+                {TEAM_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {TEAM_TYPE_OPTION_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-1 flex-col text-xs font-medium text-neutral-600">
+              Member label (optional)
+              <input
+                value={memberLabel}
+                onChange={(ev) => setMemberLabel(ev.target.value)}
+                placeholder="e.g. Dancers, Athletes — defaults to Team Members"
+                className="mt-1 min-w-[14rem] rounded-lg border border-neutral-300 px-3 py-2 text-sm font-normal focus:border-neutral-500 focus:outline-none"
+              />
+            </label>
+          </div>
+        )}
         {notice && (
           <p className={`mt-3 text-sm ${notice.ok ? "text-green-700" : "text-red-600"}`}>{notice.text}</p>
         )}

@@ -74,13 +74,13 @@ export async function joinThroughStudio(
 
   const invalid = { ok: false, message: "That join code isn't valid. Please check with your studio." };
   if (!invite) return invalid;
-  // Keep SEPARATE from the college-team flow: a team code is not redeemable here
+  // Keep SEPARATE from the dance-team flow: a team code is not redeemable here
   // (it would wrongly create a guardian + minor). Send adult team dancers to /team-join.
   if (invite.kind === "team") {
     return {
       ok: false,
       message:
-        "That's a college-team join code — it's for adult dancers. Please use the college team join page instead.",
+        "That's a dance team join code — it's for adult dancers. Please use the dance team join page instead.",
     };
   }
   if (invite.status !== "active") return invalid;

@@ -17,6 +17,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailSiteUrl } from "@/lib/email/send";
 import { sendStudioInvitation } from "@/lib/notifications";
+import { isTeamType } from "@/lib/studio/team-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
   const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
-  let body: { email?: string; org_type?: string };
+  let body: { email?: string; org_type?: string; team_type?: string; member_label?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -39,9 +40,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Please provide a valid email address." }, { status: 400 });
   }
 
-  // A studio (default) or a college team. Both onboard through the same
-  // owner-invite flow; org_type just relabels and drives the adult-join path.
-  const orgType = body.org_type === "college_team" ? "college_team" : "studio";
+  // A studio (default) or a dance team. Both onboard through the same owner-invite
+  // flow; org_type just relabels and drives the adult-join path. A dance team also
+  // carries a display-only team_type and an optional member_label.
+  const orgType = body.org_type === "dance_team" ? "dance_team" : "studio";
+  const teamType = orgType === "dance_team" && isTeamType(body.team_type) ? body.team_type : null;
+  const memberLabel =
+    orgType === "dance_team"
+      ? (String(body.member_label ?? "").trim() || null)
+      : null;
 
   const db = createAdminClient();
 
@@ -71,7 +78,14 @@ export async function POST(req: Request) {
     // blank; the studio fills it (required) during setup.
     const { data: profRow, error: profErr } = await db
       .from("employer_profiles")
-      .insert({ owner_user_id: null, name: "", status: "invited", org_type: orgType })
+      .insert({
+        owner_user_id: null,
+        name: "",
+        status: "invited",
+        org_type: orgType,
+        team_type: teamType,
+        member_label: memberLabel,
+      })
       .select("employer_id")
       .single();
     if (profErr || !profRow) {

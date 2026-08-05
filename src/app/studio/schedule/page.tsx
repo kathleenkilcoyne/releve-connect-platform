@@ -19,6 +19,7 @@ import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
 import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
 import StudioRoster from "./StudioRoster";
 import TeamJoinCode, { type TeamCode } from "./TeamJoinCode";
+import { memberLabelOf } from "@/lib/studio/team-types";
 
 export const dynamic = "force-dynamic";
 
@@ -62,12 +63,15 @@ export default async function StudioSchedulePage() {
 
   const { data: prof } = await db
     .from("employer_profiles")
-    .select("name, org_type")
+    .select("name, org_type, team_type, member_label")
     .eq("employer_id", employerId)
     .maybeSingle();
-  const p = prof as { name: string | null; org_type: string | null } | null;
-  const isTeam = p?.org_type === "college_team";
+  const p = prof as
+    | { name: string | null; org_type: string | null; team_type: string | null; member_label: string | null }
+    | null;
+  const isTeam = p?.org_type === "dance_team";
   const orgName = p?.name?.trim() || (isTeam ? "Your team" : "Your studio");
+  const memberLabel = memberLabelOf(p?.member_label);
 
   const { scheduleEntries, teacherOptions, roster, groups } = await loadStudioScheduleData(
     db,
@@ -94,7 +98,7 @@ export default async function StudioSchedulePage() {
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          {isTeam ? "Relevé · College team schedule" : "Relevé · Studio schedule"}
+          {isTeam ? "Relevé · Dance team schedule" : "Relevé · Studio schedule"}
         </p>
         <form action="/auth/signout" method="post">
           <button className="text-sm text-neutral-500 underline" type="submit">
@@ -120,10 +124,10 @@ export default async function StudioSchedulePage() {
       </nav>
 
       {/* ── Roster (dancers + groups) ── */}
-      <StudioRoster groups={groups} roster={roster} isTeam={isTeam} />
+      <StudioRoster groups={groups} roster={roster} isTeam={isTeam} memberLabel={memberLabel} />
 
-      {/* ── Team join code (college teams only) ── */}
-      {isTeam && <TeamJoinCode code={teamCode} />}
+      {/* ── Team join code (dance teams only) ── */}
+      {isTeam && <TeamJoinCode code={teamCode} memberLabel={memberLabel} />}
 
       {/* ── Schedule ── */}
       <section className="mt-10 border-t border-neutral-200 pt-6">

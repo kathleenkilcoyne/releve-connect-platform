@@ -1,12 +1,12 @@
-// College team (B3, Gate 2) — the coach mints/regenerates their TEAM join code.
+// Dance team — the Team Director mints/regenerates their TEAM join code.
 //
 // POST /api/studio/schedule/team-code   body: { action: "generate" | "regenerate" }
 //
 // A team code is a studio_invites row with kind = 'team' for THIS team — kept
 // SEPARATE from family codes (kind = 'family'): a team code is redeemed only via
-// the adult pathway (Gate 3), never at the family /join. The coach shares it with
-// adult dancers. Gated to the caller's own team (requireStudioAccess), and only a
-// college-team employer may mint one.
+// the adult dance-team pathway (/team-join), never at the family /join. The Team
+// Director shares it with adult members. Gated to the caller's own team
+// (requireStudioAccess), and only a dance-team employer may mint one.
 //
 // This creates NO students / guardianship / family / talent_profile / Swing rows —
 // it is only a code.
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
   const db = createAdminClient();
 
-  // Only a college team mints team codes (studios use family codes).
+  // Only a dance team mints team codes (studios use family codes).
   const { data: prof, error: profErr } = await db
     .from("employer_profiles")
     .select("employer_id, name, org_type")
@@ -61,8 +61,8 @@ export async function POST(req: Request) {
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
   if (!prof) return NextResponse.json({ error: "Team not found." }, { status: 404 });
   const p = prof as { name: string | null; org_type: string };
-  if (p.org_type !== "college_team") {
-    return NextResponse.json({ error: "Team join codes are for college teams." }, { status: 400 });
+  if (p.org_type !== "dance_team") {
+    return NextResponse.json({ error: "Team join codes are for dance teams." }, { status: 400 });
   }
 
   // Existing active TEAM code(s) for this team.

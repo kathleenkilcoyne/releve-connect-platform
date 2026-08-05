@@ -21,11 +21,14 @@ export default function StudioRoster({
   groups,
   roster,
   isTeam = false,
+  memberLabel = "Team Members",
 }: {
   groups: GroupEntry[];
   roster: RosterEntry[];
-  /** A college team relabels the roster + join-code wording; default is a studio. */
+  /** A dance team relabels the roster + join-code wording; default is a studio. */
   isTeam?: boolean;
+  /** What a dance team calls its members ("Dancers", "Athletes"…). */
+  memberLabel?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -161,7 +164,7 @@ export default function StudioRoster({
         {roster.length === 0 ? (
           <p className="mt-2 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
             {isTeam
-              ? "No dancers yet. Share your team join code with your adult dancers — each one who joins shows up here."
+              ? `No members yet. Share your team join code with your adult ${memberLabel.toLowerCase()} — each one who joins shows up here.`
               : "No dancers yet. Share your family join code with your competition families — each one who joins shows up here."}
           </p>
         ) : (
