@@ -24,6 +24,8 @@ import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveStudioForUser } from "@/lib/studio/access";
+import { orgCopy } from "@/lib/studio/org-copy";
 import StudioEditor from "../edit/StudioEditor";
 import SubmitForReview from "./SubmitForReview";
 
@@ -34,6 +36,7 @@ type Option = { slug: string; label: string };
 type EmployerFields = {
   employer_id: string;
   status: string | null;
+  org_type: string | null;
   name: string | null;
   artistic_director: string[] | null;
   unique_note: string | null;
@@ -74,7 +77,7 @@ type Invite = {
 };
 
 const PROFILE_COLUMNS =
-  "employer_id, status, name, artistic_director, unique_note, mission, website, instagram, " +
+  "employer_id, status, org_type, name, artistic_director, unique_note, mission, website, instagram, " +
   "tiktok, facebook, promo_video_url, address_line1, address_line2, city, state_province, " +
   "postal_code, country, year_founded, student_count_band, staff_count, room_count, " +
   "accessible_by_train, accessible_by_bus, car_required, culture_note, bio, " +
@@ -216,26 +219,25 @@ export default async function StudioSetupPage({
     await bindInvite(admin, invite, user.id, user.email ?? "");
     employerId = invite.employer_id;
   } else {
-    // No token — a returning owner picking up where they left off.
+    // No token — a returning owner/admin picking up where they left off. The
+    // shared resolver recognizes BOTH a studio owner AND a dance-team Director
+    // (owner_user_id or studio_staff admin), regardless of org_type — and it's
+    // safe when a user administers more than one org (limit(1)), where the old
+    // inline maybeSingle would error and wrongly show the invitation notice.
     if (!user) redirect(`/login?next=${encodeURIComponent("/studio/setup")}&from=studio`);
 
-    const { data: mineRow } = await admin
-      .from("employer_profiles")
-      .select("employer_id")
-      .eq("owner_user_id", user.id)
-      .maybeSingle();
-    const mine = mineRow as { employer_id: string } | null;
-    if (!mine) {
+    const resolved = await resolveStudioForUser(user.id);
+    if (!resolved) {
       return (
-        <Notice title="Studio setup is by invitation">
+        <Notice title="Setup is by invitation">
           <p>
-            Founding Studios join through a private invitation link. If you&apos;re expecting one,
-            check your email — or get in touch below.
+            Founding organizations join through a private invitation link. If you&apos;re expecting
+            one, check your email — or get in touch below.
           </p>
         </Notice>
       );
     }
-    employerId = mine.employer_id;
+    employerId = resolved;
   }
 
   // ---- Load the profile + pick-lists + joins (service role) ----------------
@@ -254,6 +256,7 @@ export default async function StudioSetupPage({
   const concentrationOptions = (concRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
   const e = profRes.data as unknown as EmployerFields | null;
+  const copy = orgCopy(e?.org_type);
 
   const [es, ec, ce] = await Promise.all([
     admin.from("employer_styles").select("styles(slug)").eq("employer_id", employerId),
@@ -303,7 +306,7 @@ export default async function StudioSetupPage({
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Relevé · Founding Studio setup
+          {copy.eyebrow}
         </p>
         <form action="/auth/signout" method="post">
           <button className="text-sm text-neutral-500 underline" type="submit">
@@ -313,11 +316,12 @@ export default async function StudioSetupPage({
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        {untouched ? "Set up your studio" : "Your studio"}
+        {untouched ? copy.setupTitle : copy.returningTitle}
       </h1>
       <p className="mt-3 text-neutral-600">
-        This is your studio&apos;s home on Relevé — how teachers, choreographers, and families find
-        you. Fill in what you can now; you can save and come back any time.
+        {copy.isTeam
+          ? "This is your team's home on Relevé — how your dancers and staff follow the schedule and find you. Fill in what you can now; you can save and come back any time."
+          : "This is your studio's home on Relevé — how teachers, choreographers, and families find you. Fill in what you can now; you can save and come back any time."}
       </p>
 
       <div className={`mt-5 rounded-lg border px-4 py-3 text-sm ${banner.tone}`}>{banner.text}</div>
@@ -329,10 +333,13 @@ export default async function StudioSetupPage({
         Manage your schedule →
       </Link>
       <p className="mt-1 text-xs text-neutral-500">
-        Enter your comp calendar once; the right families see each event in their own This Week.
+        {copy.isTeam
+          ? "Enter your schedule once; each dancer sees the events that involve them in their own This Week."
+          : "Enter your comp calendar once; the right families see each event in their own This Week."}
       </p>
 
       <StudioEditor
+        isTeam={copy.isTeam}
         initial={{
           name: e?.name ?? "",
           artistic_director: (e?.artistic_director ?? []).join(", "),

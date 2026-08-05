@@ -20,6 +20,7 @@
 import { useActionState, useState } from "react";
 import { saveStudioProfile, type SaveState } from "./actions";
 import { STUDENT_COUNT_BANDS, STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
+import { orgCopy } from "@/lib/studio/org-copy";
 import {
   MOTTO_MAX,
   accentIsWashedOut,
@@ -75,6 +76,7 @@ export default function StudioEditor({
   selectedStyles,
   selectedConcentrations,
   selectedCerts,
+  isTeam = false,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -83,7 +85,10 @@ export default function StudioEditor({
   selectedStyles: string[];
   selectedConcentrations: string[];
   selectedCerts: string[];
+  /** A dance team relabels "studio" → "team" throughout; default is a studio. */
+  isTeam?: boolean;
 }) {
+  const copy = orgCopy(isTeam ? "dance_team" : "studio");
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveStudioProfile, {
     ok: false,
     message: "",
@@ -93,7 +98,7 @@ export default function StudioEditor({
     <form action={formAction} className="mt-8 space-y-10">
       {/* ── 1 · Studio name ─────────────────────────────────────────────── */}
       <section className="space-y-1">
-        <label className={label}>Studio name *</label>
+        <label className={label}>{copy.nameLabel} *</label>
         <input name="name" required defaultValue={initial?.name ?? ""} className={input} />
       </section>
 
@@ -129,7 +134,7 @@ export default function StudioEditor({
         </div>
 
         <div>
-          <label className={label}>What makes your studio unique?</label>
+          <label className={label}>What makes your {copy.noun} unique?</label>
           <textarea
             name="unique_note"
             rows={3}
@@ -143,7 +148,7 @@ export default function StudioEditor({
         </div>
 
         <div>
-          <label className={label}>Your studio in one line.</label>
+          <label className={label}>Your {copy.noun} in one line.</label>
           <input
             name="mission"
             defaultValue={initial?.mission ?? ""}
@@ -162,7 +167,8 @@ export default function StudioEditor({
           <p className="mt-1 text-sm text-neutral-600">
             Required. Your city and state power Swing/Flex matching by distance — no location, no
             match. Your full address lets us place your map pin automatically; you don&apos;t need
-            coordinates.
+            coordinates.{" "}
+            {copy.isTeam && "Use where your team is based."}
           </p>
         </div>
         <div>
@@ -219,7 +225,7 @@ export default function StudioEditor({
 
       {/* ── 6 · Scale ───────────────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-neutral-900">Studio scale</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">{copy.Noun} scale</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={label}>Students</label>
@@ -340,7 +346,7 @@ export default function StudioEditor({
 
       {/* ── 10 · Plain details (logistics, last) ────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-neutral-900">Studio details</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">{copy.Noun} details</h2>
         <div>
           <label className={label}>Year founded</label>
           <input
@@ -352,7 +358,7 @@ export default function StudioEditor({
           />
         </div>
         <div>
-          <label className={label}>Anything else about the studio (optional)</label>
+          <label className={label}>Anything else about the {copy.noun} (optional)</label>
           <textarea name="bio" rows={4} defaultValue={initial?.bio ?? ""} className={input} />
         </div>
       </section>
@@ -364,7 +370,7 @@ export default function StudioEditor({
           disabled={pending}
           className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
         >
-          {pending ? "Saving…" : "Save studio profile"}
+          {pending ? "Saving…" : copy.saveLabel}
         </button>
         {state.message && (
           <p className={`text-sm ${state.ok ? "text-green-700" : "text-red-600"}`}>{state.message}</p>

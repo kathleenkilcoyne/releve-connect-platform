@@ -8,6 +8,7 @@
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveStudioForUser } from "@/lib/studio/access";
 
 /**
  * Cookie the family-join gate drops before sending a prospective parent to sign
@@ -85,6 +86,13 @@ export async function resolveSignedInDestination(
         admin.from("guardianships").select("student_id").eq("guardian_user_id", user.id).limit(1).maybeSingle(),
       ]);
       if (ownedFamily || guardianship) return "/this-week";
+
+      // An org owner/admin with no talent profile — a studio owner or a dance-team
+      // Director — lands on their org home (schedule + roster + team join code +
+      // the link to their profile/branding editor), NOT the members-only
+      // professional default which would bounce them to /subscribe.
+      const orgId = await resolveStudioForUser(user.id);
+      if (orgId) return "/studio/schedule";
     }
   }
 
