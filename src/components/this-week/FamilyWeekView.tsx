@@ -13,7 +13,7 @@ import type {
   MessageComm,
   NoteComm,
 } from "@/lib/this-week/types";
-import type { OrgBrand } from "@/lib/studio/branding";
+import { orgNoun, type OrgBrand } from "@/lib/studio/branding";
 import { AnnouncementCard, ChangeAlert, MessageBubble, NoteChip } from "./comms";
 import { TeamBrandHeader } from "./TeamBrandHeader";
 import { WeekNav } from "./WeekNav";
@@ -111,7 +111,9 @@ export function FamilyWeekView({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--rc-gold-soft)] px-2.5 py-1 font-medium text-[var(--rc-ink)]">
               Family access · {access.reason}
             </span>
-            {studioNames.length > 0 && <span>Affiliated studio: {studioLabel}</span>}
+            {studioNames.length > 0 && (
+              <span>Affiliated {orgNoun(brand?.orgType, selfManaged)}: {studioLabel}</span>
+            )}
           </div>
         )}
       </header>

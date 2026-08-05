@@ -15,6 +15,23 @@ export interface OrgBrand {
   accent: string | null;
   accent2: string | null;
   motto: string | null;
+  /** 'studio' | 'dance_team' (or null). Lets copy adapt the org noun. */
+  orgType: string | null;
+}
+
+/**
+ * The org noun for member-facing copy. 'dance_team' → "team", 'studio' → "studio";
+ * when org_type isn't handy, `selfManaged` decides (a self-managed member is on a
+ * dance team). `possessive` gives "team's" / "studio's".
+ */
+export function orgNoun(
+  orgType: string | null | undefined,
+  selfManaged: boolean,
+  possessive = false,
+): string {
+  const team = orgType === "dance_team" || (orgType == null && selfManaged);
+  const base = team ? "team" : "studio";
+  return possessive ? `${base}'s` : base;
 }
 
 /* ─────────────────────────────  Hex colors  ──────────────────────────────── */

@@ -12,6 +12,7 @@ import {
   isValidMotto,
   monogramFrom,
   normalizeHex,
+  orgNoun,
   readableTextColor,
   type OrgBrand,
 } from "./branding";
@@ -79,6 +80,7 @@ describe("brandHeaderModel — renders from affiliation, independent of events",
     accent: "#1a1a2e",
     accent2: null,
     motto: "Rise together",
+    orgType: "dance_team",
   };
 
   it("produces a monogram + accessible foreground when there is no logo (and no events involved at all)", () => {
@@ -100,6 +102,24 @@ describe("brandHeaderModel — renders from affiliation, independent of events",
   it("drops an invalid accent to null (header falls back to neutral)", () => {
     const m = brandHeaderModel({ ...base, accent: "periwinkle" });
     expect(m.accent).toBeNull();
+  });
+});
+
+describe("orgNoun — adapts the org noun to org_type", () => {
+  it("maps org_type to the noun", () => {
+    expect(orgNoun("dance_team", false)).toBe("team");
+    expect(orgNoun("studio", false)).toBe("studio");
+  });
+
+  it("gives possessive forms", () => {
+    expect(orgNoun("dance_team", false, true)).toBe("team's");
+    expect(orgNoun("studio", true, true)).toBe("studio's");
+  });
+
+  it("falls back to selfManaged when org_type isn't handy", () => {
+    expect(orgNoun(null, true)).toBe("team"); // a self-managed member is on a team
+    expect(orgNoun(null, false)).toBe("studio");
+    expect(orgNoun(undefined, true, true)).toBe("team's");
   });
 });
 

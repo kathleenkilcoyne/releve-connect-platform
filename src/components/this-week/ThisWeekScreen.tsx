@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AVA_VIEWER, KATHLEEN, getThisWeek } from "@/lib/this-week/data";
+import { orgNoun } from "@/lib/studio/branding";
 import type { LiveWeekPayload } from "@/lib/this-week/live";
 import type { ProfessionalViewer, WeekBundle } from "@/lib/this-week/types";
 import { ChildWeek } from "./ChildWeek";
@@ -183,7 +184,11 @@ export function ThisWeekScreen({
 
       <footer className="mt-12 border-t border-[var(--rc-hairline)] pt-4 text-xs text-[var(--rc-muted)]">
         {mode === "live"
-          ? "Your week, read live from your studio's schedule."
+          ? `Your week, read live from your ${orgNoun(
+              liveFamily?.brand?.orgType,
+              liveFamily?.selfManaged ?? false,
+              true,
+            )} schedule.`
           : "Sample data · getThisWeek · getCommunications · hasFamilyAccess."}
       </footer>
     </main>

@@ -282,11 +282,12 @@ async function buildFamilyWeek(
   if (employerIds.length > 0) {
     const { data: orgs } = await admin
       .from("employer_profiles")
-      .select("employer_id, name, member_label, logo_url, brand_accent, brand_accent_2, team_motto")
+      .select("employer_id, name, org_type, member_label, logo_url, brand_accent, brand_accent_2, team_motto")
       .in("employer_id", employerIds);
     const rows = (orgs ?? []) as {
       employer_id: string;
       name: string | null;
+      org_type: string | null;
       member_label: string | null;
       logo_url: string | null;
       brand_accent: string | null;
@@ -302,6 +303,7 @@ async function buildFamilyWeek(
         accent: primary.brand_accent,
         accent2: primary.brand_accent_2,
         motto: primary.team_motto,
+        orgType: primary.org_type,
       };
     }
     if (selfManaged) {
