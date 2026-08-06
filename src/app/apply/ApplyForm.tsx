@@ -580,7 +580,7 @@ export default function ApplyForm({
       </Section>
 
       {/* 12 — Open-to badges */}
-      <Section title="Open to… (select at least one)">
+      <Section title="How would you like to participate in Relevé? (select at least one)">
         <CheckGroup name="open_to" options={openToOptions} />
       </Section>
 

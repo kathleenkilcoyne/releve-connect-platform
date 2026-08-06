@@ -522,7 +522,6 @@ on conflict (slug) do nothing;
 insert into open_to_badges (slug, label, sort_order) values
   ('teaching-new-classes',   'Teaching new classes',              1),
   ('substituting',           'Substituting via The Swing',        2),
-  ('choreographing',         'Choreographing on commission',      3),
   ('licensing',              'Licensing pieces',                  4),
   ('auditioning',            'Auditioning via The Beat',          5),
   ('speaking',               'Speaking on a panel / Relevé Live', 6),
