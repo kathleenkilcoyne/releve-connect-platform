@@ -44,6 +44,8 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 12 | Founding Studio invitation | **Admin creates an invitation** in `/admin/studios` (or re-sends). Carries the secure `/studio/setup?token=…` link. | Studio owner | `studio-invitation.v1` | ✅ implemented |
 | 13 | Studio submitted for review | A studio flips its profile to `submitted` (its own "Submit for review" action) | Admin (`ADMIN_ALERT_EMAIL`) | `studio-submitted.v1` | ✅ implemented |
 | 14 | Your studio is live | **Admin publishes** a studio (`approved` → `live`) in `/admin/studios` | Studio owner | `studio-live.v1` | ✅ implemented |
+| 15 | New dance-team interest | A Team Director submits the `/welcome/team` inquiry (onboarding gateway). ONE internal alert; no applicant email — the on-page confirmation is their acknowledgement. | Admin (`ADMIN_ALERT_EMAIL`) | `team-interest.v1` | ✅ implemented |
+| 16 | New industry-partner interest | An organization submits the `/welcome/partner` inquiry (onboarding gateway). ONE internal alert; no applicant email. | Admin (`ADMIN_ALERT_EMAIL`) | `partner-interest.v1` | ✅ implemented |
 
 > Emails #4, #5, #6 are **manual-only** — they never fire automatically. Emails #1 and #2
 > are the only two that fire automatically on the apply flow. Per the guardrail, that's

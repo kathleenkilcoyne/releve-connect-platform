@@ -554,3 +554,111 @@ export function bookingLinks() {
     checkinUrl: process.env.DEFAULT_CHECKIN_BOOKING_URL || null,
   };
 }
+
+// ===========================================================================
+// The onboarding gateway — Dance Team & Industry Partner inquiries.
+// Both are short interest captures worked by hand later (like the studio path),
+// so each fires exactly ONE internal admin alert and NO applicant email. The
+// on-page confirmation is the applicant's acknowledgement.
+// ===========================================================================
+
+/** Human labels for the stored team_level slugs, for the alert body. */
+const TEAM_LEVEL_LABELS: Record<string, string> = {
+  middle_school: "Middle school",
+  high_school: "High school",
+  college: "College",
+  professional: "Professional",
+  independent: "Independent",
+};
+
+/**
+ * EMAILS.md #15 — "New dance-team interest". ONE internal admin alert
+ * (ADMIN_ALERT_EMAIL) when a Team Director submits the /welcome/team inquiry.
+ * Best-effort like every send — the row is saved to team_interest regardless.
+ */
+export async function sendTeamInterestAlert(input: {
+  teamName: string;
+  schoolOrg: string | null;
+  teamLevel: string | null;
+  coachName: string | null;
+  email: string;
+  cityState: string | null;
+  useCase: string | null;
+  message: string | null;
+}): Promise<void> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) {
+    console.warn(
+      "[notifications] ADMIN_ALERT_EMAIL unset — nobody will be told this dance team is interested:",
+      { team: input.teamName, contact: input.email },
+    );
+    return;
+  }
+
+  const level = input.teamLevel ? TEAM_LEVEL_LABELS[input.teamLevel] ?? input.teamLevel : null;
+
+  await sendEmail({
+    to,
+    template: "team-interest.v1",
+    replyTo: input.email,
+    subject: `New dance-team interest — ${input.teamName}`,
+    text: body(
+      `${input.coachName ?? "A director"} is interested in bringing ${input.teamName} onto Relevé.`,
+      [
+        `Team: ${input.teamName}`,
+        ...(input.schoolOrg ? [`School / org: ${input.schoolOrg}`] : []),
+        ...(level ? [`Level: ${level}`] : []),
+        ...(input.coachName ? [`Coach / director: ${input.coachName}`] : []),
+        `Email: ${input.email}`,
+        ...(input.cityState ? [`Location: ${input.cityState}`] : []),
+      ].join("\n"),
+      ...(input.useCase ? [`Wants to use Relevé for:\n${input.useCase}`] : []),
+      ...(input.message ? [`Message:\n${input.message}`] : []),
+      "Reach out to onboard them personally — there is no self-serve team signup yet.",
+    ),
+  });
+}
+
+/**
+ * EMAILS.md #16 — "New industry-partner interest". ONE internal admin alert
+ * (ADMIN_ALERT_EMAIL) when an organization submits the /welcome/partner inquiry.
+ */
+export async function sendPartnerInterestAlert(input: {
+  orgName: string;
+  orgType: string | null;
+  contactName: string;
+  contactTitle: string | null;
+  websiteOrSocial: string | null;
+  participation: string | null;
+  message: string | null;
+  email: string | null;
+}): Promise<void> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) {
+    console.warn(
+      "[notifications] ADMIN_ALERT_EMAIL unset — nobody will be told this partner is interested:",
+      { org: input.orgName, contact: input.contactName },
+    );
+    return;
+  }
+
+  await sendEmail({
+    to,
+    template: "partner-interest.v1",
+    ...(input.email ? { replyTo: input.email } : {}),
+    subject: `New industry-partner interest — ${input.orgName}`,
+    text: body(
+      `${input.contactName}${input.contactTitle ? `, ${input.contactTitle},` : ""} from ${input.orgName} wants to partner with Relevé.`,
+      [
+        `Organization: ${input.orgName}`,
+        ...(input.orgType ? [`Type: ${input.orgType}`] : []),
+        `Contact: ${input.contactName}${input.contactTitle ? ` (${input.contactTitle})` : ""}`,
+        ...(input.email ? [`Email: ${input.email}`] : []),
+        ...(input.websiteOrSocial ? [`Website / social: ${input.websiteOrSocial}`] : []),
+      ].join("\n"),
+      ...(input.participation ? [`How they want to participate:\n${input.participation}`] : []),
+      ...(input.message ? [`Message:\n${input.message}`] : []),
+      "Reach out to talk through how to work together.",
+    ),
+  });
+}

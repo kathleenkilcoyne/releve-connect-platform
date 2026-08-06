@@ -58,10 +58,11 @@ export async function resolveSignedInDestination(
 
     const { data: roleRow } = await admin
       .from("users")
-      .select("account_type")
+      .select("account_type, onboarding_intent")
       .eq("user_id", user.id)
       .maybeSingle();
-    if ((roleRow as { account_type?: string } | null)?.account_type === "admin") {
+    const role = roleRow as { account_type?: string; onboarding_intent?: string } | null;
+    if (role?.account_type === "admin") {
       return "/admin/applications";
     }
 
@@ -93,6 +94,28 @@ export async function resolveSignedInDestination(
       // professional default which would bounce them to /subscribe.
       const orgId = await resolveStudioForUser(user.id);
       if (orgId) return "/studio/schedule";
+
+      // ── The onboarding gateway (2026-08-06) ──
+      // A signed-in person with NO talent profile, NO family/guardianship, and NO
+      // org is a cold user — the exact case that used to fall through to the
+      // PROFESSIONAL default (/profile/edit → /subscribe → /apply), funneling
+      // studios, teams, and partners into the Roster application.
+      //
+      // If they already chose a door at the gateway, route them straight to that
+      // flow so they never re-see the gateway. If they haven't chosen yet, the
+      // gateway is where they must go BEFORE any application.
+      switch (role?.onboarding_intent) {
+        case "professional":
+          return "/apply";
+        case "studio":
+          return "/studios/join";
+        case "team":
+          return "/welcome/team";
+        case "partner":
+          return "/welcome/partner";
+        default:
+          return "/welcome";
+      }
     }
   }
 

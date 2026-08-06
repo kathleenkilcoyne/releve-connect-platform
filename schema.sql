@@ -119,6 +119,12 @@ create table users (
   account_type  account_type not null,
   display_name  text,
   status        account_status not null default 'invited',
+  -- The onboarding gateway choice ("How are you joining Relevé?"), persisted so a
+  -- returning user routes straight to their flow and never re-sees the gateway.
+  -- Null = hasn't chosen yet. Added by migration 20260806120000_onboarding_gateway.
+  onboarding_intent text
+    check (onboarding_intent is null
+           or onboarding_intent in ('professional', 'studio', 'team', 'partner')),
   created_at    timestamptz not null default now()
 );
 
