@@ -15,6 +15,16 @@
 
 ---
 
+> ### Reset-password template — DORMANT, intentionally left with its link (2026-07-27)
+> A codebase-wide search found **zero** `resetPasswordForEmail`, `signInWithPassword`, or
+> `updateUser` password calls — Relevé is fully passwordless. The only code-entry screen is
+> `src/app/login/page.tsx`, which verifies with `type: "email"` (not `"recovery"`). The
+> `/auth/confirm` route is a passive `token_hash` link handler, not a recovery-code screen, and
+> nothing generates a recovery link. Therefore the Supabase **Reset password** template
+> (still `{{ .ConfirmationURL }}`, a link) is **never rendered by any flow** and was left
+> untouched. Do not convert it to a code unless/until a real recovery user-flow (screen +
+> verify-as-recovery) is built first.
+
 ## Confirmed: the architecture we want IS the recommended Supabase production setup
 
 I verified this against Supabase's own documentation. Every piece below is the documented,
