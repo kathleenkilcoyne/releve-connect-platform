@@ -50,7 +50,7 @@ export default async function PartnerInquiryPage({
           <p className="mt-3 text-green-800">
             We received your note about{" "}
             <span className="font-medium">{(existing as { org_name: string }).org_name}</span>.
-            Someone from Relevé will be in touch by email to talk through how we can work together.
+            A member of the Relevé team will be in touch by email to discuss how we can work together.
           </p>
         </div>
         <Link href="/" className="mt-8 text-sm text-neutral-500 underline">
