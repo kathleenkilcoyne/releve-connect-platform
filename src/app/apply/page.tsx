@@ -80,6 +80,26 @@ export default async function ApplyPage({
     submitted_at: string | null;
   } | null;
 
+  // ── Gateway enforcement (2026-08-06) ──
+  // /apply is the PROFESSIONAL door only. The post-sign-in resolver can't
+  // guarantee this on its own — it honors ?next=/apply before any role logic, and
+  // the homepage/nav "Apply" links carry exactly that — so the real gate lives
+  // HERE, on the page itself, catching every entry route. A person who hasn't
+  // chosen the professional path (no application yet AND onboarding_intent isn't
+  // 'professional') is sent to the "How are you joining Relevé?" gateway to
+  // choose. This is what keeps studios, dance teams, and industry partners out of
+  // the Roster application and its professional-only fields.
+  if (!existing) {
+    const { data: urow } = await supabase
+      .from("users")
+      .select("onboarding_intent")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if ((urow as { onboarding_intent?: string } | null)?.onboarding_intent !== "professional") {
+      redirect("/welcome");
+    }
+  }
+
   // ── Already submitted → status, not an editable form ──────────────────────
   if (existing && existing.state !== "draft") {
     const copy = STATUS_COPY[existing.state] ?? {

@@ -143,7 +143,7 @@ export default async function SubscribePage() {
       ? {
           h: "Membership is by acceptance",
           p: "Relevé is a vetted community of professionals. Apply to join — every application is reviewed with care.",
-          cta: { href: "/apply", label: "Apply now" },
+          cta: { href: "/welcome", label: "Apply now" },
         }
       : appState === "declined"
         ? {

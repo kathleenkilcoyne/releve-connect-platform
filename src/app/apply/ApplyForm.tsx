@@ -18,7 +18,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { submitApplication } from "./actions";
 import { saveApplicationDraft } from "./draft";
-import { STUDENT_COUNT_BANDS, STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
 
 type Option = { slug: string; label: string };
 type DraftFields = Record<string, string | string[]>;
@@ -60,9 +59,6 @@ function hydrateForm(form: HTMLFormElement, draft: DraftFields) {
   }
 }
 
-/** The employer role slug — the one path that is NOT an artist. */
-const STUDIO_ROLE = "studio_owner";
-type ApplicantPath = "artist" | "studio" | null;
 const AGE_RANGES = ["18-24", "25-34", "35-50", "50+"];
 const YEARS_BANDS = ["1-2", "3-5", "6-10", "11-20", "20+"];
 const UNIONS = ["AEA", "SAG-AFTRA", "AGMA", "None", "Other"];
@@ -183,15 +179,6 @@ export default function ApplyForm({
   // when hydrateForm() runs — otherwise their fields wouldn't exist yet to fill.
   const [roles, setRoles] = useState<Set<string>>(() => new Set(toArray(initial?.roles)));
   const [primaryRole, setPrimaryRole] = useState(() => String(initial?.primary_role ?? ""));
-  // Which of the two paths they're on. Derived from a restored draft so someone
-  // returning mid-application lands back in the right branch.
-  const [path, setPath] = useState<ApplicantPath>(() =>
-    toArray(initial?.roles).includes(STUDIO_ROLE)
-      ? "studio"
-      : toArray(initial?.roles).length > 0
-        ? "artist"
-        : null,
-  );
   const [story, setStory] = useState(() => String(initial?.story_bio ?? ""));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,26 +256,6 @@ export default function ApplyForm({
     };
   }, [persist]);
 
-  /**
-   * Switching paths clears the other side's roles outright. Leaving a stale
-   * `studio_owner` behind is exactly how someone ended up facing required
-   * Studio Owner questions while applying as a teacher.
-   */
-  function choosePath(next: Exclude<ApplicantPath, null>) {
-    setPath(next);
-    if (next === "studio") {
-      setRoles(new Set([STUDIO_ROLE]));
-      setPrimaryRole(STUDIO_ROLE);
-    } else {
-      setRoles((prev) => {
-        const kept = new Set(prev);
-        kept.delete(STUDIO_ROLE);
-        return kept;
-      });
-      if (primaryRole === STUDIO_ROLE) setPrimaryRole("");
-    }
-  }
-
   function toggleRole(slug: string, on: boolean) {
     setRoles((prev) => {
       const next = new Set(prev);
@@ -336,8 +303,10 @@ export default function ApplyForm({
   }
 
   const selectedRoles = roleOptions.filter((r) => roles.has(r.slug));
-  /** The three artist roles — everything that isn't the employer side. */
-  const artistRoleOptions = roleOptions.filter((r) => r.slug !== STUDIO_ROLE);
+  /** The three professional roles — everything that isn't the employer side.
+      Studio owners never reach /apply now (the /welcome gateway routes them to
+      the studio flow), so the employer role is simply never offered here. */
+  const artistRoleOptions = roleOptions.filter((r) => r.slug !== "studio_owner");
 
   return (
     <form
@@ -375,78 +344,42 @@ export default function ApplyForm({
         </div>
       </Section>
 
-      {/* 2 — Professional roles */}
-      {/*
-        Two paths, not four checkboxes. Asking "select every role that applies"
-        made artists tick three boxes and then face three required sections;
-        studio owners are the employer side entirely. One choice up front means
-        nobody is ever asked to answer for a role they don't hold.
-      */}
-      <Section title="How are you joining Relevé Connect?">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              { key: "artist", label: "Dance Professional", hint: "You dance, teach, or choreograph." },
-              { key: "studio", label: "Studio Owner", hint: "You hire and run a studio." },
-            ] as const
-          ).map((p) => (
-            <label
-              key={p.key}
-              className={`cursor-pointer rounded-xl border px-4 py-3 text-sm ${
-                path === p.key ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
-              }`}
-            >
+      {/* 2 — Professional roles
+          The "how are you joining Relevé?" question moved OUT of this form to the
+          /welcome gateway that runs BEFORE /apply. Everyone here has already
+          chosen the Dance Professional door, so this form is professionals only —
+          no artist-vs-studio-owner selector, and no studio branch. All we ask now
+          is which kind(s) of professional they are. */}
+      <Section title="What do you do?">
+        <p className="text-sm text-neutral-500">
+          Tick everything you do — many artists wear more than one hat.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {artistRoleOptions.map((r) => (
+            <label key={r.slug} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm">
               <input
-                type="radio"
-                name="applicant_path"
-                value={p.key}
-                checked={path === p.key}
-                onChange={() => choosePath(p.key)}
-                className="mr-2"
+                type="checkbox"
+                name="roles"
+                value={r.slug}
+                checked={roles.has(r.slug)}
+                onChange={(e) => toggleRole(r.slug, e.target.checked)}
               />
-              <span className="font-medium text-neutral-900">{p.label}</span>
-              <span className="mt-1 block text-xs text-neutral-500">{p.hint}</span>
+              {r.label}
             </label>
           ))}
         </div>
-
-        {path === "artist" && (
-          <>
-            <p className="text-sm text-neutral-500">
-              Tick everything you do — many artists wear more than one hat.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {artistRoleOptions.map((r) => (
-                <label key={r.slug} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    name="roles"
-                    value={r.slug}
-                    checked={roles.has(r.slug)}
-                    onChange={(e) => toggleRole(r.slug, e.target.checked)}
-                  />
-                  {r.label}
-                </label>
-              ))}
-            </div>
-            {selectedRoles.length > 1 && (
-              <Field label="Which comes first for you?">
-                <select
-                  name="primary_role"
-                  className={inputCls}
-                  value={primaryRole}
-                  onChange={(e) => setPrimaryRole(e.target.value)}
-                >
-                  <option value="">Choose…</option>
-                  {selectedRoles.map((r) => <option key={r.slug} value={r.slug}>{r.label}</option>)}
-                </select>
-              </Field>
-            )}
-          </>
-        )}
-
-        {path === "studio" && (
-          <input type="hidden" name="roles" value={STUDIO_ROLE} />
+        {selectedRoles.length > 1 && (
+          <Field label="Which comes first for you?">
+            <select
+              name="primary_role"
+              className={inputCls}
+              value={primaryRole}
+              onChange={(e) => setPrimaryRole(e.target.value)}
+            >
+              <option value="">Choose…</option>
+              {selectedRoles.map((r) => <option key={r.slug} value={r.slug}>{r.label}</option>)}
+            </select>
+          </Field>
         )}
       </Section>
 
@@ -493,27 +426,6 @@ export default function ApplyForm({
             </Field>
             <Field label="Where are you currently teaching?"><Text name="currently_teaching" /></Field>
           </div>
-        </Section>
-      )}
-
-      {/* 6 — Studio owner
-          Student count added 2026-07-23 (founder). Studio size is the single
-          most useful fact about an employer — it drives who they need and how
-          often — and until now the whole studio branch was one free-text box,
-          so a real studio application captured almost nothing structured.
-          Bands are contiguous with no gaps or overlaps; see STUDENT_COUNT_BANDS
-          in lib/studio/profile.ts before changing them. */}
-      {has("studio_owner") && (
-        <Section title="Your studio">
-          <Field label="Tell us about your studio" hint="Name, location, what you're known for."><Area name="studio_owner_details" /></Field>
-          <Field label="How many students do you currently have?">
-            <select name="studio_student_count_band" className={inputCls} defaultValue="">
-              <option value="">Choose…</option>
-              {STUDENT_COUNT_BANDS.map((b) => (
-                <option key={b} value={b}>{STUDENT_COUNT_LABELS[b]}</option>
-              ))}
-            </select>
-          </Field>
         </Section>
       )}
 

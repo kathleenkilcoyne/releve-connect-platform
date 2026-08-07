@@ -154,11 +154,14 @@ export default function Home() {
           </p>
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {/* Professionals — the primary path. Filled/gold, listed first. */}
+            {/* Professionals — the primary path. Filled/gold, listed first.
+                Routes to the /welcome gateway ("How are you joining Relevé?"),
+                which sends a Dance Professional on to /apply. Any direct /apply
+                hit is still caught by the gate on that page. */}
             <PathCard
               eyebrow="Professionals"
               subline="Vetted teachers, choreographers, and performers. Build your credentialed profile."
-              href="/apply"
+              href="/welcome"
               cta="Apply to the Professional Roster"
               primary
             />
