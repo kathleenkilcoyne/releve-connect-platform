@@ -66,8 +66,8 @@ export default async function TeamInquiryPage({
           <p className="mt-3 text-green-800">
             Thanks for telling us about{" "}
             <span className="font-medium">{(existing as { team_name: string }).team_name}</span>.
-            Relevé onboards dance teams personally — someone will reach out by email to get you set
-            up. There&apos;s nothing else you need to do right now.
+            A member of the Relevé team will reach out by email to help you get started.
+            There&apos;s nothing else you need to do right now.
           </p>
         </div>
         <Link href="/" className="mt-8 text-sm text-neutral-500 underline">
@@ -84,8 +84,7 @@ export default async function TeamInquiryPage({
       </p>
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Bring your dance team to Relevé.</h1>
       <p className="mt-3 text-neutral-600">
-        Tell us a little about your team. This isn&apos;t an application to judge — it&apos;s how we
-        reach out and get you set up. It takes a minute.
+        This is a brief introduction to your team so we can learn more and help you get started.
       </p>
 
       {error && (
@@ -155,7 +154,7 @@ export default async function TeamInquiryPage({
           type="submit"
           className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-sm font-medium text-white hover:bg-neutral-800"
         >
-          Send to Relevé
+          Submit Team Inquiry
         </button>
       </form>
 
