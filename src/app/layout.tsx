@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AdminConsoleLink from "./AdminConsoleLink";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
         {/* Admin-only, server-gated. Renders null for everyone else. */}
         <AdminConsoleLink />
         {children}
+        <Analytics />
       </body>
     </html>
   );
