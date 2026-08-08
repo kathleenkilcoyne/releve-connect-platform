@@ -22,9 +22,13 @@ export type FamilyCode = {
 export default function FamilyJoinCode({
   employerId,
   codes,
+  familiesJoined,
 }: {
   employerId: string;
   codes: FamilyCode[];
+  /** DISTINCT families actively affiliated to this studio — the source of truth
+   *  (affiliations), not the code's use_count (which resets when regenerated). */
+  familiesJoined: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -130,7 +134,7 @@ export default function FamilyJoinCode({
           </div>
 
           <p className="mt-3 text-xs text-neutral-500">
-            {active.use_count} {active.use_count === 1 ? "family has" : "families have"} joined ·{" "}
+            {familiesJoined} {familiesJoined === 1 ? "family has" : "families have"} joined ·{" "}
             {active.max_uses == null ? "unlimited uses" : `up to ${active.max_uses} uses`} ·{" "}
             {active.expires_at ? `expires ${new Date(active.expires_at).toLocaleDateString()}` : "no expiry"}
           </p>

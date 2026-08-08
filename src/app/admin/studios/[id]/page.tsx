@@ -16,6 +16,7 @@ import ReviewActions from "./ReviewActions";
 import FamilyJoinCode, { type FamilyCode } from "./FamilyJoinCode";
 import ScheduleEditor from "./ScheduleEditor";
 import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
+import { countStudioFamilies } from "@/lib/studio/roster";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +182,11 @@ export default async function StudioReviewPage({
     .order("created_at", { ascending: false });
   const familyCodes = (familyCodeRows ?? []) as FamilyCode[];
 
+  // "Families joined" — sourced from `affiliations` (the source of truth the roster
+  // and the family "This Week" view read), NOT the join code's `use_count`, which
+  // resets to 0 when the code is regenerated even though families stay affiliated.
+  const familiesJoined = await countStudioFamilies(db, id);
+
   // ── Schedule (Smart Calendar) ──────────────────────────────────────────────
   // Kathleen's assist editor uses the same type-driven flow + targeting as the
   // studio self-serve area.
@@ -289,7 +295,11 @@ export default async function StudioReviewPage({
       {/* ── Family join code (Brick B1 · concierge) ── */}
       <div className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Family join code</h2>
-        <FamilyJoinCode employerId={p.employer_id} codes={familyCodes} />
+        <FamilyJoinCode
+          employerId={p.employer_id}
+          codes={familyCodes}
+          familiesJoined={familiesJoined}
+        />
       </div>
 
       {/* ── Schedule (Brick B2 · concierge) ── */}

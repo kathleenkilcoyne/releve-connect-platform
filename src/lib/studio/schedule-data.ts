@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { loadAffiliatedStudents } from "./roster";
+
 // Shared loader for a studio's schedule area (admin assist + studio self-serve).
 // Returns the studio's entries (each with its event_type, studio_wide flag, and
 // the exact dancers it targets), the roster to pick from, and teacher options —
@@ -119,53 +121,44 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
     member_ids: membersByGroup.get(g.group_id) ?? [],
   }));
 
-  // Roster: dancers affiliated to this studio, each with the studio's Age Division
-  // (studio-scoped), the age-range reference (family-owned, read-only), and their
-  // parent-connection status. Studio-safe — never date of birth.
-  const { data: affRows } = await db
-    .from("affiliations")
-    .select("subject_id, division")
-    .eq("employer_id", employerId)
-    .eq("subject_kind", "student")
-    .eq("status", "active");
-  const divisionByStudent = new Map<string, string | null>();
-  for (const r of (affRows ?? []) as { subject_id: string; division: string | null }[]) {
-    divisionByStudent.set(r.subject_id, r.division);
-  }
-  const rosterIds = [...divisionByStudent.keys()];
+  // Roster: dancers affiliated to this studio — the SAME source of truth the admin
+  // "families joined" count and the family "This Week" view read (lib/studio/roster.ts).
+  // Each carries the studio's Age Division (studio-scoped), the age-range reference
+  // (family-owned, read-only), and their parent-connection status. Studio-safe —
+  // never date of birth. The affiliation→student join is the shared helper; the
+  // connection status is layered on top from guardianships + self-transfer.
+  const affiliated = await loadAffiliatedStudents(db, employerId);
+  const rosterIds = affiliated.map((s) => s.student_id);
 
   let roster: RosterEntry[] = [];
   if (rosterIds.length) {
-    const [{ data: studentRows }, { data: guardRows }] = await Promise.all([
+    const [{ data: transferRows }, { data: guardRows }] = await Promise.all([
       db
         .from("students")
-        .select("student_id, display_name, age_range, transferred_to_user_id")
+        .select("student_id, transferred_to_user_id")
         .in("student_id", rosterIds),
       db.from("guardianships").select("student_id").in("student_id", rosterIds),
     ]);
     const connected = new Set(
       ((guardRows ?? []) as { student_id: string }[]).map((g) => g.student_id),
     );
-    roster = (
-      (studentRows ?? []) as {
-        student_id: string;
-        display_name: string;
-        age_range: string | null;
-        transferred_to_user_id: string | null;
-      }[]
-    ).map((s) => ({
+    const transferred = new Set(
+      ((transferRows ?? []) as { student_id: string; transferred_to_user_id: string | null }[])
+        .filter((s) => s.transferred_to_user_id)
+        .map((s) => s.student_id),
+    );
+    roster = affiliated.map((s) => ({
       student_id: s.student_id,
       display_name: s.display_name,
-      division: divisionByStudent.get(s.student_id) ?? null,
+      division: s.division,
       age_range: s.age_range,
       // A guardian link OR a self-managed adult (transferred to their own account)
       // both count as connected/reachable.
       connection:
-        connected.has(s.student_id) || s.transferred_to_user_id
+        connected.has(s.student_id) || transferred.has(s.student_id)
           ? ("connected" as const)
           : ("pending" as const),
     }));
-    roster.sort((a, b) => a.display_name.localeCompare(b.display_name));
   }
 
   // Teacher options + names (talent affiliated as teacher/staff, plus anyone
