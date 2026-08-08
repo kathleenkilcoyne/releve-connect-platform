@@ -409,6 +409,31 @@ export async function fetchFamilyStudioWide(
   return joinSessions(sessions, classes);
 }
 
+/* ──────────────────────────  Acknowledgements  ───────────────────────────── */
+
+/**
+ * The "Got it" rows the caller can see for a set of occurrences — served by the
+ * `event_ack_select` RLS lane (their own acks / their family / their dancers).
+ * Read as the CALLER so a guardian only ever sees their family's acks. Fail-soft:
+ * if the table isn't there yet or the read errors, treat as "nothing acknowledged"
+ * rather than blanking the week.
+ */
+export async function fetchFamilyAckRows(
+  supabase: Client,
+  sessionIds: string[],
+): Promise<import("./acknowledgements").AckRow[]> {
+  if (sessionIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("event_acknowledgements")
+    .select("session_id, student_id, family_id, acknowledged_at")
+    .in("session_id", sessionIds);
+  if (error) {
+    console.error("[this-week] ack read failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as import("./acknowledgements").AckRow[];
+}
+
 /* ────────────────────────────  Compensation  ─────────────────────────────── */
 //  RLS on both tables is narrow by design: the teacher sees their own, a studio
 //  ADMIN (owner or explicit admin) sees their studio's, and nobody else sees

@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { mergeWeek, toCalendarEvents, toCommunications } from "./adapters";
+import { markFamilyAcks } from "./acknowledgements";
 import { familyAccessFrom } from "./entitlement";
 import { mergeFamilyWeek, familyChildNames, type ChildStream } from "./family";
 import { buildPayMap } from "./pay";
@@ -22,6 +23,7 @@ import {
   fetchCommunicationRows,
   fetchEarningsForSessions,
   fetchEngagements,
+  fetchFamilyAckRows,
   fetchFamilyStudioWide,
   fetchFamilySubscription,
   fetchGuardedStudents,
@@ -252,9 +254,19 @@ async function buildFamilyWeek(
   const employerIds = await fetchAffiliatedEmployerIds(supabase, calendarStudentIds);
   const studioWide = await fetchFamilyStudioWide(supabase, admin, employerIds, week);
 
-  const events = mergeFamilyWeek(childStreams, studioWide, DEFAULT_TIMEZONE);
+  // The "Got it" loop is offered to guardian families (who have a family_account
+  // and act as guardians). A self-managed adult (college team) has no guardian /
+  // family_account and is out of this slice — pass no ack context, so no button.
+  const ackFamily = !selfManaged ? { familyId } : undefined;
+  const events = mergeFamilyWeek(childStreams, studioWide, DEFAULT_TIMEZONE, ackFamily);
   // A self member's whole week is their own — the per-child "who" label is noise.
   if (selfManaged) for (const e of events) delete e.who;
+
+  // Stamp which cards this family has already acknowledged (grey → green ✓).
+  if (ackFamily) {
+    const ackRows = await fetchFamilyAckRows(supabase, events.map((e) => e.id));
+    markFamilyAcks(events, ackRows);
+  }
 
   // One family account → one entitlement (guardian's children share it). A
   // self-managed adult has no family_account: null status resolves to "allowed"

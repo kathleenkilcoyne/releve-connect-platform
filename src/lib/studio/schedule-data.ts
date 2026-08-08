@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { loadAffiliatedStudents } from "./roster";
+import { loadAffiliatedStudents, countFamilies } from "./roster";
+import { summarizeClassAcks, type AckRow } from "@/lib/this-week/acknowledgements";
 
 // Shared loader for a studio's schedule area (admin assist + studio self-serve).
 // Returns the studio's entries (each with its event_type, studio_wide flag, and
@@ -28,6 +29,11 @@ export type ScheduleRow = {
   target_dancer_ids: string[];
   /** The resolved roster (enrollments) — the families it actually reaches. */
   target_student_ids: string[];
+  /** "Got it" readout: how many of the intended recipients have acknowledged, and
+   *  the total. Targeted events count DANCERS (enrolled); studio-wide events count
+   *  FAMILIES. Both default to 0 when no one has acknowledged. */
+  ack_acked: number;
+  ack_total: number;
 };
 
 export type TeacherOption = { profile_id: string; display_name: string };
@@ -185,12 +191,57 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
     }
   }
 
+  // "Got it" readout per entry: match the family acks against each class's
+  // sessions. Targeted classes count enrolled DANCERS; studio-wide count the
+  // studio's FAMILIES. Fail-soft — if the ack table/read isn't there yet, every
+  // tally is 0-of-N rather than a broken page.
+  const ackByClass = new Map<string, { acked: number; total: number }>();
+  if (classIds.length) {
+    const { data: sessRows } = await db
+      .from("class_sessions")
+      .select("session_id, class_id")
+      .in("class_id", classIds);
+    const sessionsByClass = new Map<string, string[]>();
+    const allSessionIds: string[] = [];
+    for (const s of (sessRows ?? []) as { session_id: string; class_id: string }[]) {
+      const l = sessionsByClass.get(s.class_id) ?? [];
+      l.push(s.session_id);
+      sessionsByClass.set(s.class_id, l);
+      allSessionIds.push(s.session_id);
+    }
+
+    let ackRows: AckRow[] = [];
+    if (allSessionIds.length) {
+      const { data: aRows, error: aErr } = await db
+        .from("event_acknowledgements")
+        .select("session_id, student_id, family_id, acknowledged_at")
+        .in("session_id", allSessionIds);
+      if (aErr) console.error("[schedule-data] ack read failed:", aErr.message);
+      else ackRows = (aRows ?? []) as AckRow[];
+    }
+
+    const totalFamilies = countFamilies(affiliated);
+    const summary = summarizeClassAcks(
+      classes.map((c) => ({
+        classId: c.class_id,
+        studioWide: c.studio_wide,
+        sessionIds: sessionsByClass.get(c.class_id) ?? [],
+        enrolledStudentIds: enrByClass.get(c.class_id) ?? [],
+      })),
+      ackRows,
+      totalFamilies,
+    );
+    for (const [k, v] of summary) ackByClass.set(k, v);
+  }
+
   const scheduleEntries: ScheduleRow[] = classes.map((c) => ({
     ...c,
     teacher_name: c.teacher_profile_id ? teacherNameById.get(c.teacher_profile_id) ?? null : null,
     target_group_ids: groupsByClass.get(c.class_id) ?? [],
     target_dancer_ids: dancersByClass.get(c.class_id) ?? [],
     target_student_ids: enrByClass.get(c.class_id) ?? [],
+    ack_acked: ackByClass.get(c.class_id)?.acked ?? 0,
+    ack_total: ackByClass.get(c.class_id)?.total ?? 0,
   }));
   const teacherOptions: TeacherOption[] = [...teacherNameById.entries()].map(
     ([profile_id, display_name]) => ({ profile_id, display_name }),

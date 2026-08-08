@@ -308,6 +308,30 @@ export default function ScheduleEditor({
     return `${label} · reaches ${reach} ${reach === 1 ? "dancer" : "dancers"}`;
   }
 
+  /** The "Got it" readout for an entry: "M of N acknowledged", green when all in,
+   *  amber while some are outstanding. Studio-wide counts families; targeted
+   *  counts dancers. */
+  function ackReadout(row: ScheduleRow) {
+    const noun = row.studio_wide ? "family" : "dancer";
+    const nounPl = row.studio_wide ? "families" : "dancers";
+    const { ack_acked: acked, ack_total: total } = row;
+    if (total === 0) {
+      return <span className="text-neutral-400">Got it: no recipients yet</span>;
+    }
+    if (acked >= total) {
+      return (
+        <span className="font-medium text-green-700">
+          ✓ Got it: all {total} {total === 1 ? noun : nounPl} acknowledged
+        </span>
+      );
+    }
+    return (
+      <span className="text-amber-700">
+        Got it: {acked} of {total} {total === 1 ? noun : nounPl} acknowledged · {total - acked} not yet
+      </span>
+    );
+  }
+
   const filteredRoster = roster.filter((r) =>
     r.display_name.toLowerCase().includes(search.trim().toLowerCase()),
   );
@@ -338,6 +362,7 @@ export default function ScheduleEditor({
                           .filter(Boolean)
                           .join(" · ")}
                   </p>
+                  <p className="mt-0.5 text-xs">{ackReadout(row)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button

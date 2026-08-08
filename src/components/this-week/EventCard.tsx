@@ -11,6 +11,7 @@
 
 import { categoryColor } from "@/lib/this-week/categories";
 import type { CalendarEvent } from "@/lib/this-week/types";
+import { AckButton } from "./AckButton";
 import { AttachmentChip } from "./AttachmentChip";
 import { CategoryTag } from "./CategoryTag";
 import { PayBadge } from "./PayBadge";
@@ -53,6 +54,13 @@ export function EventCard({ event }: { event: CalendarEvent }) {
             ))}
           </div>
         )}
+
+        {/* Family "Got it" — only on family cards that carry ack context, and only
+            when there's a valid target (a dancer, or a family for studio-wide). */}
+        {event.ack &&
+          (event.ack.scope === "studio_wide"
+            ? event.ack.familyId !== null
+            : event.ack.studentIds.length > 0) && <AckButton ack={event.ack} />}
       </div>
     </article>
   );

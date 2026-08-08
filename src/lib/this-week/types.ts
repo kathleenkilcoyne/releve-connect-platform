@@ -85,6 +85,28 @@ export interface CalendarEvent {
    *  whole-family item (Full Studio Event) leaves this unset — it is labeled for
    *  the family, not tagged to one child. */
   who?: string;
+  /** Acknowledgement ("Got it") context. Present ONLY on family cards that
+   *  support it; a professional/teacher card omits it, so the button never shows
+   *  there. `null` acknowledgedAt = not yet (grey "Got it"); a timestamp = done
+   *  (green ✓). See lib/this-week/acknowledgements + the event_acknowledgements
+   *  table. */
+  ack?: EventAck;
+}
+
+/** The identity a "Got it" tap records, resolved from existing relationships. */
+export interface EventAck {
+  /** The dated occurrence (class_sessions.session_id) — also the card's `id`. */
+  sessionId: string;
+  /** 'targeted' = per-dancer (enrolled); 'studio_wide' = family-level. */
+  scope: "targeted" | "studio_wide";
+  /** Targeted: the enrolled dancer(s) this card covers (usually one; more only
+   *  when siblings share the same targeted class). Empty for studio-wide. */
+  studentIds: string[];
+  /** The acknowledging family (studio-wide + the studio readout). Null for a
+   *  self-managed adult — the button is not offered in that case. */
+  familyId: string | null;
+  /** ISO instant when acknowledged, or null if not yet. */
+  acknowledgedAt: string | null;
 }
 
 /** Spec-named alias. Import `CalendarEvent` in code; `Event` exists for parity. */

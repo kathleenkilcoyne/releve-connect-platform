@@ -37,10 +37,15 @@ export function mergeFamilyWeek(
   children: ChildStream[],
   studioWide: SessionWithClass[],
   timeZone: string,
+  /** When present, each family card gets `ack` context so the "Got it" button can
+   *  render. Omitted (tests, self-managed adults) = no ack, no button. The family
+   *  id is the acknowledging family for studio-wide (and studio-readout) acks. */
+  ackFamily?: { familyId: string | null },
 ): CalendarEvent[] {
   interface Agg {
     item: SessionWithClass;
     childNames: string[];
+    childIds: string[];
     studioWide: boolean;
   }
   const bySession = new Map<string, Agg>();
@@ -48,15 +53,16 @@ export function mergeFamilyWeek(
   for (const child of children) {
     for (const s of child.sessions) {
       const id = s.session.session_id;
-      const agg = bySession.get(id) ?? { item: s, childNames: [], studioWide: false };
+      const agg = bySession.get(id) ?? { item: s, childNames: [], childIds: [], studioWide: false };
       if (!agg.childNames.includes(child.childName)) agg.childNames.push(child.childName);
+      if (!agg.childIds.includes(child.childId)) agg.childIds.push(child.childId);
       bySession.set(id, agg);
     }
   }
 
   for (const s of studioWide) {
     const id = s.session.session_id;
-    const agg = bySession.get(id) ?? { item: s, childNames: [], studioWide: false };
+    const agg = bySession.get(id) ?? { item: s, childNames: [], childIds: [], studioWide: false };
     agg.studioWide = true; // resolved once at the family level
     bySession.set(id, agg);
   }
@@ -68,6 +74,15 @@ export function mergeFamilyWeek(
     // siblings, is for the family (no single child tag).
     if (!agg.studioWide && agg.childNames.length === 1) {
       event.who = agg.childNames[0];
+    }
+    if (ackFamily) {
+      event.ack = {
+        sessionId: agg.item.session.session_id,
+        scope: agg.studioWide ? "studio_wide" : "targeted",
+        studentIds: agg.studioWide ? [] : agg.childIds,
+        familyId: ackFamily.familyId,
+        acknowledgedAt: null, // filled in by the caller from the ack rows
+      };
     }
     withInstant.push({ event, at: new Date(agg.item.session.starts_at).getTime() });
   }
