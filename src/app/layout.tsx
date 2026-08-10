@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AdminConsoleLink from "./AdminConsoleLink";
+import ProfessionalNav from "./ProfessionalNav";
 import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
@@ -40,6 +41,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {/* Admin-only, server-gated. Renders null for everyone else. */}
         <AdminConsoleLink />
+        {/* Professionals only, server-gated (Slice 0b). Null for families/studios,
+            so the founding-studio pilot surfaces are untouched. */}
+        <ProfessionalNav />
         {children}
         <Analytics />
       </body>

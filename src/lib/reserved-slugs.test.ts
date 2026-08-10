@@ -17,6 +17,17 @@ describe("isReservedSlug", () => {
     expect(isReservedSlug("the-beat")).toBe(true);
   });
 
+  it("rejects the professional account routes (messages, notifications)", () => {
+    expect(isReservedSlug("messages")).toBe(true);
+    expect(isReservedSlug("notifications")).toBe(true);
+  });
+
+  it("keeps the family/student world OUT of the public handle namespace (safety wall)", () => {
+    for (const s of ["students", "student", "family", "families", "dancer", "dancers", "guardian"]) {
+      expect(isReservedSlug(s)).toBe(true);
+    }
+  });
+
   it("is case-insensitive and trims whitespace", () => {
     expect(isReservedSlug("ADMIN")).toBe(true);
     expect(isReservedSlug("  Apply  ")).toBe(true);

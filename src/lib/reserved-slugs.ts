@@ -20,6 +20,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "this-week",
   "climb",
   "profile",
+  "messages",
+  "notifications",
   "setup-check",
   "subscribe",
   "talent",
@@ -49,6 +51,17 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "signup",
   "signin",
   "logout",
+  "me",
+  "inbox",
+  // Safety wall (Slice 0): the family/student world is NOT part of the public
+  // professional handle namespace — never let one of these read as a person's page.
+  "students",
+  "student",
+  "family",
+  "families",
+  "dancer",
+  "dancers",
+  "guardian",
 ]);
 
 /** True if `slug` is reserved and must not be used as a public handle. */
