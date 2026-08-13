@@ -1,5 +1,31 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 2 (My Offerings builder) DONE (2026-08-13)
+>
+> **The member-facing builder/management experience.** An activated professional can now package their skills, services, creative work, experiences, and products from inside the Professional Profile system — the first place Relevé teaches a professional to think beyond a résumé. **Builder/management only; the PUBLIC render on `/[handle]` is Slice 3 (not started).**
+>
+> **Branch `feature/professional-offerings`.** `main` untouched, nothing merged, nothing deployed. **`PROFESSIONAL_OFFERINGS_ENABLED` OFF in production** (a local-only copy lives in the gitignored `.env.local` for preview — never committed).
+>
+> ### What shipped (all additive; only two existing files edited)
+> - **`src/lib/offerings/actions.ts`** — owner-scoped CRUD server actions (`saveOffering` create/edit, `setOfferingStatus`, `deleteOffering`). Writes go through the caller's RLS client (own-row only); the image upload uses the admin client into the dedicated `offering-media` bucket (path `<uid>/…`). `cta_type` is left null so the render layer derives the CTA (one source of truth). Saves DATA ONLY — no intro/licensing/CTA behavior (that's Slice 4).
+> - **`src/app/profile/offerings/`** — the workspace: `page.tsx` (gate: flag + signed-in + `hasActiveProfileTier`; redirects away when the flag is OFF), `OfferingsWorkspace.tsx` (empty state + management cards + activate/deactivate/delete), `OfferingBuilder.tsx` (the guided 7-stage add/edit flow with a live preview).
+> - **`src/lib/offerings/offerings.ts`** (edited) — added `resolvePricing`/`formatPriceDisplay`/`formatMoney`, builder label maps, `AMOUNT_PRICING_TYPES`, `OfferingRow`. **Reconciliations (single source of truth, per founder spec):** `DEFAULT_CTA_BY_TYPE.other` → `inquire`; `OFFERING_LIMITS.shortMax` → 600; `license` label → "Licensed Work".
+> - **`src/app/profile/page.tsx`** (edited) — a flag-gated **"Professional Offerings"** doorway tile (the richer "YOUR WORK" home is the Professional Identity slice on another branch, so this branch ADDS the doorway).
+> - **`src/lib/offerings/index.ts`** — barrel.
+>
+> ### Product decisions (founder-ratified this slice)
+> - **Active/inactive → Live/Hidden.** Publish = `active`, Save as draft = `inactive`. The DB has two states, so a never-published draft and a deactivated offering are both `inactive` (badge reads **Hidden**) — no third state invented.
+> - Pricing is **display-first, never forced hourly**: builder collects a pricing type + optional amount; `resolvePricing` composes `price_display` ("$600 / day", "Starting at $250", …). Worker labor is never taxed (a service inquiry writes a `connections` row, no fee).
+> - CTA is **derived from type**, never exposed as "CTA type": service/session/other → Inquire · product → View Product (+URL) · event → Register (+URL) · license → View Licensing.
+>
+> ### Verified (typecheck clean · 247/247 tests, +15)
+> Walked the real builder locally (signed in as the founder's own account), created + deleted test offerings, restored to zero. Live evidence: create (Service $600/day) + DB persistence; Product + external URL persistence + "View Product" copy; edit hydration; deactivate→Hidden→reactivate (data preserved); no-image; **invalid URL rejected server-side**; **cross-user UPDATE/DELETE blocked by RLS (0 rows)**; empty state. C/D/F/G/H covered by unit tests (identical write path). All test rows deleted afterward — the founder's profile is back to zero offerings.
+>
+> ### Explicitly NOT touched
+> Swing · licensing economics/`signature_works` (a Licensed-Work offering leaves `signature_work_id` null) · memberships/$30/Stripe · Studio Foundation · Team · This Week · Roster/search · availability tags / "I'm Currently Accepting" · connections / Request-an-Intro behavior · public profile rendering (that's Slice 3).
+>
+> **▶️ NEXT — Slice 3 (not started):** render active offerings under a **"What I Offer"** section on the public `/[handle]` profile (guarded so zero-offering profiles are unchanged). Then Slice 4 wires CTA behavior.
+
 > ## ✅ PROFESSIONAL OFFERINGS — SLICE 1 (data foundation) DONE & LIVE (2026-08-13)
 >
 > **The additive "professional business layer" begins.** One reusable *Offering* concept lets an activated professional package a **Service · Session · Product · License · Event/Experience · Other** from their existing Professional Profile — no separate table per kind of work, no redesign of the profile. This is Slice 1 of a founder-approved 4-slice plan; **only the data foundation is built.**

@@ -7,6 +7,10 @@ import {
   OFFERING_TYPE_LABEL,
   DEFAULT_CTA_BY_TYPE,
   OFFERING_LIMITS,
+  AMOUNT_PRICING_TYPES,
+  PRICING_TYPE_LABEL,
+  LOCATION_MODE_LABEL,
+  LOCATION_MODES,
   isOfferingType,
   isPricingType,
   isCtaType,
@@ -15,6 +19,9 @@ import {
   deriveCta,
   licensingHref,
   pricingDisplay,
+  formatMoney,
+  formatPriceDisplay,
+  resolvePricing,
   type OfferingInput,
 } from "./offerings";
 
@@ -193,13 +200,15 @@ describe("deriveCta", () => {
     expect(deriveCta({ type: "license" })).toEqual({ action: "intro", label: "Inquire" });
   });
 
-  it("other resolves to learn-more (external) or none when there is no link", () => {
-    expect(deriveCta({ type: "other", externalUrl: "https://x.example.com" })).toEqual({
-      action: "external",
-      label: "Learn More",
-      href: "https://x.example.com",
-    });
-    expect(deriveCta({ type: "other" })).toEqual({ action: "none", label: "" });
+  it("other defaults to the intro rail (founder spec: Other → Inquire)", () => {
+    expect(deriveCta({ type: "other" })).toEqual({ action: "intro", label: "Inquire" });
+    expect(DEFAULT_CTA_BY_TYPE.other).toBe("inquire");
+  });
+
+  it("an explicit learn_more override still links out when a URL is present", () => {
+    expect(
+      deriveCta({ type: "other", ctaType: "learn_more", externalUrl: "https://x.example.com" }),
+    ).toEqual({ action: "external", label: "Learn More", href: "https://x.example.com" });
   });
 
   it("an explicit cta override wins over the type default", () => {
@@ -231,5 +240,108 @@ describe("pricingDisplay", () => {
     expect(pricingDisplay({ pricingType: "external" })).toBeNull();
     expect(pricingDisplay({ pricingType: "hourly" })).toBeNull();
     expect(pricingDisplay({})).toBeNull();
+  });
+});
+
+describe("builder label maps", () => {
+  it("labels every pricing type and location mode", () => {
+    for (const p of PRICING_TYPES) expect(PRICING_TYPE_LABEL[p]).toBeTruthy();
+    for (const m of LOCATION_MODES) expect(LOCATION_MODE_LABEL[m]).toBeTruthy();
+  });
+
+  it("only amount-carrying pricing types are in AMOUNT_PRICING_TYPES", () => {
+    expect([...AMOUNT_PRICING_TYPES].sort()).toEqual(
+      ["daily", "fixed", "hourly", "project", "starting_at"].sort(),
+    );
+    // contact/free/hidden do NOT carry an amount
+    expect(AMOUNT_PRICING_TYPES).not.toContain("free");
+    expect(AMOUNT_PRICING_TYPES).not.toContain("contact");
+  });
+
+  it("raised the short-description ceiling for a generous writing area", () => {
+    expect(OFFERING_LIMITS.shortMax).toBe(600);
+  });
+});
+
+describe("formatMoney", () => {
+  it("drops cents on whole dollars and adds thousands separators", () => {
+    expect(formatMoney(85)).toBe("$85");
+    expect(formatMoney(600)).toBe("$600");
+    expect(formatMoney(1250)).toBe("$1,250");
+  });
+  it("keeps two decimals when there are cents", () => {
+    expect(formatMoney(85.5)).toBe("$85.50");
+  });
+});
+
+describe("formatPriceDisplay", () => {
+  it("composes each amount-carrying type (the founder's examples)", () => {
+    expect(formatPriceDisplay("hourly", 85)).toBe("$85 / hour");
+    expect(formatPriceDisplay("daily", 600)).toBe("$600 / day");
+    expect(formatPriceDisplay("project", 175)).toBe("$175 / project");
+    expect(formatPriceDisplay("starting_at", 250)).toBe("Starting at $250");
+    expect(formatPriceDisplay("fixed", 175)).toBe("$175");
+  });
+  it("returns null for non-amount types", () => {
+    expect(formatPriceDisplay("free", 0)).toBeNull();
+    expect(formatPriceDisplay("contact", 0)).toBeNull();
+    expect(formatPriceDisplay("hidden", 0)).toBeNull();
+  });
+});
+
+describe("resolvePricing", () => {
+  it("no pricing type → both null (never forces a price)", () => {
+    expect(resolvePricing({ pricingType: "", amount: "" })).toEqual({
+      ok: true,
+      pricingType: null,
+      priceDisplay: null,
+    });
+  });
+
+  it("test case D — $85/hour", () => {
+    expect(resolvePricing({ pricingType: "hourly", amount: "85" })).toEqual({
+      ok: true,
+      pricingType: "hourly",
+      priceDisplay: "$85 / hour",
+    });
+  });
+
+  it("test case B — $600/day", () => {
+    expect(resolvePricing({ pricingType: "daily", amount: "$600" })).toEqual({
+      ok: true,
+      pricingType: "daily",
+      priceDisplay: "$600 / day",
+    });
+  });
+
+  it("test case C — $175/project", () => {
+    expect(resolvePricing({ pricingType: "project", amount: "175" })).toEqual({
+      ok: true,
+      pricingType: "project",
+      priceDisplay: "$175 / project",
+    });
+  });
+
+  it("free / contact carry no amount and no composed string", () => {
+    expect(resolvePricing({ pricingType: "free" })).toEqual({
+      ok: true,
+      pricingType: "free",
+      priceDisplay: null,
+    });
+    expect(resolvePricing({ pricingType: "contact" })).toEqual({
+      ok: true,
+      pricingType: "contact",
+      priceDisplay: null,
+    });
+  });
+
+  it("rejects an amount type with a missing or non-positive amount", () => {
+    expect(resolvePricing({ pricingType: "hourly", amount: "" }).ok).toBe(false);
+    expect(resolvePricing({ pricingType: "hourly", amount: "0" }).ok).toBe(false);
+    expect(resolvePricing({ pricingType: "hourly", amount: "abc" }).ok).toBe(false);
+  });
+
+  it("rejects an unknown pricing type", () => {
+    expect(resolvePricing({ pricingType: "weekly", amount: "5" }).ok).toBe(false);
   });
 });

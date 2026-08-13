@@ -59,7 +59,7 @@ export const OFFERING_TYPE_LABEL: Record<OfferingType, string> = {
   service: "Service",
   session: "Session",
   product: "Product",
-  license: "License",
+  license: "Licensed Work",
   event: "Event / Experience",
   other: "Other",
 };
@@ -78,12 +78,44 @@ export const CTA_LABEL: Record<CtaType, string> = {
 export const OFFERING_LIMITS = {
   titleMin: 2,
   titleMax: 120,
-  shortMax: 200,
+  // The builder shows ONE "Tell people what you offer" writing area — generous
+  // but controlled (roughly a short paragraph), not a website-builder editor.
+  shortMax: 600,
   longMax: 2000,
   priceDisplayMax: 60,
   locationNoteMax: 120,
   externalUrlMax: 2048,
 } as const;
+
+/** Friendly labels for the builder's pricing picker. */
+export const PRICING_TYPE_LABEL: Record<PricingType, string> = {
+  fixed: "Fixed price",
+  hourly: "Hourly",
+  daily: "Daily",
+  project: "Per project",
+  starting_at: "Starting at",
+  contact: "Contact for pricing",
+  free: "Free",
+  external: "Priced externally",
+  hidden: "No price displayed",
+};
+
+/** Friendly labels for the builder's "How is it delivered?" picker. */
+export const LOCATION_MODE_LABEL: Record<LocationMode, string> = {
+  in_person: "In person",
+  virtual: "Virtual",
+  travel: "Travel / mobile",
+  flexible: "Flexible",
+};
+
+/** Pricing types that carry a dollar amount (the builder shows an amount field). */
+export const AMOUNT_PRICING_TYPES: PricingType[] = [
+  "fixed",
+  "hourly",
+  "daily",
+  "project",
+  "starting_at",
+];
 
 // ---- Type guards -----------------------------------------------------------
 
@@ -292,7 +324,10 @@ export const DEFAULT_CTA_BY_TYPE: Record<OfferingType, CtaType> = {
   product: "view_product",
   license: "view_licensing",
   event: "register",
-  other: "learn_more",
+  // "Other" defaults to the intro rail — a catch-all offering still gives people
+  // a way to reach out. (A `learn_more` external link stays available as an
+  // explicit override.)
+  other: "inquire",
 };
 
 /** The minimal shape needed to resolve an Offering's call-to-action. */
@@ -399,3 +434,94 @@ export function pricingDisplay(input: PricingInput): string | null {
       return null;
   }
 }
+
+/** Format a dollar amount as "$85" or "$1,250.50" (whole numbers drop cents). */
+export function formatMoney(dollars: number): string {
+  const rounded = Math.round(dollars * 100) / 100;
+  const s = Number.isInteger(rounded)
+    ? rounded.toLocaleString("en-US")
+    : rounded.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `$${s}`;
+}
+
+/**
+ * Compose the `price_display` string for an amount-carrying pricing type:
+ *   fixed → "$175" · project → "$175 / project" · hourly → "$85 / hour" ·
+ *   daily → "$600 / day" · starting_at → "Starting at $250".
+ * Returns null for non-amount types (free/contact/hidden/external), whose copy
+ * is derived at render time by pricingDisplay().
+ */
+export function formatPriceDisplay(pricingType: PricingType, dollars: number): string | null {
+  const money = formatMoney(dollars);
+  switch (pricingType) {
+    case "fixed":
+      return money;
+    case "project":
+      return `${money} / project`;
+    case "hourly":
+      return `${money} / hour`;
+    case "daily":
+      return `${money} / day`;
+    case "starting_at":
+      return `Starting at ${money}`;
+    default:
+      return null;
+  }
+}
+
+export type ResolvedPricing =
+  | { ok: true; pricingType: PricingType | null; priceDisplay: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Turn the builder's pricing picker (a type + an optional amount string) into a
+ * validated `{ pricingType, priceDisplay }` pair. Pure.
+ *   - no pricing type chosen → both null (nothing shown; never forces a price).
+ *   - an amount type (fixed/hourly/daily/project/starting_at) requires a positive
+ *     amount and composes the display string.
+ *   - free/contact/hidden carry no amount; their copy is derived at render.
+ * The professional is NEVER forced into an hourly rate — that is one option of many.
+ */
+export function resolvePricing(input: {
+  pricingType?: string | null;
+  amount?: string | null;
+}): ResolvedPricing {
+  const typeRaw = clean(input.pricingType);
+  if (!typeRaw) return { ok: true, pricingType: null, priceDisplay: null };
+  if (!isPricingType(typeRaw)) return { ok: false, error: "Choose how you price this." };
+
+  if ((AMOUNT_PRICING_TYPES as string[]).includes(typeRaw)) {
+    const raw = clean(input.amount);
+    const n = raw ? Number.parseFloat(raw.replace(/[^0-9.]/g, "")) : NaN;
+    if (!raw || Number.isNaN(n) || n <= 0) {
+      return { ok: false, error: "Enter a price amount." };
+    }
+    return {
+      ok: true,
+      pricingType: typeRaw,
+      priceDisplay: formatPriceDisplay(typeRaw, n),
+    };
+  }
+
+  // free / contact / hidden / external — no amount; copy derived at render.
+  return { ok: true, pricingType: typeRaw, priceDisplay: null };
+}
+
+/** The persisted Offering row shape (what the builder + cards render from). */
+export type OfferingRow = {
+  id: string;
+  type: OfferingType;
+  title: string;
+  short_description: string | null;
+  long_description: string | null;
+  image_url: string | null;
+  pricing_type: PricingType | null;
+  price_display: string | null;
+  location_mode: LocationMode | null;
+  location_note: string | null;
+  external_url: string | null;
+  cta_type: CtaType | null;
+  signature_work_id: string | null;
+  status: OfferingStatus;
+  sort_order: number;
+};
