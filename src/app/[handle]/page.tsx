@@ -22,6 +22,12 @@ import { isReservedSlug } from "@/lib/reserved-slugs";
 import { toReelEmbed } from "@/lib/profile/reel";
 import { hasAnyActiveMembership } from "@/lib/membership/access";
 import { canConnect } from "@/lib/connections/messages";
+import { shouldLogProfileView, logProfileView } from "@/lib/professional/home";
+import {
+  loadPublicApprovedWorks,
+  workTypeLabel,
+  type PublicWork,
+} from "@/lib/professional/licensing";
 import ConnectActions from "./ConnectActions";
 
 export const dynamic = "force-dynamic";
@@ -187,12 +193,14 @@ export default async function PublicProfilePage({
   let canAct = false;
   let initialSaved = false;
   let initialRequested = false;
+  let viewerId: string | null = null;
   try {
     const supabase = await createServerClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
+      viewerId = user.id;
       // Server-side ownership check. `getUser()` validates the session against
       // Supabase's auth server, so `user.id` is trustworthy (not a client-supplied
       // value). The owner-only bar below is rendered only when this is true — a
@@ -218,6 +226,21 @@ export default async function PublicProfilePage({
   } catch {
     // Not signed in / auth unavailable → no actions shown.
   }
+
+  // Count a public view (Slice 1) — fire-and-forget, never blocks the page.
+  // Only LIVE profiles, and never the owner viewing their own. Anonymous views
+  // are counted with a null viewer (identity is not surfaced in Slice 1).
+  if (shouldLogProfileView({ isLive: !isDraftPreview, isOwnerViewing: isOwner })) {
+    await logProfileView(createAdminClient(), {
+      profileId: profile.profile_id,
+      viewerId,
+    });
+  }
+
+  // Works available to license — APPROVED works only, and only when the member
+  // has the licensing capability on. Reads via the admin client and filters in
+  // app code (the same pattern the rest of this page uses).
+  const licensing = await loadPublicApprovedWorks(createAdminClient(), profile.profile_id);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
@@ -412,6 +435,26 @@ export default async function PublicProfilePage({
         </section>
       )}
 
+      {/* Available to License — approved works only. Transactions are Coming Soon;
+          this surfaces the work and the intent, no checkout. */}
+      {licensing.availableForLicensing && licensing.works.length > 0 && (
+        <section className="mt-12">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-neutral-500">
+              Available to License
+            </h2>
+            <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-500">
+              Licensing · transactions coming soon
+            </span>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {licensing.works.map((w) => (
+              <LicenseWorkCard key={w.work_id} work={w} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Résumé / CV + Links */}
       {(profile.resume_url || Object.keys(social).length > 0) && (
         <section className="mt-10 flex flex-wrap gap-3">
@@ -453,6 +496,46 @@ export default async function PublicProfilePage({
         together we rise · relevé
       </Link>
     </main>
+  );
+}
+
+function LicenseWorkCard({ work }: { work: PublicWork }) {
+  const meta = [
+    workTypeLabel(work.work_type),
+    work.style,
+    work.cast_size,
+    work.duration,
+    work.level_audience,
+    work.year_created ? String(work.year_created) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+      <h3 className="text-lg font-semibold text-neutral-900">{work.title}</h3>
+      {meta && <p className="mt-1 text-sm text-neutral-500">{meta}</p>}
+      {work.description && (
+        <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-neutral-700">
+          {work.description}
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {work.preview_video_url && (
+          <a
+            href={work.preview_video_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-neutral-800 underline"
+          >
+            Watch preview ↗
+          </a>
+        )}
+        {work.license_type && (
+          <span className="text-xs text-neutral-500">{work.license_type}</span>
+        )}
+      </div>
+    </div>
   );
 }
 
