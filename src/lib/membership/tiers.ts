@@ -1,7 +1,7 @@
 // The membership tiers, in one place — matching the ratified pricing Single
 // Source of Truth (docs/Releve_Pricing_RATIFIED_2026-06-25_…). Prices are ANNUAL
 // and in cents. Names are the ratified names (Live Pass / Professional /
-// Professional·Full · Studio Connect / Growth / Accelerator).
+// Professional·Full · Studio Foundation / Growth / Accelerator).
 //
 // IMPORTANT (build spec §17): annual billing only, no monthly, no "$10" anywhere.
 // `account_type` is identity; what someone BOUGHT is captured by a membership row
@@ -60,8 +60,11 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL_FULL",
   },
   studio_connect: {
+    // Customer-facing name relabeled to "Studio Foundation" (2026-08-12); the
+    // internal slug stays `studio_connect` on purpose — customers never see the
+    // slug, and renaming it would risk live data/code for no benefit.
     slug: "studio_connect",
-    label: "Studio Connect",
+    label: "Studio Foundation",
     priceCents: 24_900, // $249
     side: "studio",
     applicationRequired: false, // studios are the employer/buyer side — no vetting fee

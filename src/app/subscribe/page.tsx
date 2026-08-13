@@ -18,6 +18,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isProfessionalApplicant } from "@/lib/membership/families";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +33,13 @@ export default async function SubscribePage() {
 
   const { data: appRows } = await db
     .from("applications")
-    .select("state, created_at")
+    .select("state, created_at, roles")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1);
-  const appState = (appRows?.[0] as { state: string } | undefined)?.state ?? null;
+  const app0 = appRows?.[0] as { state: string; roles: string[] | null } | undefined;
+  const appState = app0?.state ?? null;
+  const appRoles = app0?.roles ?? null;
 
   const { data: memRows } = await db
     .from("memberships")
@@ -45,6 +48,18 @@ export default async function SubscribePage() {
     .eq("membership_status", "active");
   const member =
     ((memRows ?? []) as Array<{ renewal_date: string | null }>)[0] ?? null;
+
+  // Active, in-window $30 activation also grants access — no membership row
+  // (unified membership model §3).
+  const { data: actRows } = await db
+    .from("activations")
+    .select("access_expires_at")
+    .eq("user_id", user.id)
+    .eq("membership_family", "professional")
+    .eq("status", "active")
+    .gt("access_expires_at", new Date().toISOString())
+    .limit(1);
+  const activationActive = Boolean(actRows && (actRows as unknown[]).length > 0);
 
   // ── The trap this escapes (2026-07-22) ──
   // Signing in lands on /profile/edit, which requires an ACTIVE MEMBERSHIP and
@@ -122,17 +137,50 @@ export default async function SubscribePage() {
     );
   }
 
-  // Approved but no membership row yet (rare edge case — approval normally grants
-  // one). Reassure and point them onward rather than showing a paywall.
+  // Active $30 activation window — access without a founding membership.
+  if (activationActive) {
+    return shell(
+      <>
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
+          Your Professional access is active
+        </h1>
+        <p className="mt-3 text-neutral-600">
+          You&apos;re activated — build and publish your profile. Your $30 is credited toward your
+          continuing Professional subscription when you continue.
+        </p>
+        {buildProfile}
+      </>,
+    );
+  }
+
+  // Approved but NOT activated → the $30 activation on-ramp (professionals only).
+  if (appState === "approved" && isProfessionalApplicant(appRoles)) {
+    return shell(
+      <>
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;ve been accepted 🎉</h1>
+        <p className="mt-3 text-neutral-600">
+          Activate your Professional Profile to build, publish, and appear on the Roster — 60 days of
+          access, and your <span className="font-medium">$30 is credited</span> toward your continuing
+          subscription.
+        </p>
+        <Link
+          href="/activate"
+          className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
+        >
+          Activate your profile →
+        </Link>
+      </>,
+    );
+  }
+
+  // Approved but not a professional applicant (rare) — a plain welcome.
   if (appState === "approved") {
     return shell(
       <>
         <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re in — welcome 🎉</h1>
         <p className="mt-3 text-neutral-600">
-          During our founding period your membership is complimentary. You can start building your
-          profile right now.
+          You&apos;ve been accepted. We&apos;ll be in touch with your next steps.
         </p>
-        {buildProfile}
       </>,
     );
   }

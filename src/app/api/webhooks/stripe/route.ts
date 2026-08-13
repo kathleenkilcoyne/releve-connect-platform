@@ -29,6 +29,7 @@ import {
 } from "@/lib/notifications";
 import { siteUrl } from "@/lib/stripe/config";
 import { getTier, dollars } from "@/lib/membership/tiers";
+import { onPaid } from "@/lib/membership/activation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -125,6 +126,10 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
   }
   if (session.metadata?.kind === "membership") {
     await handleMembershipCheckout(stripe, session);
+    return;
+  }
+  if (session.metadata?.kind === "professional_activation") {
+    await handleProfessionalActivationPaid(session);
     return;
   }
 
@@ -269,6 +274,54 @@ async function handleApplicationFeePaid(session: Stripe.Checkout.Session) {
       reviewUrl: `${siteUrl()}/admin/applications`,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// checkout.session.completed — a $30 professional activation
+//   (kind: 'professional_activation')
+// ---------------------------------------------------------------------------
+// Records the paid activation and OPENS the 60-day Professional access window.
+// It does NOT create a membership row (the ledger's active window grants access)
+// and — critically — it NEVER reads or writes applications.state. Payment is
+// separate from vetting. The $30 credit stays 'available' and is applied only if
+// the member continues within the window (the continuing-subscription slice).
+async function handleProfessionalActivationPaid(session: Stripe.Checkout.Session) {
+  const db = createAdminClient();
+  const activationId =
+    (session.metadata?.activation_id as string | undefined) ??
+    (session.client_reference_id ?? undefined);
+
+  const query = db.from("activations").select("*").limit(1);
+  const { data: found } = activationId
+    ? await query.eq("activation_id", activationId)
+    : await query.eq("stripe_checkout_session_id", session.id);
+  const activation = found?.[0] as { activation_id: string; status: string } | undefined;
+
+  if (!activation) {
+    console.error("[stripe webhook] no activation for session", session.id);
+    return;
+  }
+  if (activation.status === "active" || activation.status === "converted") return; // idempotent
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  // Payment opens the family-sized (60-day) window. Pure transition → DB patch.
+  const paidAt = new Date();
+  const opened = onPaid(paidAt, "professional");
+  await db
+    .from("activations")
+    .update({
+      status: opened.status, // 'active'
+      credit_status: opened.creditStatus, // 'available'
+      access_started_at: opened.accessStartedAt.toISOString(),
+      access_expires_at: opened.accessExpiresAt.toISOString(),
+      stripe_payment_intent_id: paymentIntentId,
+      updated_at: paidAt.toISOString(),
+    })
+    .eq("activation_id", activation.activation_id);
 }
 
 // Stripe moved `current_period_end` (now on the subscription item) and

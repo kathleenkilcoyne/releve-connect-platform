@@ -41,6 +41,26 @@ export function hasAnyActiveMembershipFromRows(rows: MembershipRow[]): boolean {
 }
 
 /**
+ * Pure predicate: does the professional currently have profile access — via an
+ * active Professional-tier MEMBERSHIP, or via an active, in-window ACTIVATION
+ * (the unified membership model §3: the $30 activation's window grants access,
+ * no throwaway membership row). Extracted so the gate is provable (guardrail #6).
+ *
+ * @param activationExpiries `access_expires_at` (ISO) of the caller's ACTIVE
+ *   professional activations; a null/absent expiry never grants access.
+ */
+export function professionalAccessFromRows(input: {
+  membershipRows: MembershipRow[];
+  activationExpiries: Array<string | null>;
+  now: Date;
+}): boolean {
+  if (hasActiveProfileTierFromRows(input.membershipRows)) return true;
+  return input.activationExpiries.some(
+    (iso) => iso != null && new Date(iso).getTime() >= input.now.getTime(),
+  );
+}
+
+/**
  * Loose shape of a Supabase-like client — just enough to run our one read,
  * without importing Supabase's heavily-generic types (which trip TS's
  * deep-instantiation guard). Any of this project's clients satisfies it.
@@ -63,6 +83,38 @@ export async function hasActiveProfileTier(
     .eq("user_id", userId)
     .eq("membership_status", "active");
   return hasActiveProfileTierFromRows((data as MembershipRow[] | null) ?? []);
+}
+
+/**
+ * Does this professional currently have profile access — an active Professional
+ * membership OR an active, in-window activation? This is the gate the profile
+ * builder uses under the unified membership model. Pass a request-scoped client;
+ * reads only this user's own rows.
+ */
+export async function hasActiveProfessionalAccess(
+  db: SupabaseLike,
+  userId: string,
+): Promise<boolean> {
+  const [membershipRes, activationRes] = await Promise.all([
+    db
+      .from("memberships")
+      .select("tier, membership_status")
+      .eq("user_id", userId)
+      .eq("membership_status", "active"),
+    db
+      .from("activations")
+      .select("access_expires_at")
+      .eq("user_id", userId)
+      .eq("membership_family", "professional")
+      .eq("status", "active"),
+  ]);
+  return professionalAccessFromRows({
+    membershipRows: (membershipRes.data as MembershipRow[] | null) ?? [],
+    activationExpiries: (
+      (activationRes.data as Array<{ access_expires_at: string | null }> | null) ?? []
+    ).map((r) => r.access_expires_at),
+    now: new Date(),
+  });
 }
 
 /**

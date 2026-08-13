@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hasActiveProfileTierFromRows,
   hasAnyActiveMembershipFromRows,
+  professionalAccessFromRows,
   PROFILE_TIER_SLUGS,
 } from "./access";
 
@@ -82,5 +83,47 @@ describe("hasAnyActiveMembershipFromRows", () => {
 
   it("denies when there are no memberships", () => {
     expect(hasAnyActiveMembershipFromRows([])).toBe(false);
+  });
+});
+
+// The unified professional-access gate: an active Professional MEMBERSHIP or an
+// active, in-window $30 ACTIVATION grants the profile builder.
+describe("professionalAccessFromRows", () => {
+  const now = new Date("2026-08-12T00:00:00.000Z");
+  const future = new Date(now.getTime() + 10 * 86_400_000).toISOString();
+  const past = new Date(now.getTime() - 1).toISOString();
+
+  it("grants on an active Professional membership (no activation needed)", () => {
+    expect(
+      professionalAccessFromRows({
+        membershipRows: [{ tier: "professional", membership_status: "active" }],
+        activationExpiries: [],
+        now,
+      }),
+    ).toBe(true);
+  });
+
+  it("grants on an active, in-window activation (no membership needed)", () => {
+    expect(
+      professionalAccessFromRows({ membershipRows: [], activationExpiries: [future], now }),
+    ).toBe(true);
+  });
+
+  it("denies an activation whose window has already lapsed", () => {
+    expect(
+      professionalAccessFromRows({ membershipRows: [], activationExpiries: [past], now }),
+    ).toBe(false);
+  });
+
+  it("denies a null/absent activation expiry", () => {
+    expect(
+      professionalAccessFromRows({ membershipRows: [], activationExpiries: [null], now }),
+    ).toBe(false);
+  });
+
+  it("denies with neither membership nor activation", () => {
+    expect(
+      professionalAccessFromRows({ membershipRows: [], activationExpiries: [], now }),
+    ).toBe(false);
   });
 });

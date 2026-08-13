@@ -10,8 +10,6 @@ import ApplicationsConsole from "./ApplicationsConsole";
 
 export const dynamic = "force-dynamic";
 
-export type FeeStatus = "pending" | "paid" | "refunded" | "credited" | "forfeited" | "waived" | null;
-
 export type ApplicationRow = {
   application_id: string;
   email: string;
@@ -28,7 +26,6 @@ export type ApplicationRow = {
   submitted_at: string | null;
   created_at: string;
   answers: Record<string, unknown> | null;
-  fee_status: FeeStatus;
 };
 
 export default async function AdminApplicationsPage() {
@@ -46,31 +43,19 @@ export default async function AdminApplicationsPage() {
     .order("submitted_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  const { data: feeData } = await db
-    .from("application_fee_payments")
-    .select("application_id, status, created_at")
-    .order("created_at", { ascending: false });
-
-  // Latest fee status per application.
-  const feeByApp = new Map<string, FeeStatus>();
-  for (const f of (feeData ?? []) as Array<{ application_id: string; status: FeeStatus }>) {
-    if (!feeByApp.has(f.application_id)) feeByApp.set(f.application_id, f.status);
-  }
-
-  const applications: ApplicationRow[] = ((appData ?? []) as unknown as ApplicationRow[]).map((a) => ({
-    ...a,
-    fee_status: feeByApp.get(a.application_id) ?? null,
-  }));
+  // Payment is NOT part of vetting (2026-08-12): the application is free, and the
+  // $30 lives in the post-approval profile-activation flow. So no fee status is
+  // loaded or shown here. The payment plumbing itself is preserved elsewhere.
+  const applications: ApplicationRow[] = (appData ?? []) as unknown as ApplicationRow[];
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">Relevé · Admin</p>
-      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Applications — the vetting queue</h1>
+      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Professional Roster Review</h1>
       <p className="mt-3 text-neutral-600">
-        A real person reads every application. Approve, approve a choreographer at a marketplace tier,
-        confer honorifics, ask for more, or decline. During the founding period, approving also
-        grants a <span className="font-medium">complimentary membership</span> and sends the
-        welcome email.
+        Review applications for the Relevé Professional Roster. Approve, request additional
+        information, or decline. Approved professionals can build and publish their Relevé
+        Professional Profile.
       </p>
 
       {/* Way OUT of the console (2026-07-23). Signing in as an admin now lands

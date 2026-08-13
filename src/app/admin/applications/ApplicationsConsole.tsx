@@ -15,20 +15,9 @@ import { useRouter } from "next/navigation";
 import { STUDENT_COUNT_LABELS } from "@/lib/studio/profile";
 import type { ApplicationRow } from "./page";
 
-// Editorial honorifics (build spec §13) — conferred by the admin, never self-selected.
-const HONORIFICS = [
-  "Verified Artist",
-  "Founding Artist",
-  "Master Teacher",
-  "Stage Doors Educator",
-  "Adaptive Arts Faculty",
-];
-// Choreographer marketplace tiers an admin may assign ("featured" retired; "signature" = Founding 25).
-const TIERS = ["emerging", "established", "signature"];
-
 const STATE_LABEL: Record<string, string> = {
-  draft: "Draft (unpaid)",
-  submitted: "Submitted (fee pending)",
+  draft: "Draft",
+  submitted: "Submitted",
   "in-review": "In review",
   approved: "Approved",
   "more-info": "More info requested",
@@ -120,7 +109,7 @@ export default function ApplicationsConsole({ applications }: { applications: Ap
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className={input}>
           <option value="in-review">In review</option>
-          <option value="submitted">Submitted (fee pending)</option>
+          <option value="submitted">Submitted</option>
           <option value="more-info">More info requested</option>
           <option value="approved">Approved</option>
           <option value="declined">Declined</option>
@@ -216,7 +205,6 @@ function describeOutcome(action: string | undefined, data: Record<string, unknow
   }
   if (action === "decline") return "Declined — the 'not right now' email has been sent.";
   if (action === "request_info") return "More info requested — email sent.";
-  if (action === "honorifics") return "Honorifics saved.";
   return "Done.";
 }
 
@@ -237,13 +225,9 @@ function ApplicationCard({
   act: (id: string, body: unknown) => Promise<void>;
 }) {
   const ans = (app.answers ?? {}) as Ans;
-  const isChoreographer = (app.roles ?? []).includes("choreographer");
-  const [tier, setTier] = useState("emerging");
   const [note, setNote] = useState("");
-  const [honorifics, setHonorifics] = useState<Set<string>>(new Set(app.honorifics ?? []));
 
   const name = `${app.first_name ?? ""} ${app.last_name ?? ""}`.trim() || app.email;
-  const feeTone = app.fee_status === "paid" ? "green" : app.fee_status === "refunded" ? "red" : app.fee_status === "waived" ? "neutral" : "amber";
   const dp = ans.digital_presence ?? {};
   const canAct = !busy;
 
@@ -263,8 +247,6 @@ function ApplicationCard({
         </div>
         <div className="flex items-center gap-2">
           <Badge tone="neutral">{STATE_LABEL[app.state] ?? app.state}</Badge>
-          <Badge tone={feeTone}>fee: {app.fee_status ?? "none"}</Badge>
-          {app.approved_tier && <Badge tone="green">{app.approved_tier}</Badge>}
           <span className="text-neutral-400">{open ? "▲" : "▼"}</span>
         </div>
       </button>
@@ -349,30 +331,13 @@ function ApplicationCard({
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {isChoreographer ? (
-                  <>
-                    <select value={tier} onChange={(e) => setTier(e.target.value)} className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm">
-                      {TIERS.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <button
-                      disabled={!canAct}
-                      onClick={() => act(app.application_id, { action: "approve", tier })}
-                      className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-                    >
-                      {busy ? "Approving…" : "Approve at tier"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    disabled={!canAct}
-                    onClick={() => act(app.application_id, { action: "approve" })}
-                    className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-                  >
-                    {busy ? "Approving…" : "Approve"}
-                  </button>
-                )}
+                <button
+                  disabled={!canAct}
+                  onClick={() => act(app.application_id, { action: "approve" })}
+                  className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+                >
+                  {busy ? "Approving…" : "Approve"}
+                </button>
 
                 <button
                   disabled={!canAct}
@@ -403,41 +368,6 @@ function ApplicationCard({
               >
                 Request more info
               </button>
-            </div>
-
-            {/* Honorifics */}
-            <div className="mt-4">
-              <p className="text-xs font-medium text-neutral-500">Honorifics (editorial — conferred by you)</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {HONORIFICS.map((h) => {
-                  const on = honorifics.has(h);
-                  return (
-                    <button
-                      key={h}
-                      onClick={() =>
-                        setHonorifics((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(h)) next.delete(h);
-                          else next.add(h);
-                          return next;
-                        })
-                      }
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        on ? "bg-amber-200 text-amber-900" : "bg-white text-neutral-600 ring-1 ring-neutral-300"
-                      }`}
-                    >
-                      {h}
-                    </button>
-                  );
-                })}
-                <button
-                  disabled={!canAct}
-                  onClick={() => act(app.application_id, { action: "honorifics", honorifics: Array.from(honorifics) })}
-                  className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-800 disabled:opacity-40"
-                >
-                  Save honorifics
-                </button>
-              </div>
             </div>
           </div>
         </div>

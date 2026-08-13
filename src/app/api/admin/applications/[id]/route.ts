@@ -23,6 +23,8 @@ import {
   sendApplicationDeclined,
 } from "@/lib/notifications";
 import { grantFoundingMembership } from "@/lib/membership/founding";
+import { isProfessionalApplicant } from "@/lib/membership/families";
+import { isProfessionalActivationEnabled } from "@/lib/membership/flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,12 +110,22 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const { error } = await db.from("applications").update(update).eq("application_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // FREE FOUNDING PERIOD: approval grants a complimentary first year outright.
-      // Without this the member is accepted but still locked out of the Roster and
-      // the profile builder, which are gated on an active membership.
+      // Professional activation model (flagged, 2026-08-12). When ON, a
+      // PROFESSIONAL applicant (defined explicitly by talent role — membership
+      // follows the role being used) is approved into "Approved — Not Activated"
+      // and offered $30 activation, so approval no longer auto-grants a free
+      // membership. Studios (studio-only) and the flag-OFF path are UNCHANGED and
+      // keep the complimentary grant below. Default OFF → this changes nothing in
+      // production until Slices 3–4 (the activation flow) are live.
+      const useActivationModel =
+        isProfessionalActivationEnabled() && isProfessionalApplicant(app.roles);
+
+      // FREE FOUNDING PERIOD (legacy path — studios + flag-off): grant a
+      // complimentary first year so the member isn't locked out of the Roster and
+      // profile builder, which are gated on an active membership.
       let foundingUntil: string | null = null;
       let comp: Awaited<ReturnType<typeof grantFoundingMembership>> | null = null;
-      if (app.user_id) {
+      if (app.user_id && !useActivationModel) {
         comp = await grantFoundingMembership(db, app.user_id, app.roles);
         if (comp.granted) {
           foundingUntil = new Date(comp.renewalDate).toLocaleDateString("en-US", {
@@ -141,6 +153,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return NextResponse.json({
         ok: true,
         state: "approved",
+        // true → professional approved into "Approved — Not Activated" (no free
+        // grant); the activation offer takes over from here (Slices 3–4).
+        activationModel: useActivationModel,
         foundingMembership: comp?.granted
           ? { tier: comp.tier, until: comp.renewalDate }
           : (comp?.reason ?? null),

@@ -7,7 +7,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hasActiveProfileTier } from "@/lib/membership/access";
+import { hasActiveProfessionalAccess } from "@/lib/membership/access";
 import ProfileEditor from "./ProfileEditor";
 
 export const dynamic = "force-dynamic";
@@ -47,11 +47,11 @@ export default async function ProfileEditPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // GATE (build spec §6 + §17): the profile builder is the Professional tier's
-  // product. Only members with an ACTIVE Professional / Professional·Full
-  // membership may build or edit a profile. Everyone else is sent to /subscribe
-  // (approved applicants activate there; the page itself explains the ladder).
-  if (!(await hasActiveProfileTier(supabase, user.id))) {
+  // GATE (build spec §6 + §17; unified membership model §3): the profile builder
+  // is the Professional tier's product. Access requires an ACTIVE Professional
+  // membership OR an active, in-window $30 activation. Everyone else is sent to
+  // /subscribe, which offers activation to approved-not-activated professionals.
+  if (!(await hasActiveProfessionalAccess(supabase, user.id))) {
     redirect("/subscribe?from=profile");
   }
 
