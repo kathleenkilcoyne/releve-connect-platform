@@ -1,5 +1,41 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ▶️ START HERE TOMORROW (2026-08-14) — review the Slice 2 LANGUAGE first
+>
+> **Good morning, Kathleen.** We paused after building **Slice 2 (the "My Offerings" builder)**. Everything is safe: committed + pushed on `feature/professional-offerings` at **`5403c57`**, `main` untouched, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` OFF in production**. Tomorrow's job, in your words: **the language is very important to you — we review Slice 2's copy before doing anything else. Slice 3 does NOT start until you're happy with the words.**
+>
+> ### To see it running (2 minutes)
+> The local-only preview flag is already in your gitignored `.env.local` (`PROFESSIONAL_OFFERINGS_ENABLED=true`). Open `C:\Users\kathl\releve-platform`, run `npm run dev`, sign in, and go to **`/profile/offerings`** (or `/profile` → the **Professional Offerings** tile). Nothing here is public.
+>
+> ### Every member-facing string in Slice 2, by file — this is the copy to read together
+> **1. Workspace header — `src/app/profile/offerings/page.tsx`**
+> - Eyebrow: *"Relevé · My work"* · Title: *"My Offerings"*
+> - Intro: *"Your Relevé profile is more than your résumé. Show people the skills, services, creative work, experiences, and products that are part of your professional practice."*
+> - No-profile-yet: *"First, set up your Relevé profile — your offerings live on it."* / button *"Build my profile"*
+>
+> **2. Empty state + cards — `src/app/profile/offerings/OfferingsWorkspace.tsx`**
+> - Empty state: *"This is your space to build."* / *"Master classes. Coaching. Editing. Stage management. Creative work. Products. Licensing. Or something entirely your own."*
+> - Buttons/labels: *"Add an Offering"* · status badges **"Live" / "Hidden"** · card actions *"Edit" · "Deactivate"/"Publish" · "Delete"* · delete confirm *"Delete "{title}"? This can't be undone."*
+>
+> **3. The guided builder — `src/app/profile/offerings/OfferingBuilder.tsx`** (the biggest copy surface)
+> - Step 1 *"What are you offering?"* + the six type blurbs (Service / Session / Product / Licensed Work / Event / Experience / Other)
+> - Step 2 *"Give it a name"* (placeholder *"Name your offering"*; hint line of examples)
+> - Step 3 *"Tell people what you offer"* + *"Describe what someone can expect, who it is for, and what makes your offering valuable."*
+> - Step 4 *"How do you price it?"* + *"You're never forced into an hourly rate — choose what fits your work."*
+> - Step 5 *"How is it delivered?"* · Step 6 *"Add something visual"* + *"One image. It lives with this offering only."*
+> - Step 7 *"How can someone respond?"* + the response lines (Inquire / View Product / Register / View Licensing) and URL labels
+> - Preview + buttons: *"Publish Offering" · "Save as draft" · "Cancel"*
+>
+> **4. Doorway tile — `src/app/profile/page.tsx`**: *"Professional Offerings"* / *"Package the services, work, and products you offer"*
+>
+> **5. Shared word-lists — `src/lib/offerings/offerings.ts`**: `OFFERING_TYPE_LABEL`, `PRICING_TYPE_LABEL`, `LOCATION_MODE_LABEL`, `CTA_LABEL` (*Inquire / View Product / View Licensing / Register / Learn More*), and the price copy *"Free"* / *"Contact for pricing"*. Changing a word here changes it everywhere it appears.
+>
+> ### The founding sentiment to hold against the copy (your words, 2026-08-13)
+> *"The art poured out, and the equity didn't return… until now."* A veteran teacher's decades don't disappear when she stops teaching 15 classes a week — she can package coaching, curriculum, workshops, licensing. *"You built it. You earned it. Relevé helps you put it to work. The ripening is the becoming."* **This screen is where Relevé comes alive — the first place a professional is taught to see the business value of their work.** Read the copy against this; nothing is locked.
+>
+> ### After the copy is right
+> Any wording changes are copy-only edits to the four files above (+ the label maps) — no schema, no logic, still behind the OFF flag. **Then** Slice 3: render active offerings under a **"What I Offer"** section on the public `/[handle]` profile (guarded so zero-offering profiles are unchanged), then Slice 4 wires the CTA behavior. Full detail in the Slice 2 box just below.
+
 > ## ✅ PROFESSIONAL OFFERINGS — SLICE 2 (My Offerings builder) DONE (2026-08-13)
 >
 > **The member-facing builder/management experience.** An activated professional can now package their skills, services, creative work, experiences, and products from inside the Professional Profile system — the first place Relevé teaches a professional to think beyond a résumé. **Builder/management only; the PUBLIC render on `/[handle]` is Slice 3 (not started).**
