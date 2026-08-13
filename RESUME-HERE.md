@@ -1,5 +1,24 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 3 (public "WHAT I OFFER") DONE (2026-08-13, evening)
+>
+> **Active offerings now render on the public `/[handle]` profile.** A profile with active offerings shows a **WHAT I OFFER** section between the photo gallery and credentials — read-only cards, no call-to-action yet (CTA behavior is Slice 4, untouched). Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**
+>
+> ### What shipped (additive; one new file, one edited)
+> - **NEW `src/app/[handle]/OfferingsSection.tsx`** — the public, server-only, presentational section. Restrained Relevé card treatment (`rounded-2xl`, hairline border, soft `neutral-50` fill, generous padding — matches the Slice 2 card language). **Card reading order, founder-directed:** 1) **title** (primary, strongest line) → 2) **type + price** (quiet uppercase eyebrow; price small and muted, never a sales badge) → 3) **description** → 4) **optional image** (full-width 16/9, last, only when present). Editorial/premium, not ecommerce. **Nothing clickable** — no CTA wired.
+> - **EDITED `src/app/[handle]/page.tsx`** — added `loadPublicOfferings(profileId)`, which uses the **admin client** (the public page bypasses RLS) and therefore filters **`status = 'active'` EXPLICITLY** so draft/hidden offerings can never leak. Ordered by the member's `sort_order`. The query runs **only when the flag is on**; the section renders guarded by `isProfessionalOfferingsEnabled() && <OfferingsSection …>`.
+>
+> ### Safety / guards (all verified)
+> - **Flag OFF → byte-for-byte unchanged:** no query issued, nothing rendered.
+> - **Zero-offering profiles unchanged:** `OfferingsSection` returns `null` when empty (double-guarded alongside the flag).
+> - **Public sees only Live:** the explicit `status = 'active'` filter, not just RLS.
+> - **Verified live** on the founder's own real profile (`/kathleen-mcaree`, published + public): WHAT I OFFER renders between Gallery and Credentials with the real offering **Private Audition Coaching · Coaching & Sessions · $125 / hour**; title leads, eyebrow beneath, no CTA button, no console errors. **Typecheck clean · ESLint clean · 247/247 tests pass.**
+>
+> ### Real data note
+> The founder created ONE real offering end-to-end during Slice 2 verification and it is **still live** on `kathleen-mcaree`: *Private Audition Coaching* (`session` / hourly / $125 / active). Not test data — a genuine listing. (Profile owner user `e2dd5c7d-…`.)
+>
+> **▶️ NEXT — Slice 4 (NOT started):** wire the CTA behavior — service/session/other → **Inquire** (reuse the existing Request-an-Intro rail, offering title/context carried in `connections.message`, no schema change) · product → external **View Product** URL · event → **Register** URL · license → the `/experiences/{signature_work_id}` seam (**View Licensing**). The derivation logic already exists in `src/lib/offerings/offerings.ts` (`deriveCta`) — Slice 4 renders the buttons and connects them. Do not begin until the founder says so.
+
 > ## ✅ SLICE 2 COPY PASS — DONE (2026-08-13, evening)
 >
 > **The language review is complete and committed.** We read every member-facing string in Slice 2 together and Kathleen approved a full set of wording revisions. This was a **copy-only pass** — no schema, logic, routes, RLS, CTA behavior, or stored `type`/enum values were touched. **Typecheck clean · 247/247 tests pass.** Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**
