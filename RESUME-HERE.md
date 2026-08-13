@@ -1,5 +1,32 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 1 (data foundation) DONE & LIVE (2026-08-13)
+>
+> **The additive "professional business layer" begins.** One reusable *Offering* concept lets an activated professional package a **Service · Session · Product · License · Event/Experience · Other** from their existing Professional Profile — no separate table per kind of work, no redesign of the profile. This is Slice 1 of a founder-approved 4-slice plan; **only the data foundation is built.**
+>
+> **Branch `feature/professional-offerings`** (off clean `main`). **`main` untouched, nothing merged, nothing deployed.** Flag **`PROFESSIONAL_OFFERINGS_ENABLED` is OFF** — with it off, production is byte-for-byte unchanged (no editor section, no public section, existing profiles render exactly as before).
+>
+> ### What shipped (all additive — zero existing files edited)
+> - **Migration `20260813012556_professional_offerings.sql`** — APPLIED live + registered (project `hmqqxbkhcqspqmsjxodq`). One table `public.professional_offerings` (many per `talent_profiles.profile_id`, `on delete cascade`). Safety-checked via `BEGIN…ROLLBACK` compile-run first (table + 8 policies + bucket created then rolled back, confirmed nothing persisted), then applied. Security advisor: **no lint on the new objects.**
+> - **`type` is CHECK-constrained text, NOT a Postgres enum** (founder decision — Offering kinds will evolve; widen the CHECK + the TS union together). Same pattern for `pricing_type`, `location_mode`, `cta_type`, `status`.
+> - **Pricing is display-first, never a forced hourly rate.** `price_display` free string is authoritative ("$85/hour", "Starting at $250", "Contact for pricing", "Free"); `price_cents` reserved for a future structured pass. **Worker labor is NEVER taxed** — a service inquiry writes a `connections` row, no charge, no commission. Only the **licensing** path carries economics, and it stays entirely in `signature_works` — an Offering of type `license` merely POINTS via `signature_work_id` (the seam).
+> - **RLS** mirrors `signature_works`: public-read-when-`active` + owner-manage via `public.owns_talent_profile(profile_id)`. Explicit Data-API grants added (else PostgREST 404).
+> - **Dedicated media bucket `offering-media`** (public read; owner-scoped writes by `<uid>/…` path prefix) — separate lifecycle from the profile `gallery`; Offering media never lands in the profile gallery.
+> - **Pure logic** `src/lib/offerings/offerings.ts` (types, `OFFERING_TYPES` union, `validateOffering`, `deriveCta`, `pricingDisplay`, http(s)-only URL guard) + **flag** `src/lib/offerings/flags.ts`. **29 new tests**, full suite **232/232**, `tsc --noEmit` clean.
+>
+> ### CTA derivation (already coded, wired in Slice 4): service/session → **Inquire** (Request-an-Intro rail) · product → external URL (**View Product**), falls back to Inquire if no link · event → external URL (**Register**) · license → `/experiences/{signature_work_id}` (**View Licensing**) · other → **Learn More** (external) or none.
+>
+> ### ▶️ APPROVED PLAN — Slices 2–4 (NOT started; flag stays OFF; stop-for-review each)
+> 2. **"My Offerings" builder** inside `/profile/edit` — its OWN discrete server actions (add/update/delete/reorder/toggle + `offering-media` upload), NOT folded into the existing monolithic `saveProfile` action. Flag-gated.
+> 3. **Public render** on `/[handle]` — a guarded **"What I Offer"** card section between the photo gallery and credentials; `offerings.length > 0` guards it so zero-offering profiles are unchanged. Flag-gated.
+> 4. **CTA wiring** — service/session reuse **Request-an-Intro** with the Offering title/context carried in the existing `connections.message` text (**no schema change**); product/event → external URL; license → existing `/experiences` seam.
+>    - **Deferred (Slice 4b, only if proven):** a structured `connections.offering_id` column (would also require touching the `(from_user_id,to_profile_id,type)` UNIQUE index) — kept OUT of the initial build.
+>
+> ### Explicitly NOT touched (and staying that way through these slices)
+> Swing · licensing economics (`signature_works`/`experience_purchases`/Stripe Connect) · memberships / $30 activation / Stripe · Studio Foundation · Team · This Week · pricing · auth · the vetting/application flow · the `roster_profiles` view · the **"I'm Currently Accepting"** availability tags + search (Offerings are additive — no migration/unification this pass) · contact-info privacy. **No native ecommerce** (external URLs only in V1).
+>
+> **Rollback:** the migration file embeds a paired `drop table … cascade` + drop-storage-policies block; all code is a new `src/lib/offerings/` dir + one migration file, and the OFF flag makes even merged code inert.
+
 > ## 🎉 THE SPINE IS PROVEN END TO END (2026-07-23, ~00:05 ET) — and four defects found doing it
 >
 > **apply → vetting queue → admin review → membership granted → correct letter delivered.** Never completed before this. Kathleen ran all three outcomes herself and confirmed every email by eye.
