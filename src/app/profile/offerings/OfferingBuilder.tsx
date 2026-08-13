@@ -28,12 +28,12 @@ const stepLabel = "text-xs font-medium uppercase tracking-[0.15em] text-neutral-
 
 // One-line explanations for the type step (founder copy).
 const TYPE_BLURB: Record<OfferingType, string> = {
-  service: "A professional skill or service someone can hire you for.",
-  session: "Coaching, lessons, consultations, or other bookable time with you.",
-  product: "Something you create or sell.",
-  license: "Creative work available through licensing.",
-  event: "A workshop, intensive, master class, event, or other experience.",
-  other: "Something that doesn’t fit neatly into the categories above.",
+  service: "A professional skill or service you provide.",
+  session: "Coaching, lessons, consultations, or other time someone can book with you.",
+  product: "Something you create and sell.",
+  license: "Creative work available for licensing.",
+  event: "A class, workshop, intensive, event, or other experience people can attend.",
+  other: "Something entirely your own.",
 };
 
 // Pricing choices shown in the builder (a friendly subset/order of the model).
@@ -55,14 +55,22 @@ const NAME_HINTS =
 function responseCopy(type: OfferingType): { line: string; wantsUrl: boolean; urlLabel: string } {
   switch (type) {
     case "product":
-      return { line: "People will see View Product.", wantsUrl: true, urlLabel: "Link to your shop or product" };
+      return {
+        line: "People will see View Product.",
+        wantsUrl: true,
+        urlLabel: "Add a link to your shop or product page.",
+      };
     case "event":
-      return { line: "People will see Register.", wantsUrl: true, urlLabel: "Registration link" };
+      return {
+        line: "People will see Register.",
+        wantsUrl: true,
+        urlLabel: "Add a registration link.",
+      };
     case "license":
       return { line: "People will see View Licensing on your public profile.", wantsUrl: false, urlLabel: "" };
     default:
       return {
-        line: "People will see Inquire — requests arrive in your Relevé intro requests.",
+        line: "People will see Inquire. You’ll receive their request through Relevé.",
         wantsUrl: false,
         urlLabel: "",
       };
@@ -199,7 +207,7 @@ export default function OfferingBuilder({
         <p className={stepLabel}>Step 4</p>
         <h2 className="mt-1 text-xl font-semibold text-neutral-900">How do you price it?</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          You’re never forced into an hourly rate — choose what fits your work.
+          Choose the pricing structure that fits the value of your work.
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <select
@@ -235,7 +243,7 @@ export default function OfferingBuilder({
       {/* Stage 5 — How / where (optional) ------------------------------ */}
       <section>
         <p className={stepLabel}>Step 5 · optional</p>
-        <h2 className="mt-1 text-xl font-semibold text-neutral-900">How is it delivered?</h2>
+        <h2 className="mt-1 text-xl font-semibold text-neutral-900">How is it available?</h2>
         <input type="hidden" name="location_mode" value={location} />
         <div className="mt-3 flex flex-wrap gap-2">
           {LOCATION_MODES.map((m) => (
@@ -259,7 +267,10 @@ export default function OfferingBuilder({
       <section>
         <p className={stepLabel}>Step 6 · optional</p>
         <h2 className="mt-1 text-xl font-semibold text-neutral-900">Add something visual</h2>
-        <p className="mt-1 text-sm text-neutral-500">One image. It lives with this offering only.</p>
+        <p className="mt-1 text-sm text-neutral-500">
+          Add one image that represents this offering. It stays with this offering and won’t change
+          your profile gallery.
+        </p>
         <div className="mt-3 flex items-center gap-5">
           <div className="h-24 w-24 overflow-hidden rounded-lg bg-neutral-100 ring-1 ring-neutral-200">
             {imagePreview && !imageRemoved ? (

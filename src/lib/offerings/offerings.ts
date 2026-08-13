@@ -57,10 +57,10 @@ export type OfferingStatus = (typeof OFFERING_STATUSES)[number];
 
 export const OFFERING_TYPE_LABEL: Record<OfferingType, string> = {
   service: "Service",
-  session: "Session",
+  session: "Coaching & Sessions",
   product: "Product",
   license: "Licensed Work",
-  event: "Event / Experience",
+  event: "Events & Experiences",
   other: "Other",
 };
 

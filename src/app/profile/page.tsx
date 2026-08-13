@@ -63,7 +63,7 @@ export default async function ProfileHomePage() {
           >
             <span className="block font-medium text-neutral-900">Professional Offerings</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
-              Package the services, work, and products you offer
+              Showcase the skills, services, creative work, experiences, and products you offer.
             </span>
           </Link>
         )}

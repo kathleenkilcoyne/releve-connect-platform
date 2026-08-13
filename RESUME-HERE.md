@@ -1,5 +1,22 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ SLICE 2 COPY PASS — DONE (2026-08-13, evening)
+>
+> **The language review is complete and committed.** We read every member-facing string in Slice 2 together and Kathleen approved a full set of wording revisions. This was a **copy-only pass** — no schema, logic, routes, RLS, CTA behavior, or stored `type`/enum values were touched. **Typecheck clean · 247/247 tests pass.** Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**
+>
+> ### What changed (words only — the founding sentiment is now in the copy)
+> - **Empty state headline → "What you've built has value."** (Kathleen's strongest line — connects the product to the founding idea without telling artists to hustle harder: *you already have value; Relevé helps you present it.*)
+> - **Doorway (`/profile`)** subcopy now echoes the workspace promise but stays shorter: *"Showcase the skills, services, creative work, experiences, and products you offer."*
+> - **Workspace intro:** *"Your Relevé profile is more than a résumé. It's a place to show what you do, what you create, and what you're ready to offer."*
+> - **Type labels:** Session → **"Coaching & Sessions"** · Event/Experience → **"Events & Experiences"** (customer-facing labels only; stored values `session`/`event` unchanged). All six Step-1 blurbs rewritten (see files).
+> - **Step 4** helper → *"Choose the pricing structure that fits the value of your work."* · **Step 5** heading *"How is it delivered?"* → **"How is it available?"** · **Step 6** helper now says the image *"won't change your profile gallery."* · **Step 7** response lines softened (Inquire/View Product/Register).
+> - **Card action "Deactivate" → "Hide"** so the flow reads naturally: **Live → Hide → Hidden → Publish.** Status words Live/Hidden, plus Edit/Delete, unchanged.
+> - **Capitalization rule applied:** "offering" is a normal noun in sentences (lowercase); only buttons/headings keep title case (**Add an Offering · Publish Offering · My Offerings**).
+>
+> Files touched (all copy strings): `src/app/profile/page.tsx` · `src/app/profile/offerings/page.tsx` · `src/app/profile/offerings/OfferingsWorkspace.tsx` · `src/app/profile/offerings/OfferingBuilder.tsx` · `src/lib/offerings/offerings.ts` (label maps).
+>
+> **▶️ NEXT (agreed):** go back to the **local builder and create one real offering end-to-end** to feel the flow with the new words. **Slice 3 (public "What I Offer" render on `/[handle]`) is NOT started** and does not begin until Kathleen says so. The Slice 2 detail box below remains the reference for the build itself.
+
 > ## ▶️ START HERE TOMORROW (2026-08-14) — review the Slice 2 LANGUAGE first
 >
 > **Good morning, Kathleen.** We paused after building **Slice 2 (the "My Offerings" builder)**. Everything is safe: committed + pushed on `feature/professional-offerings` at **`5403c57`**, `main` untouched, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` OFF in production**. Tomorrow's job, in your words: **the language is very important to you — we review Slice 2's copy before doing anything else. Slice 3 does NOT start until you're happy with the words.**

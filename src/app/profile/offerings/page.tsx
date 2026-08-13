@@ -69,8 +69,8 @@ export default async function OfferingsWorkspacePage() {
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">My Offerings</h1>
       <p className="mt-3 max-w-2xl text-neutral-600">
-        Your Relevé profile is more than your résumé. Show people the skills, services, creative
-        work, experiences, and products that are part of your professional practice.
+        Your Relevé profile is more than a résumé. It’s a place to show what you do, what you
+        create, and what you’re ready to offer.
       </p>
 
       {profileId ? (

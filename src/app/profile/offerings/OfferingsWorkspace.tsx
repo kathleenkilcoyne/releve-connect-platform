@@ -76,7 +76,7 @@ export default function OfferingsWorkspace({
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-6 py-14 text-center">
-      <h2 className="text-2xl font-semibold text-neutral-900">This is your space to build.</h2>
+      <h2 className="text-2xl font-semibold text-neutral-900">What you’ve built has value.</h2>
       <p className="mx-auto mt-3 max-w-xl text-neutral-600">
         Master classes. Coaching. Editing. Stage management. Creative work. Products. Licensing. Or
         something entirely your own.
@@ -160,7 +160,7 @@ function OfferingCard({ offering: o, onEdit }: { offering: OfferingRow; onEdit: 
             disabled={pending}
             className="font-medium text-neutral-700 underline disabled:opacity-40"
           >
-            {isLive ? "Deactivate" : "Publish"}
+            {isLive ? "Hide" : "Publish"}
           </button>
           <button
             type="button"
