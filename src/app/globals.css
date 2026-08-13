@@ -10,6 +10,28 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-fraunces);
+}
+
+/*
+ * Relevé brand tokens — black · cream · gold, on a warm light page. These are
+ * the shared palette for the professional experience (My Professional Home in
+ * Slice 1, and Messages / Notifications after it). Gold is an ACCENT only —
+ * verified standing, a hairline, the wordmark — never a fill.
+ */
+:root {
+  --rc-ink: #14110b;          /* deep warm near-black — primary text, solid buttons */
+  --rc-ink-soft: #413a2d;     /* softened ink — body copy */
+  --rc-char: #1d1a13;         /* charcoal — the theatrical "Your Work" card */
+  --rc-taupe: #6b6252;        /* muted labels */
+  --rc-taupe-light: #8a7f6a;  /* secondary detail */
+  --rc-faint: #a99e86;        /* eyebrows, faint marks */
+  --rc-cream: #f6efdd;        /* page — warm cream (deeper for contrast) */
+  --rc-cream-panel: #fffdf7;  /* raised card — barely-cream white */
+  --rc-cream-soft: #efe7d3;   /* recessed panel */
+  --rc-line: #e4d8bf;         /* hairlines / soft borders */
+  --rc-gold: #b0883b;         /* accent gold */
+  --rc-gold-deep: #8a6a22;    /* deep gold — small text on cream */
 }
 
 /*
