@@ -1,5 +1,26 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 4 (CTA behavior) DONE (2026-08-13, night)
+>
+> **Each public offering is now actionable — without becoming ecommerce.** The WHAT I OFFER cards carry a call-to-action derived from the offering type, reusing EXISTING Relevé rails. Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.** **No connections schema/index change — Slice 4b stays deferred.**
+>
+> ### What shipped (one new file, four edits — all additive)
+> - **NEW `src/app/[handle]/OfferingCta.tsx`** — client component; renders the right action per type:
+>   - **Service / Coaching & Sessions / Other → Inquire** — reuses the existing `sendIntroRequest` connections flow. The note is **prefilled with the offering title** so the professional knows exactly what's being asked about (via new pure `introPrefillMessage()`). Interactive for signed-in active members; logged-out/non-members route to `/login?next=/<handle>`; the **owner sees no button on their own card** (same rule as the hero's Request-an-Intro). Contact stays private per existing rules.
+>   - **Product → View Product** · **Events & Experiences → Register** — open the professional's external URL in a new tab.
+>   - **Licensed Work → View Licensing** — the existing `/experiences/{signature_work_id}` seam (no licensing economics touched).
+> - **`OfferingsSection.tsx`** — derives each CTA (`deriveCta`) and renders `OfferingCta` at the foot of the card; **approved Slice 3 hierarchy unchanged** (title → type+price → description → image → action).
+> - **`page.tsx`** — public query now also selects `cta_type, external_url, signature_work_id`; passes viewer context (`canAct`, `isOwner`, `firstName`, `profileId`, `handle`).
+> - **`offerings.ts`** — new pure `introPrefillMessage(firstName, title)`; **`offerings.test.ts`** — +4 tests.
+>
+> ### Verified (typecheck clean · ESLint clean · 251/251 tests, +4)
+> On the founder's own real profile `/kathleen-mcaree`: Inquire on *Private Audition Coaching* routes logged-out visitors to sign-in; **View Product / Register** proven with two temporary `zz-TEST` rows (since deleted). **Member send proven end-to-end** via a throwaway published target profile: the founder (signed in, active member, non-owner) clicked Inquire → the connection row was written with the **offering title stored verbatim in `connections.message`** — then the throwaway profile/offering/user/connection were all deleted. Final DB check: real profile + *Private Audition Coaching* intact, zero `zz` leftovers.
+>
+> ### Guardrails upheld
+> No connections schema/index change; no Slice 4b; nothing touched in $30/memberships/Stripe/Studio/Team/Swing/This Week/Roster/availability/licensing economics; hidden/draft offerings still absent publicly.
+>
+> **▶️ NEXT (approved, NOT yet coded):** the **Complimentary Founding Professional activation path** — hand-selected founders get the full Professional experience but are never sent through or charged the $30 Professional entry. Must be a deliberate, admin-auditable account-level entitlement (not a name hardcode, not a payment bypass, no self-identify loophole). First task is READ-ONLY: map how the $30 gate works today and propose the smallest safe implementation for founder review before any code.
+
 > ## ✅ PROFESSIONAL OFFERINGS — SLICE 3 (public "WHAT I OFFER") DONE (2026-08-13, evening)
 >
 > **Active offerings now render on the public `/[handle]` profile.** A profile with active offerings shows a **WHAT I OFFER** section between the photo gallery and credentials — read-only cards, no call-to-action yet (CTA behavior is Slice 4, untouched). Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**

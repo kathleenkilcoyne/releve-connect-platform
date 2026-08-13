@@ -405,6 +405,23 @@ export function deriveCta(input: CtaInput): ResolvedCta {
   }
 }
 
+// ---- Inquire prefill -------------------------------------------------------
+
+/**
+ * The prefilled note for an Offering's "Inquire" action. Slice 4 reuses the
+ * existing Request-an-Intro / connections flow rather than inventing a new
+ * contact path — so the Offering context has to travel in the message text
+ * (no connections schema/index change). This puts the Offering TITLE clearly in
+ * the note so the professional knows exactly which Offering is being asked
+ * about. The viewer edits this before sending; it is well above INTRO_MIN_LEN.
+ * Pure.
+ */
+export function introPrefillMessage(firstName: string, offeringTitle: string): string {
+  const name = firstName.trim() || "there";
+  const title = offeringTitle.trim();
+  return `Hi ${name}, I'd like to inquire about your offering: "${title}". `;
+}
+
 // ---- Pricing display -------------------------------------------------------
 
 /** The minimal shape needed to decide what price string to show. */

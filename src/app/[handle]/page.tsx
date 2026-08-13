@@ -141,7 +141,10 @@ async function loadPublicOfferings(profileId: string): Promise<PublicOffering[]>
   const db = createAdminClient();
   const { data } = await db
     .from("professional_offerings")
-    .select("id, type, title, short_description, image_url, pricing_type, price_display, location_mode")
+    .select(
+      "id, type, title, short_description, image_url, pricing_type, price_display, location_mode, " +
+        "cta_type, external_url, signature_work_id",
+    )
     .eq("profile_id", profileId)
     .eq("status", "active")
     .order("sort_order", { ascending: true });
@@ -428,7 +431,16 @@ export default async function PublicProfilePage({
       {/* ===== WHAT I OFFER (Professional Offerings — Slice 3) =============
           Flag-gated AND guarded by offerings.length (the section returns null
           when empty). CTA behavior is Slice 4 — these cards are read-only. */}
-      {isProfessionalOfferingsEnabled() && <OfferingsSection offerings={offerings} />}
+      {isProfessionalOfferingsEnabled() && (
+        <OfferingsSection
+          offerings={offerings}
+          profileId={profile.profile_id}
+          handle={handle}
+          firstName={firstName}
+          canAct={canAct}
+          isOwner={isOwner}
+        />
+      )}
 
       {/* Credentials */}
       {profile.credentials && (

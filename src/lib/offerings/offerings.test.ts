@@ -22,8 +22,10 @@ import {
   formatMoney,
   formatPriceDisplay,
   resolvePricing,
+  introPrefillMessage,
   type OfferingInput,
 } from "./offerings";
+import { INTRO_MIN_LEN } from "../connections/messages";
 
 // A minimal valid input, spread + overridden per test.
 const base: OfferingInput = { type: "service", title: "Master Class" };
@@ -343,5 +345,28 @@ describe("resolvePricing", () => {
 
   it("rejects an unknown pricing type", () => {
     expect(resolvePricing({ pricingType: "weekly", amount: "5" }).ok).toBe(false);
+  });
+});
+
+describe("introPrefillMessage (Slice 4 — Inquire prefill)", () => {
+  it("names the Offering clearly so the professional knows what's being asked", () => {
+    const msg = introPrefillMessage("Kathleen", "Private Audition Coaching");
+    expect(msg).toContain("Private Audition Coaching");
+    expect(msg).toContain("Kathleen");
+    expect(msg.toLowerCase()).toContain("inquire");
+  });
+
+  it("is comfortably above the intro minimum length (a real message, not a ping)", () => {
+    expect(introPrefillMessage("A", "B").length).toBeGreaterThan(INTRO_MIN_LEN);
+  });
+
+  it("falls back to a neutral greeting when the name is blank", () => {
+    expect(introPrefillMessage("", "Master Class")).toContain("Hi there,");
+  });
+
+  it("trims stray whitespace in the name and title", () => {
+    const msg = introPrefillMessage("  Kathleen  ", "  Master Class  ");
+    expect(msg).toContain('"Master Class"');
+    expect(msg).toContain("Hi Kathleen,");
   });
 });

@@ -1,10 +1,11 @@
-// PUBLIC "WHAT I OFFER" section on /[handle] (Professional Offerings — Slice 3).
+// PUBLIC "WHAT I OFFER" section on /[handle] (Professional Offerings).
 //
-// Presentational + server-only: it renders a professional's ACTIVE offerings as
-// read-only cards. It deliberately does NOT wire any call-to-action — the
-// Inquire / View Product / Register / View Licensing behavior is Slice 4. Cards
-// show the offering's type, price, title, description, and (if set) how it's
-// available; nothing here is clickable yet.
+// Slice 3 built the read-only cards; Slice 4 adds a call-to-action per Offering
+// type via <OfferingCta> — reusing existing Relevé rails (the Request-an-Intro
+// / connections flow for Inquire, the professional's external URL for products
+// and events, the /experiences seam for licensing). The approved visual
+// hierarchy is unchanged: title → type + price → description → optional image;
+// the action sits at the foot of the card.
 //
 // The whole section is flag-gated in page.tsx AND guarded by offerings.length,
 // and this component returns null when there are none — so a profile with no
@@ -14,12 +15,15 @@ import {
   OFFERING_TYPE_LABEL,
   LOCATION_MODE_LABEL,
   pricingDisplay,
+  deriveCta,
   type OfferingType,
   type PricingType,
   type LocationMode,
+  type CtaType,
 } from "@/lib/offerings";
+import OfferingCta from "./OfferingCta";
 
-/** The subset of an offering row the public card renders. */
+/** The subset of an offering row the public card renders (+ CTA derivation). */
 export type PublicOffering = {
   id: string;
   type: OfferingType;
@@ -29,9 +33,23 @@ export type PublicOffering = {
   pricing_type: PricingType | null;
   price_display: string | null;
   location_mode: LocationMode | null;
+  cta_type: CtaType | null;
+  external_url: string | null;
+  signature_work_id: string | null;
 };
 
-export default function OfferingsSection({ offerings }: { offerings: PublicOffering[] }) {
+type ViewerContext = {
+  profileId: string;
+  handle: string;
+  firstName: string;
+  canAct: boolean;
+  isOwner: boolean;
+};
+
+export default function OfferingsSection({
+  offerings,
+  ...viewer
+}: { offerings: PublicOffering[] } & ViewerContext) {
   if (offerings.length === 0) return null;
 
   return (
@@ -41,20 +59,22 @@ export default function OfferingsSection({ offerings }: { offerings: PublicOffer
       </h2>
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         {offerings.map((o) => (
-          <OfferingCard key={o.id} offering={o} />
+          <OfferingCard key={o.id} offering={o} viewer={viewer} />
         ))}
       </div>
     </section>
   );
 }
 
-function OfferingCard({ offering: o }: { offering: PublicOffering }) {
+function OfferingCard({ offering: o, viewer }: { offering: PublicOffering; viewer: ViewerContext }) {
   const price = pricingDisplay({ priceDisplay: o.price_display, pricingType: o.pricing_type });
+  const cta = deriveCta({
+    type: o.type,
+    ctaType: o.cta_type,
+    externalUrl: o.external_url,
+    signatureWorkId: o.signature_work_id,
+  });
 
-  // Reading order is deliberate: the TITLE leads (the offering, not its
-  // category), then a quiet eyebrow of type + price, then the description, then
-  // an optional image last. Restrained card treatment — editorial, not retail:
-  // the price is small and muted, never a sales badge.
   return (
     <article className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 sm:p-6">
       {/* 1 · Title — the primary line. */}
@@ -86,6 +106,20 @@ function OfferingCard({ offering: o }: { offering: PublicOffering }) {
           <img src={o.image_url} alt="" className="aspect-[16/9] w-full object-cover" />
         </div>
       )}
+
+      {/* Action — reuses existing Relevé rails (Slice 4); read-only content above
+          is unchanged from the approved Slice 3 design. */}
+      <div className="mt-5">
+        <OfferingCta
+          cta={cta}
+          offeringTitle={o.title}
+          profileId={viewer.profileId}
+          firstName={viewer.firstName}
+          handle={viewer.handle}
+          canAct={viewer.canAct}
+          isOwner={viewer.isOwner}
+        />
+      </div>
     </article>
   );
 }
