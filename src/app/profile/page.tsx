@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor } from "@/lib/professional/actor";
+import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,19 @@ export default async function ProfileHomePage() {
           <span className="block font-medium text-neutral-900">Edit profile</span>
           <span className="mt-0.5 block text-sm text-neutral-500">Keep your details current</span>
         </Link>
+        {/* Professional Offerings doorway — behind PROFESSIONAL_OFFERINGS_ENABLED,
+            so it's invisible in production until the feature is turned on. */}
+        {isProfessionalOfferingsEnabled() && (
+          <Link
+            href="/profile/offerings"
+            className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
+          >
+            <span className="block font-medium text-neutral-900">Professional Offerings</span>
+            <span className="mt-0.5 block text-sm text-neutral-500">
+              Showcase the skills, services, creative work, experiences, and products you offer.
+            </span>
+          </Link>
+        )}
         <Link
           href="/messages"
           className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"

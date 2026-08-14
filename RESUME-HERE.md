@@ -1,5 +1,151 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 4 (CTA behavior) DONE (2026-08-13, night)
+>
+> **Each public offering is now actionable — without becoming ecommerce.** The WHAT I OFFER cards carry a call-to-action derived from the offering type, reusing EXISTING Relevé rails. Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.** **No connections schema/index change — Slice 4b stays deferred.**
+>
+> ### What shipped (one new file, four edits — all additive)
+> - **NEW `src/app/[handle]/OfferingCta.tsx`** — client component; renders the right action per type:
+>   - **Service / Coaching & Sessions / Other → Inquire** — reuses the existing `sendIntroRequest` connections flow. The note is **prefilled with the offering title** so the professional knows exactly what's being asked about (via new pure `introPrefillMessage()`). Interactive for signed-in active members; logged-out/non-members route to `/login?next=/<handle>`; the **owner sees no button on their own card** (same rule as the hero's Request-an-Intro). Contact stays private per existing rules.
+>   - **Product → View Product** · **Events & Experiences → Register** — open the professional's external URL in a new tab.
+>   - **Licensed Work → View Licensing** — the existing `/experiences/{signature_work_id}` seam (no licensing economics touched).
+> - **`OfferingsSection.tsx`** — derives each CTA (`deriveCta`) and renders `OfferingCta` at the foot of the card; **approved Slice 3 hierarchy unchanged** (title → type+price → description → image → action).
+> - **`page.tsx`** — public query now also selects `cta_type, external_url, signature_work_id`; passes viewer context (`canAct`, `isOwner`, `firstName`, `profileId`, `handle`).
+> - **`offerings.ts`** — new pure `introPrefillMessage(firstName, title)`; **`offerings.test.ts`** — +4 tests.
+>
+> ### Verified (typecheck clean · ESLint clean · 251/251 tests, +4)
+> On the founder's own real profile `/kathleen-mcaree`: Inquire on *Private Audition Coaching* routes logged-out visitors to sign-in; **View Product / Register** proven with two temporary `zz-TEST` rows (since deleted). **Member send proven end-to-end** via a throwaway published target profile: the founder (signed in, active member, non-owner) clicked Inquire → the connection row was written with the **offering title stored verbatim in `connections.message`** — then the throwaway profile/offering/user/connection were all deleted. Final DB check: real profile + *Private Audition Coaching* intact, zero `zz` leftovers.
+>
+> ### Guardrails upheld
+> No connections schema/index change; no Slice 4b; nothing touched in $30/memberships/Stripe/Studio/Team/Swing/This Week/Roster/availability/licensing economics; hidden/draft offerings still absent publicly.
+>
+> **▶️ NEXT (approved, NOT yet coded):** the **Complimentary Founding Professional activation path** — hand-selected founders get the full Professional experience but are never sent through or charged the $30 Professional entry. Must be a deliberate, admin-auditable account-level entitlement (not a name hardcode, not a payment bypass, no self-identify loophole). First task is READ-ONLY: map how the $30 gate works today and propose the smallest safe implementation for founder review before any code.
+
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 3 (public "WHAT I OFFER") DONE (2026-08-13, evening)
+>
+> **Active offerings now render on the public `/[handle]` profile.** A profile with active offerings shows a **WHAT I OFFER** section between the photo gallery and credentials — read-only cards, no call-to-action yet (CTA behavior is Slice 4, untouched). Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**
+>
+> ### What shipped (additive; one new file, one edited)
+> - **NEW `src/app/[handle]/OfferingsSection.tsx`** — the public, server-only, presentational section. Restrained Relevé card treatment (`rounded-2xl`, hairline border, soft `neutral-50` fill, generous padding — matches the Slice 2 card language). **Card reading order, founder-directed:** 1) **title** (primary, strongest line) → 2) **type + price** (quiet uppercase eyebrow; price small and muted, never a sales badge) → 3) **description** → 4) **optional image** (full-width 16/9, last, only when present). Editorial/premium, not ecommerce. **Nothing clickable** — no CTA wired.
+> - **EDITED `src/app/[handle]/page.tsx`** — added `loadPublicOfferings(profileId)`, which uses the **admin client** (the public page bypasses RLS) and therefore filters **`status = 'active'` EXPLICITLY** so draft/hidden offerings can never leak. Ordered by the member's `sort_order`. The query runs **only when the flag is on**; the section renders guarded by `isProfessionalOfferingsEnabled() && <OfferingsSection …>`.
+>
+> ### Safety / guards (all verified)
+> - **Flag OFF → byte-for-byte unchanged:** no query issued, nothing rendered.
+> - **Zero-offering profiles unchanged:** `OfferingsSection` returns `null` when empty (double-guarded alongside the flag).
+> - **Public sees only Live:** the explicit `status = 'active'` filter, not just RLS.
+> - **Verified live** on the founder's own real profile (`/kathleen-mcaree`, published + public): WHAT I OFFER renders between Gallery and Credentials with the real offering **Private Audition Coaching · Coaching & Sessions · $125 / hour**; title leads, eyebrow beneath, no CTA button, no console errors. **Typecheck clean · ESLint clean · 247/247 tests pass.**
+>
+> ### Real data note
+> The founder created ONE real offering end-to-end during Slice 2 verification and it is **still live** on `kathleen-mcaree`: *Private Audition Coaching* (`session` / hourly / $125 / active). Not test data — a genuine listing. (Profile owner user `e2dd5c7d-…`.)
+>
+> **▶️ NEXT — Slice 4 (NOT started):** wire the CTA behavior — service/session/other → **Inquire** (reuse the existing Request-an-Intro rail, offering title/context carried in `connections.message`, no schema change) · product → external **View Product** URL · event → **Register** URL · license → the `/experiences/{signature_work_id}` seam (**View Licensing**). The derivation logic already exists in `src/lib/offerings/offerings.ts` (`deriveCta`) — Slice 4 renders the buttons and connects them. Do not begin until the founder says so.
+
+> ## ✅ SLICE 2 COPY PASS — DONE (2026-08-13, evening)
+>
+> **The language review is complete and committed.** We read every member-facing string in Slice 2 together and Kathleen approved a full set of wording revisions. This was a **copy-only pass** — no schema, logic, routes, RLS, CTA behavior, or stored `type`/enum values were touched. **Typecheck clean · 247/247 tests pass.** Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.**
+>
+> ### What changed (words only — the founding sentiment is now in the copy)
+> - **Empty state headline → "What you've built has value."** (Kathleen's strongest line — connects the product to the founding idea without telling artists to hustle harder: *you already have value; Relevé helps you present it.*)
+> - **Doorway (`/profile`)** subcopy now echoes the workspace promise but stays shorter: *"Showcase the skills, services, creative work, experiences, and products you offer."*
+> - **Workspace intro:** *"Your Relevé profile is more than a résumé. It's a place to show what you do, what you create, and what you're ready to offer."*
+> - **Type labels:** Session → **"Coaching & Sessions"** · Event/Experience → **"Events & Experiences"** (customer-facing labels only; stored values `session`/`event` unchanged). All six Step-1 blurbs rewritten (see files).
+> - **Step 4** helper → *"Choose the pricing structure that fits the value of your work."* · **Step 5** heading *"How is it delivered?"* → **"How is it available?"** · **Step 6** helper now says the image *"won't change your profile gallery."* · **Step 7** response lines softened (Inquire/View Product/Register).
+> - **Card action "Deactivate" → "Hide"** so the flow reads naturally: **Live → Hide → Hidden → Publish.** Status words Live/Hidden, plus Edit/Delete, unchanged.
+> - **Capitalization rule applied:** "offering" is a normal noun in sentences (lowercase); only buttons/headings keep title case (**Add an Offering · Publish Offering · My Offerings**).
+>
+> Files touched (all copy strings): `src/app/profile/page.tsx` · `src/app/profile/offerings/page.tsx` · `src/app/profile/offerings/OfferingsWorkspace.tsx` · `src/app/profile/offerings/OfferingBuilder.tsx` · `src/lib/offerings/offerings.ts` (label maps).
+>
+> **▶️ NEXT (agreed):** go back to the **local builder and create one real offering end-to-end** to feel the flow with the new words. **Slice 3 (public "What I Offer" render on `/[handle]`) is NOT started** and does not begin until Kathleen says so. The Slice 2 detail box below remains the reference for the build itself.
+
+> ## ▶️ START HERE TOMORROW (2026-08-14) — review the Slice 2 LANGUAGE first
+>
+> **Good morning, Kathleen.** We paused after building **Slice 2 (the "My Offerings" builder)**. Everything is safe: committed + pushed on `feature/professional-offerings` at **`5403c57`**, `main` untouched, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` OFF in production**. Tomorrow's job, in your words: **the language is very important to you — we review Slice 2's copy before doing anything else. Slice 3 does NOT start until you're happy with the words.**
+>
+> ### To see it running (2 minutes)
+> The local-only preview flag is already in your gitignored `.env.local` (`PROFESSIONAL_OFFERINGS_ENABLED=true`). Open `C:\Users\kathl\releve-platform`, run `npm run dev`, sign in, and go to **`/profile/offerings`** (or `/profile` → the **Professional Offerings** tile). Nothing here is public.
+>
+> ### Every member-facing string in Slice 2, by file — this is the copy to read together
+> **1. Workspace header — `src/app/profile/offerings/page.tsx`**
+> - Eyebrow: *"Relevé · My work"* · Title: *"My Offerings"*
+> - Intro: *"Your Relevé profile is more than your résumé. Show people the skills, services, creative work, experiences, and products that are part of your professional practice."*
+> - No-profile-yet: *"First, set up your Relevé profile — your offerings live on it."* / button *"Build my profile"*
+>
+> **2. Empty state + cards — `src/app/profile/offerings/OfferingsWorkspace.tsx`**
+> - Empty state: *"This is your space to build."* / *"Master classes. Coaching. Editing. Stage management. Creative work. Products. Licensing. Or something entirely your own."*
+> - Buttons/labels: *"Add an Offering"* · status badges **"Live" / "Hidden"** · card actions *"Edit" · "Deactivate"/"Publish" · "Delete"* · delete confirm *"Delete "{title}"? This can't be undone."*
+>
+> **3. The guided builder — `src/app/profile/offerings/OfferingBuilder.tsx`** (the biggest copy surface)
+> - Step 1 *"What are you offering?"* + the six type blurbs (Service / Session / Product / Licensed Work / Event / Experience / Other)
+> - Step 2 *"Give it a name"* (placeholder *"Name your offering"*; hint line of examples)
+> - Step 3 *"Tell people what you offer"* + *"Describe what someone can expect, who it is for, and what makes your offering valuable."*
+> - Step 4 *"How do you price it?"* + *"You're never forced into an hourly rate — choose what fits your work."*
+> - Step 5 *"How is it delivered?"* · Step 6 *"Add something visual"* + *"One image. It lives with this offering only."*
+> - Step 7 *"How can someone respond?"* + the response lines (Inquire / View Product / Register / View Licensing) and URL labels
+> - Preview + buttons: *"Publish Offering" · "Save as draft" · "Cancel"*
+>
+> **4. Doorway tile — `src/app/profile/page.tsx`**: *"Professional Offerings"* / *"Package the services, work, and products you offer"*
+>
+> **5. Shared word-lists — `src/lib/offerings/offerings.ts`**: `OFFERING_TYPE_LABEL`, `PRICING_TYPE_LABEL`, `LOCATION_MODE_LABEL`, `CTA_LABEL` (*Inquire / View Product / View Licensing / Register / Learn More*), and the price copy *"Free"* / *"Contact for pricing"*. Changing a word here changes it everywhere it appears.
+>
+> ### The founding sentiment to hold against the copy (your words, 2026-08-13)
+> *"The art poured out, and the equity didn't return… until now."* A veteran teacher's decades don't disappear when she stops teaching 15 classes a week — she can package coaching, curriculum, workshops, licensing. *"You built it. You earned it. Relevé helps you put it to work. The ripening is the becoming."* **This screen is where Relevé comes alive — the first place a professional is taught to see the business value of their work.** Read the copy against this; nothing is locked.
+>
+> ### After the copy is right
+> Any wording changes are copy-only edits to the four files above (+ the label maps) — no schema, no logic, still behind the OFF flag. **Then** Slice 3: render active offerings under a **"What I Offer"** section on the public `/[handle]` profile (guarded so zero-offering profiles are unchanged), then Slice 4 wires the CTA behavior. Full detail in the Slice 2 box just below.
+
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 2 (My Offerings builder) DONE (2026-08-13)
+>
+> **The member-facing builder/management experience.** An activated professional can now package their skills, services, creative work, experiences, and products from inside the Professional Profile system — the first place Relevé teaches a professional to think beyond a résumé. **Builder/management only; the PUBLIC render on `/[handle]` is Slice 3 (not started).**
+>
+> **Branch `feature/professional-offerings`.** `main` untouched, nothing merged, nothing deployed. **`PROFESSIONAL_OFFERINGS_ENABLED` OFF in production** (a local-only copy lives in the gitignored `.env.local` for preview — never committed).
+>
+> ### What shipped (all additive; only two existing files edited)
+> - **`src/lib/offerings/actions.ts`** — owner-scoped CRUD server actions (`saveOffering` create/edit, `setOfferingStatus`, `deleteOffering`). Writes go through the caller's RLS client (own-row only); the image upload uses the admin client into the dedicated `offering-media` bucket (path `<uid>/…`). `cta_type` is left null so the render layer derives the CTA (one source of truth). Saves DATA ONLY — no intro/licensing/CTA behavior (that's Slice 4).
+> - **`src/app/profile/offerings/`** — the workspace: `page.tsx` (gate: flag + signed-in + `hasActiveProfileTier`; redirects away when the flag is OFF), `OfferingsWorkspace.tsx` (empty state + management cards + activate/deactivate/delete), `OfferingBuilder.tsx` (the guided 7-stage add/edit flow with a live preview).
+> - **`src/lib/offerings/offerings.ts`** (edited) — added `resolvePricing`/`formatPriceDisplay`/`formatMoney`, builder label maps, `AMOUNT_PRICING_TYPES`, `OfferingRow`. **Reconciliations (single source of truth, per founder spec):** `DEFAULT_CTA_BY_TYPE.other` → `inquire`; `OFFERING_LIMITS.shortMax` → 600; `license` label → "Licensed Work".
+> - **`src/app/profile/page.tsx`** (edited) — a flag-gated **"Professional Offerings"** doorway tile (the richer "YOUR WORK" home is the Professional Identity slice on another branch, so this branch ADDS the doorway).
+> - **`src/lib/offerings/index.ts`** — barrel.
+>
+> ### Product decisions (founder-ratified this slice)
+> - **Active/inactive → Live/Hidden.** Publish = `active`, Save as draft = `inactive`. The DB has two states, so a never-published draft and a deactivated offering are both `inactive` (badge reads **Hidden**) — no third state invented.
+> - Pricing is **display-first, never forced hourly**: builder collects a pricing type + optional amount; `resolvePricing` composes `price_display` ("$600 / day", "Starting at $250", …). Worker labor is never taxed (a service inquiry writes a `connections` row, no fee).
+> - CTA is **derived from type**, never exposed as "CTA type": service/session/other → Inquire · product → View Product (+URL) · event → Register (+URL) · license → View Licensing.
+>
+> ### Verified (typecheck clean · 247/247 tests, +15)
+> Walked the real builder locally (signed in as the founder's own account), created + deleted test offerings, restored to zero. Live evidence: create (Service $600/day) + DB persistence; Product + external URL persistence + "View Product" copy; edit hydration; deactivate→Hidden→reactivate (data preserved); no-image; **invalid URL rejected server-side**; **cross-user UPDATE/DELETE blocked by RLS (0 rows)**; empty state. C/D/F/G/H covered by unit tests (identical write path). All test rows deleted afterward — the founder's profile is back to zero offerings.
+>
+> ### Explicitly NOT touched
+> Swing · licensing economics/`signature_works` (a Licensed-Work offering leaves `signature_work_id` null) · memberships/$30/Stripe · Studio Foundation · Team · This Week · Roster/search · availability tags / "I'm Currently Accepting" · connections / Request-an-Intro behavior · public profile rendering (that's Slice 3).
+>
+> **▶️ NEXT — Slice 3 (not started):** render active offerings under a **"What I Offer"** section on the public `/[handle]` profile (guarded so zero-offering profiles are unchanged). Then Slice 4 wires CTA behavior.
+
+> ## ✅ PROFESSIONAL OFFERINGS — SLICE 1 (data foundation) DONE & LIVE (2026-08-13)
+>
+> **The additive "professional business layer" begins.** One reusable *Offering* concept lets an activated professional package a **Service · Session · Product · License · Event/Experience · Other** from their existing Professional Profile — no separate table per kind of work, no redesign of the profile. This is Slice 1 of a founder-approved 4-slice plan; **only the data foundation is built.**
+>
+> **Branch `feature/professional-offerings`** (off clean `main`). **`main` untouched, nothing merged, nothing deployed.** Flag **`PROFESSIONAL_OFFERINGS_ENABLED` is OFF** — with it off, production is byte-for-byte unchanged (no editor section, no public section, existing profiles render exactly as before).
+>
+> ### What shipped (all additive — zero existing files edited)
+> - **Migration `20260813012556_professional_offerings.sql`** — APPLIED live + registered (project `hmqqxbkhcqspqmsjxodq`). One table `public.professional_offerings` (many per `talent_profiles.profile_id`, `on delete cascade`). Safety-checked via `BEGIN…ROLLBACK` compile-run first (table + 8 policies + bucket created then rolled back, confirmed nothing persisted), then applied. Security advisor: **no lint on the new objects.**
+> - **`type` is CHECK-constrained text, NOT a Postgres enum** (founder decision — Offering kinds will evolve; widen the CHECK + the TS union together). Same pattern for `pricing_type`, `location_mode`, `cta_type`, `status`.
+> - **Pricing is display-first, never a forced hourly rate.** `price_display` free string is authoritative ("$85/hour", "Starting at $250", "Contact for pricing", "Free"); `price_cents` reserved for a future structured pass. **Worker labor is NEVER taxed** — a service inquiry writes a `connections` row, no charge, no commission. Only the **licensing** path carries economics, and it stays entirely in `signature_works` — an Offering of type `license` merely POINTS via `signature_work_id` (the seam).
+> - **RLS** mirrors `signature_works`: public-read-when-`active` + owner-manage via `public.owns_talent_profile(profile_id)`. Explicit Data-API grants added (else PostgREST 404).
+> - **Dedicated media bucket `offering-media`** (public read; owner-scoped writes by `<uid>/…` path prefix) — separate lifecycle from the profile `gallery`; Offering media never lands in the profile gallery.
+> - **Pure logic** `src/lib/offerings/offerings.ts` (types, `OFFERING_TYPES` union, `validateOffering`, `deriveCta`, `pricingDisplay`, http(s)-only URL guard) + **flag** `src/lib/offerings/flags.ts`. **29 new tests**, full suite **232/232**, `tsc --noEmit` clean.
+>
+> ### CTA derivation (already coded, wired in Slice 4): service/session → **Inquire** (Request-an-Intro rail) · product → external URL (**View Product**), falls back to Inquire if no link · event → external URL (**Register**) · license → `/experiences/{signature_work_id}` (**View Licensing**) · other → **Learn More** (external) or none.
+>
+> ### ▶️ APPROVED PLAN — Slices 2–4 (NOT started; flag stays OFF; stop-for-review each)
+> 2. **"My Offerings" builder** inside `/profile/edit` — its OWN discrete server actions (add/update/delete/reorder/toggle + `offering-media` upload), NOT folded into the existing monolithic `saveProfile` action. Flag-gated.
+> 3. **Public render** on `/[handle]` — a guarded **"What I Offer"** card section between the photo gallery and credentials; `offerings.length > 0` guards it so zero-offering profiles are unchanged. Flag-gated.
+> 4. **CTA wiring** — service/session reuse **Request-an-Intro** with the Offering title/context carried in the existing `connections.message` text (**no schema change**); product/event → external URL; license → existing `/experiences` seam.
+>    - **Deferred (Slice 4b, only if proven):** a structured `connections.offering_id` column (would also require touching the `(from_user_id,to_profile_id,type)` UNIQUE index) — kept OUT of the initial build.
+>
+> ### Explicitly NOT touched (and staying that way through these slices)
+> Swing · licensing economics (`signature_works`/`experience_purchases`/Stripe Connect) · memberships / $30 activation / Stripe · Studio Foundation · Team · This Week · pricing · auth · the vetting/application flow · the `roster_profiles` view · the **"I'm Currently Accepting"** availability tags + search (Offerings are additive — no migration/unification this pass) · contact-info privacy. **No native ecommerce** (external URLs only in V1).
+>
+> **Rollback:** the migration file embeds a paired `drop table … cascade` + drop-storage-policies block; all code is a new `src/lib/offerings/` dir + one migration file, and the OFF flag makes even merged code inert.
+
 > ## 🎉 THE SPINE IS PROVEN END TO END (2026-07-23, ~00:05 ET) — and four defects found doing it
 >
 > **apply → vetting queue → admin review → membership granted → correct letter delivered.** Never completed before this. Kathleen ran all three outcomes herself and confirmed every email by eye.
