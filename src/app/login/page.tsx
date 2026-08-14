@@ -54,6 +54,13 @@ export default function LoginPage() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setNext(nextParam);
     }
+    // Pre-fill the email from an invite link (e.g. a Founding Professional invite).
+    // This is a CONVENIENCE ONLY — nothing is conferred by the link; the person
+    // still authenticates, and any grant is matched to the address they verify.
+    const emailParam = params.get("email");
+    if (emailParam) {
+      setEmail(emailParam.trim());
+    }
     const reason = params.get("error");
     if (reason === "link") {
       // eslint-disable-next-line react-hooks/set-state-in-effect

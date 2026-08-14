@@ -1,5 +1,36 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ FOUNDING PROFESSIONAL — invited-cohort entitlement DONE & PROVEN LIVE (2026-08-13, night)
+>
+> **A hand-selected founder can now be conferred full Professional access without ever touching the $30 application flow — as a deliberate, admin-audited entitlement.** Built on its OWN branch **`feature/founding-professional`** (off the Offerings branch HEAD). `main` untouched, **nothing merged, nothing deployed.** The one migration is **applied + registered** on prod (`20260814005457 founding_professional`).
+>
+> ### The architecture — TWO INDEPENDENT AXES (founder-ratified, never couple them)
+> - **IDENTITY (durable, public):** `talent_profiles.founder_distinction = 'founding_professional'` (new enum value) + the Verified Member mark. This is the public **✦ Founding Professional** badge; it never changes because of billing.
+> - **BILLING ENTITLEMENT (financial):** an ordinary `memberships` row — identity-agnostic, in two flavors chosen **per person** by the admin:
+>   - **Permanent complimentary** → `source='complimentary_permanent'`, `renewal_date=NULL` (never billed, never lapses).
+>   - **12-month complimentary** → `source='complimentary_term'`, `renewal_date=+12mo` (then the ordinary Professional model; identity stays).
+>   No `memberships` schema change — `source` + `renewal_date` already existed. The row carries NO "founder" concept, so nothing can infer "founder ⇒ free forever."
+> - **CONFERRAL/AUDIT ledger** `founding_professional_grants` (RLS **service-role only** — the self-select guard at the data layer): `email · user_id · entitlement_kind · granted_by · granted_at · note · claimed_at · revoked_at · revoked_by`. Cohort is **OPEN-ENDED** — no names/emails/count anywhere in code.
+>
+> ### The founder journey (all proven live end-to-end with a throwaway alias, then cleaned up)
+> Admin grants by email at **`/admin/founding-professionals`** (choose Permanent/12-month) → **Copy invite link** (a credential-free deep-link `?next=/profile/edit&email=…`; it confers NOTHING) → founder signs in with the invited email (OTP) → the claim in `resolveSignedInDestination` matches the **verified email**, creates their `public.users` row, materializes the complimentary membership, stamps `claimed_at` → lands **straight on `/profile/edit`, never the $30/subscribe screen** → on first save the profile is stamped `founder_distinction`+Verified from the grant → public `/[handle]` shows the **gold ✦ Founding Professional** badge with **Verified Member** secondary. **Structural bypass:** founders never enter the apply flow, so they never reach fee-checkout — no payment-code branch, $30 model untouched.
+>
+> ### Change / revoke (admin, with audit)
+> Change billing flavor anytime (identity untouched); revoke a mistake → stamps `revoked_at`/`revoked_by`, deactivates the complimentary membership, clears the identity stamp; the grant row is **kept** (never deleted).
+>
+> ### ⚠️ Bug found & fixed DURING the live test (worth remembering)
+> `memberships.user_id` has a **FK to `public.users(user_id)`**, but an invited founder (who never applied) has **no `public.users` row** on first sign-in — so the membership insert FK-failed and they got bounced to `/subscribe`. Fix: the claim now calls `ensureUserRow` (upsert `public.users`, `account_type='talent'`, ignoreDuplicates) BEFORE materializing, surfaces the insert error instead of swallowing it, and only marks the grant claimed if billing actually landed (so a failure retries on next sign-in). Also: **the dev server must be restarted** to pick up server-module edits (`destination.ts`) — a stale server was why the claim didn't fire the first time.
+>
+> ### Files (7 new + 4 additive edits)
+> NEW: `supabase/migrations/20260814005457_founding_professional.sql` · `src/lib/founding/founding-professional.ts` (+`.test.ts`, +7 tests) · `src/app/api/admin/founding-professionals/route.ts` + `[id]/route.ts` · `src/app/admin/founding-professionals/page.tsx` + `FoundingProfessionalsConsole.tsx`. EDITED: `src/lib/auth/destination.ts` (claim) · `src/app/profile/edit/actions.ts` (identity stamp) · `src/app/[handle]/page.tsx` (badge) · `src/app/login/page.tsx` (email prefill).
+>
+> ### NOT touched (guardrail)
+> Stripe, pricing, the (still-OFF) $30 apply/fee-checkout path, `memberships` schema, all existing gates, Studio/Team/Swing/This Week, and — explicitly — **marketplace/licensing transaction economics** (complimentary MEMBERSHIP ≠ complimentary marketplace; kept fully separate).
+>
+> **Verified:** typecheck clean · ESLint clean (one pre-existing unrelated warning) · **258/258 tests**. Live walkthrough passed all checks; throwaway data fully removed; the founder's real `kathleen-mcaree` profile + Private Audition Coaching offering intact.
+>
+> **▶️ NEXT (open):** (1) decide dues terms for 12-month founders at expiry — the transition job that reads `complimentary_term` + `renewal_date` is NOT built. (2) The Offerings feature (Slices 1–4) is on the SEPARATE `feature/professional-offerings` branch — neither is merged; sequence the merges (Offerings first, then rebase this) when ready. (3) Optional robustness: also attempt the claim when a signed-in-but-unclaimed founder hits `/subscribe`, so a transient first-sign-in failure self-heals without re-sign-in.
+
 > ## ✅ PROFESSIONAL OFFERINGS — SLICE 4 (CTA behavior) DONE (2026-08-13, night)
 >
 > **Each public offering is now actionable — without becoming ecommerce.** The WHAT I OFFER cards carry a call-to-action derived from the offering type, reusing EXISTING Relevé rails. Committed + pushed on `feature/professional-offerings`. `main` untouched, nothing merged, nothing deployed, **`PROFESSIONAL_OFFERINGS_ENABLED` still OFF in production.** **No connections schema/index change — Slice 4b stays deferred.**

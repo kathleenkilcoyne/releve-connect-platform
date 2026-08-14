@@ -9,6 +9,7 @@ import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
+import { claimFoundingProfessionalOnSignIn } from "@/lib/founding/founding-professional";
 
 /**
  * Cookie the family-join gate drops before sending a prospective parent to sign
@@ -31,6 +32,29 @@ export async function resolveSignedInDestination(
   supabase: SupabaseClient,
   requestedNext: string | null,
 ): Promise<string> {
+  // Resolve the signed-in user up front — needed for the Founding Professional
+  // claim below, which must run BEFORE we honor `next` (an invite link points at
+  // /profile/edit, and the claim is what makes that page reachable).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+
+  // ── Founding Professional claim (best-effort, EVERY sign-in) ──
+  // If this AUTHENTICATED email matches a pending Founding Professional grant,
+  // materialize the complimentary Professional membership + stamp identity now —
+  // so an invited founder following their link arrives already activated and is
+  // never routed to the $30 screen. The grant is matched by the verified email,
+  // never by anything the invite link carries; the link confers nothing. Must
+  // never throw into the sign-in path.
+  if (user?.email && admin) {
+    try {
+      await claimFoundingProfessionalOnSignIn(admin, user.id, user.email);
+    } catch (err) {
+      console.error("[founding-professional] claim on sign-in failed (ignored):", err);
+    }
+  }
+
   if (requestedNext && requestedNext.startsWith("/")) return requestedNext;
 
   // ── Family-join intent (V1 three-paths) ──
@@ -49,13 +73,8 @@ export async function resolveSignedInDestination(
   // membership (the founder's own situation: no one has approved her) was
   // thrown onto a members-only dead end every single time she signed in, and
   // never reached the vetting queue. Admins land on their console.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    const admin = createAdminClient();
-
+  // (`user` + `admin` were resolved at the top of this function.)
+  if (user && admin) {
     const { data: roleRow } = await admin
       .from("users")
       .select("account_type, onboarding_intent")

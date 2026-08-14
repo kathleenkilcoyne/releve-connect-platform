@@ -257,6 +257,26 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
       row.certified_eligible_at = new Date().toISOString(); // when it was granted
     }
 
+    // Founding Professionals are INVITED, not vetted through the application queue,
+    // so `approved` is null for them. If this user holds an active (non-revoked)
+    // Founding Professional grant, carry the durable IDENTITY onto the profile at
+    // creation: the Founding Professional distinction + the Verified Member mark.
+    // BILLING lives separately on their complimentary membership and is untouched
+    // here. These fields are set ONLY from the server-side grant — never read from
+    // the form — so no one can self-assign Founding Professional status.
+    const { data: fpGrant } = await admin
+      .from("founding_professional_grants")
+      .select("id")
+      .eq("email", (user.email ?? "").toLowerCase())
+      .is("revoked_at", null)
+      .maybeSingle();
+    if (fpGrant) {
+      row.founder_distinction = "founding_professional";
+      row.verification_flag = true;
+      row.certified_eligible_at =
+        (row.certified_eligible_at as string | undefined) ?? new Date().toISOString();
+    }
+
     const { data, error } = await supabase
       .from("talent_profiles")
       .insert(row)
