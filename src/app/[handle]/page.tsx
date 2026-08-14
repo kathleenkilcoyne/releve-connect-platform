@@ -46,6 +46,7 @@ type ProfileRow = {
   resume_url: string | null;
   honorifics: string[] | null;
   verification_flag: boolean;
+  founder_distinction: string | null;
   social_links: Record<string, string> | null;
   profile_status: string;
   visibility: string;
@@ -62,7 +63,7 @@ async function loadProfile(handle: string) {
     .select(
       "profile_id, user_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, headshot_url, teaching_reel_url, gallery_urls, resume_url, " +
-        "honorifics, verification_flag, social_links, profile_status, visibility, " +
+        "honorifics, verification_flag, founder_distinction, social_links, profile_status, visibility, " +
         "teaching_at, touring_with",
     )
     .eq("public_slug", handle)
@@ -323,7 +324,20 @@ export default async function PublicProfilePage({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-3xl font-semibold text-neutral-900">{profile.display_name}</h1>
-                {/* Verified Member — identity/standing mark (§13). Only when granted. */}
+                {/* Founding Professional — the PROMINENT public distinction: a
+                    founding member of the Relevé Professional Roster, conferred by
+                    Relevé. Gold, first, and visually stronger than the Verified
+                    mark. Identity only — carries nothing about billing. */}
+                {profile.founder_distinction === "founding_professional" && (
+                  <span
+                    title="Founding Professional — a founding member of the Relevé Professional Roster, recognized by Relevé"
+                    className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900 ring-1 ring-amber-300"
+                  >
+                    ✦ Founding Professional
+                  </span>
+                )}
+                {/* Verified Member — identity/standing mark (§13), SECONDARY to the
+                    Founding Professional distinction above. Only when granted. */}
                 {profile.verification_flag && (
                   <span
                     title="Verified Member — a real, vetted, active Relevé member"
