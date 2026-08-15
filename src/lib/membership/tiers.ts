@@ -27,6 +27,14 @@ export type MembershipTier = {
   applicationRequired: boolean;
   /** True if this tier grants a built, vetted Roster profile (Professional and up). */
   hasProfile: boolean;
+  /**
+   * INTERNAL entitlement flag (NOT customer-facing): does this tier grant General
+   * Marketplace SELLER access? True only for `professional_full`. This is the
+   * "professional_full is the seller-enabled entitlement" recognition — the tier's
+   * public label/slug/price are DELIBERATELY unchanged during scaffolding (founder
+   * decision 2026-08-14). Gates only non-economic Phase-3 UI; no commerce exists yet.
+   */
+  marketplaceSeller: boolean;
   /** Env var holding this tier's recurring (yearly) Stripe Price id (test → live swap). */
   priceEnvVar: string;
 };
@@ -40,6 +48,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false, // door-opener: no vetting, no built profile
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_LIVE_PASS",
+    marketplaceSeller: false,
   },
   professional: {
     slug: "professional",
@@ -49,14 +58,19 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: true,
     hasProfile: true,
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL",
+    marketplaceSeller: false,
   },
   professional_full: {
     slug: "professional_full",
     label: "Professional · Full",
-    priceCents: 19_900, // $199 — multi-role + Marketplace/Audition Library
+    priceCents: 19_900, // $199 — multi-role + Marketplace (seller-enabled tier)
     side: "individual",
     applicationRequired: true,
     hasProfile: true,
+    // The seller-enabled entitlement. Internal recognition only — label/slug/price
+    // are unchanged during scaffolding; customer-facing "Professional + Marketplace"
+    // naming is deferred to Marketplace activation (founder decision 2026-08-14).
+    marketplaceSeller: true,
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL_FULL",
   },
   studio_connect: {
@@ -67,6 +81,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false, // studios are the employer/buyer side — no vetting fee
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_CONNECT",
+    marketplaceSeller: false,
   },
   studio_growth: {
     slug: "studio_growth",
@@ -76,6 +91,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false,
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_GROWTH",
+    marketplaceSeller: false,
   },
   studio_accelerator: {
     slug: "studio_accelerator",
@@ -85,6 +101,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false,
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_ACCELERATOR",
+    marketplaceSeller: false,
   },
 };
 

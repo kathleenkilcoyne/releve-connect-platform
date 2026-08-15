@@ -13,6 +13,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor } from "@/lib/professional/actor";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import { isGeneralMarketplaceEnabled } from "@/lib/marketplace/flags";
+import { hasMarketplaceSellerAccess } from "@/lib/membership/access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,21 @@ export default async function ProfileHomePage() {
 
   const actor = await resolveProfessionalActor(createAdminClient(), user.id);
   if (!actor.isProfessional) redirect("/");
+
+  // Marketplace seller doorway — only computed when the flag is ON, so with the
+  // flag OFF (production) this page issues no extra reads and is byte-for-byte
+  // unchanged. Shown to seller-enabled members, plus admins for preview.
+  const marketplaceEnabled = isGeneralMarketplaceEnabled();
+  let canSellMarketplace = false;
+  if (marketplaceEnabled) {
+    const admin = createAdminClient();
+    const [{ data: roleRow }, isSeller] = await Promise.all([
+      admin.from("users").select("account_type").eq("user_id", user.id).maybeSingle(),
+      hasMarketplaceSellerAccess(admin, user.id),
+    ]);
+    const isAdmin = (roleRow as { account_type?: string } | null)?.account_type === "admin";
+    canSellMarketplace = isSeller || isAdmin;
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
@@ -64,6 +81,19 @@ export default async function ProfileHomePage() {
             <span className="block font-medium text-neutral-900">Professional Offerings</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
               Showcase the skills, services, creative work, experiences, and products you offer.
+            </span>
+          </Link>
+        )}
+        {/* Marketplace Seller Workspace doorway — behind GENERAL_MARKETPLACE_ENABLED
+            AND seller/admin entitlement, so it's invisible in production. */}
+        {marketplaceEnabled && canSellMarketplace && (
+          <Link
+            href="/profile/marketplace"
+            className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
+          >
+            <span className="block font-medium text-neutral-900">Marketplace</span>
+            <span className="mt-0.5 block text-sm text-neutral-500">
+              Your seller workspace — license your original choreography.
             </span>
           </Link>
         )}

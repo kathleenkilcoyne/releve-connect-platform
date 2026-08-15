@@ -16,6 +16,16 @@ export const PROFILE_TIER_SLUGS: TierSlug[] = (
   Object.keys(TIERS) as TierSlug[]
 ).filter((slug) => TIERS[slug].hasProfile);
 
+/**
+ * The tiers that grant General Marketplace SELLER access (marketplaceSeller === true).
+ * Data-driven from the tier table, so it can never drift from the tier definitions.
+ * Currently just `professional_full`. This is an INTERNAL entitlement — Phase-3
+ * scaffolding uses it to gate the seller workspace shell; no commerce exists yet.
+ */
+export const MARKETPLACE_SELLER_TIER_SLUGS: TierSlug[] = (
+  Object.keys(TIERS) as TierSlug[]
+).filter((slug) => TIERS[slug].marketplaceSeller);
+
 type MembershipRow = { tier: string; membership_status: string };
 
 /**
@@ -38,6 +48,20 @@ export function hasActiveProfileTierFromRows(rows: MembershipRow[]): boolean {
  */
 export function hasAnyActiveMembershipFromRows(rows: MembershipRow[]): boolean {
   return rows.some((m) => m.membership_status === "active");
+}
+
+/**
+ * Pure predicate: does the member hold an ACTIVE membership on a SELLER-enabled
+ * tier (currently `professional_full`)? This is the internal General Marketplace
+ * seller entitlement. Extracted for unit tests (guardrail #6 — the gate must not
+ * silently break). Non-economic: it only decides whether the seller workspace
+ * scaffolding is reachable; no purchase/payout capability is attached in Phase 3.
+ */
+export function hasMarketplaceSellerAccessFromRows(rows: MembershipRow[]): boolean {
+  const sellerTiers = new Set<string>(MARKETPLACE_SELLER_TIER_SLUGS);
+  return rows.some(
+    (m) => m.membership_status === "active" && sellerTiers.has(m.tier),
+  );
 }
 
 /**
@@ -79,4 +103,23 @@ export async function hasAnyActiveMembership(
     .eq("user_id", userId)
     .eq("membership_status", "active");
   return hasAnyActiveMembershipFromRows((data as MembershipRow[] | null) ?? []);
+}
+
+/**
+ * Does this user hold an active SELLER-enabled membership (General Marketplace)?
+ * Internal entitlement gate for the Phase-3 seller-workspace scaffolding. Pass a
+ * request-scoped Supabase client; reads only this user's own membership rows.
+ * NOTE: admins are admitted separately at the page level (preview access) — this
+ * predicate is purely about the seller-enabled tier.
+ */
+export async function hasMarketplaceSellerAccess(
+  db: SupabaseLike,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from("memberships")
+    .select("tier, membership_status")
+    .eq("user_id", userId)
+    .eq("membership_status", "active");
+  return hasMarketplaceSellerAccessFromRows((data as MembershipRow[] | null) ?? []);
 }

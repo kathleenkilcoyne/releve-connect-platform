@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   hasActiveProfileTierFromRows,
   hasAnyActiveMembershipFromRows,
+  hasMarketplaceSellerAccessFromRows,
+  MARKETPLACE_SELLER_TIER_SLUGS,
   PROFILE_TIER_SLUGS,
 } from "./access";
 
@@ -82,5 +84,44 @@ describe("hasAnyActiveMembershipFromRows", () => {
 
   it("denies when there are no memberships", () => {
     expect(hasAnyActiveMembershipFromRows([])).toBe(false);
+  });
+});
+
+// The General Marketplace SELLER gate (Phase 3 scaffolding, internal entitlement).
+// Only the seller-enabled tier (professional_full) qualifies; this must not silently
+// broaden to other tiers (guardrail #6). Non-economic — it only gates the workspace shell.
+describe("hasMarketplaceSellerAccessFromRows", () => {
+  it("grants on an active professional_full (the seller-enabled tier)", () => {
+    expect(
+      hasMarketplaceSellerAccessFromRows([{ tier: "professional_full", membership_status: "active" }]),
+    ).toBe(true);
+  });
+
+  it("denies a plain Professional — $149 does not grant seller access", () => {
+    expect(
+      hasMarketplaceSellerAccessFromRows([{ tier: "professional", membership_status: "active" }]),
+    ).toBe(false);
+  });
+
+  it("denies Live Pass and studio tiers", () => {
+    for (const tier of ["live_pass", "studio_connect", "studio_growth", "studio_accelerator"]) {
+      expect(hasMarketplaceSellerAccessFromRows([{ tier, membership_status: "active" }])).toBe(false);
+    }
+  });
+
+  it("denies professional_full that is not active (pending / lapsed / canceled)", () => {
+    for (const status of ["pending", "lapsed", "canceled"]) {
+      expect(
+        hasMarketplaceSellerAccessFromRows([{ tier: "professional_full", membership_status: status }]),
+      ).toBe(false);
+    }
+  });
+
+  it("denies when there are no memberships", () => {
+    expect(hasMarketplaceSellerAccessFromRows([])).toBe(false);
+  });
+
+  it("only professional_full is a seller-enabled tier", () => {
+    expect([...MARKETPLACE_SELLER_TIER_SLUGS]).toEqual(["professional_full"]);
   });
 });
