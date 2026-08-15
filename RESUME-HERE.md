@@ -1,5 +1,11 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## 📍 CURRENT STATE (2026-08-14) — read this first; it supersedes the dated blocks below
+>
+> **Both features are now MERGED to `main` and DEPLOYED.** Professional Offerings (Slices 1–4) = `47329e9`; Founding Professional = `0db55cd`. Production runs this code today. The dated journal entries below still say "nothing merged, nothing deployed" — that was true *when each was written* (on their feature branches); it is no longer true. Do not act on those phrases.
+>
+> **The only live gate:** `PROFESSIONAL_OFFERINGS_ENABLED` is still **OFF in production** (unset in Vercel). With it off, the "My Offerings" builder and the public "What I Offer" section stay invisible even though the code is deployed. Flipping the Vercel env var is instant on / instant off (flag is read per-request). **Open decision:** turn it on before more founders build profiles.
+
 > ## ✅ FOUNDING PROFESSIONAL — invited-cohort entitlement DONE & PROVEN LIVE (2026-08-13, night)
 >
 > **A hand-selected founder can now be conferred full Professional access without ever touching the $30 application flow — as a deliberate, admin-audited entitlement.** Built on its OWN branch **`feature/founding-professional`** (off the Offerings branch HEAD). `main` untouched, **nothing merged, nothing deployed.** The one migration is **applied + registered** on prod (`20260814005457 founding_professional`).

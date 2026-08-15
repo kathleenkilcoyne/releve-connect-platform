@@ -2,6 +2,8 @@
 ### RATIFIED 2026-06-25 by Kathleen McAree. **This file supersedes ALL prior pricing files.** If another doc disagrees, this one wins.
 *Built to match the model Kathleen sent her accountant (Shawn Fuller, BKC) on 2026-06-24, with the Accelerator refined from $1,500 → $1,499. Core rule: a studio never pays the same as an individual teacher.*
 
+> **⚠️ MARKETPLACE ECONOMICS SUPERSEDED — 2026-08-14 (Kathleen).** The **status-based split ladder below** (Emerging 60/40 · Established 70/30 · Signature 80/20) is **RETIRED.** Artist status is now **editorial only — it never determines an artist's cut.** The new marketplace model: the **artist chooses their license amount**, Relevé's fee is a **single configurable infrastructure rate** (not yet finalized — not hardcoded), and the **artist bears payment-processing fees** (their chosen amount is a gross/list figure, not a guaranteed net). See **`docs/Marketplace_Economics_AUDIT_2026-08-14.md`** for the current model and architecture. **Subscription pricing in this file (the $99/$149/$199 individual and $249/$499/$1,499 studio tiers) is UNCHANGED and still authoritative** — only the marketplace *split* is superseded.
+
 ---
 
 ## STUDIO subscriptions (annual) — size-based pricing RETIRED
@@ -31,7 +33,7 @@
 ## PER-USE & FLEX
 - **The Swing — $20/use** (paid by the studio; teacher keeps 100% above the $50/hr floor). 3 included at Connect, included at Growth, unlimited at Accelerator.
 - **Flex Series — $250/run** (Relevé's fee per multi-week placement). **$250/run à la carte at Connect & Growth. Studio Accelerator: 4 runs included/yr, then $200/run** (discounted overage). **NO unlimited** (ratified 2026-06-27). Teacher paid at/above the $50/hr wage floor, **directly by the studio, off-platform, keeps 100%**. *Why these numbers: at 2 included, Accelerator cost a flat $500 more than Growth+à la carte at every Flex volume → no buyers. 4 included + $200 overage makes Accelerator break even at 4 pilots and win (wideningly) from 5 up. Flex costs ~nothing to deliver, so bundling more is affordable. Principle: meter the high-value Flex; only the cheap $20 Swing runs unlimited.*
-- **Marketplace — earned split ladder (clarified 2026-07-11).** Platform take is tiered by the choreographer's **earned status** (artist share first):
+- **Marketplace — earned split ladder (clarified 2026-07-11).** ~~Platform take is tiered by the choreographer's **earned status** (artist share first):~~ **⚠️ RETIRED 2026-08-14 — status no longer sets the split; see the banner at the top of this file and `docs/Marketplace_Economics_AUDIT_2026-08-14.md`. The lines below are kept for history only.**
   - **Emerging — 60/40** (entry rate).
   - **Established — 70/30** — earned by sales. **Promotion is admin-assigned / founder-reviewed (annual + Founder's Discretion); the numeric sales threshold is NOT hardcoded** — set it after ~2 quarters of real sales data. *(Provisional placeholder for messaging only, revisit after Year 1: 10 licensed sales OR $2,500 cumulative.)*
   - **Signature — 80/20** — the **Founding 25 Honorees**, on their **Senior Spotlight and Competition catalog** pieces.
