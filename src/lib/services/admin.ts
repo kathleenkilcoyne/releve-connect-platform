@@ -9,25 +9,37 @@
 // gets a 404, so the console's existence is not even discoverable.
 //
 // Within that surface the reviewer sees WHAT THE MEMBER ENTERED — including a
-// service kept hidden from the public, and business contact details the member
-// chose not to publish — because reviewing an application means reading what
-// was actually written. This is a deliberate, admin-only allowance and is the
-// ONLY place private contact fields cross out of the database.
+// service the member keeps hidden from the public — because reviewing means
+// reading what was actually written.
+//
+// ── Contact details are the exception (founder decision, 2026-08-15) ──
+// `business_email` / `business_phone` are shown ONLY when the member ticked the
+// matching "show this on my public profile" box. A contact detail they chose to
+// keep private stays private from the reviewer too.
+//
+// The earlier build did surface them to admins regardless, on the reasoning that
+// reviewing means seeing everything. That was overridden: the member's answer to
+// "do you want this published" is an answer about the detail itself, not only
+// about one surface, and a privileged console is exactly where an unpublished
+// phone number quietly becomes normal to look at. `show_*` now means the same
+// thing everywhere. NOTE: a reviewer therefore cannot distinguish "left blank"
+// from "kept private" — say so if that distinction is ever needed, because it
+// would take a deliberate extra field, not a quiet re-widening of this one.
 //
 // Everything else stays out. `toAdminService` is an ALLOWLIST, not a spread:
 // adding a column to professional_services does NOT silently surface it in the
 // console. That is the property the tests pin, so a future column carrying
 // something sensitive cannot leak here by default.
 //
-// The PUBLIC counterpart is toPublicService() in ./services, which strips any
-// contact detail the member did not explicitly opt into displaying.
+// The PUBLIC counterpart is toPublicService() in ./services. Both now apply the
+// same contact rule; they differ only in that the admin also sees hidden
+// services and the moderation state.
 
 import { categoryLabel, locationLine, type ServiceRow } from "./services";
 
 /**
  * One of a member's Professional Services, flattened for the admin console.
- * Contact fields are present BY DESIGN (see the module header) and must never
- * be rendered on any non-admin surface.
+ * Contact fields are present only when the member published them (see header).
  */
 export type AdminService = {
   id: string;
@@ -39,9 +51,9 @@ export type AdminService = {
   short_description: string | null;
   website_url: string | null;
   social_url: string | null;
-  /** ADMIN-ONLY. Shown regardless of show_email, for review. */
+  /** Null unless the member ticked show_email. */
   business_email: string | null;
-  /** ADMIN-ONLY. Shown regardless of show_phone, for review. */
+  /** Null unless the member ticked show_phone. */
   business_phone: string | null;
   /** Whether the member currently displays this on their public profile. */
   shown_publicly: boolean;
@@ -80,8 +92,10 @@ export function toAdminService(row: ServiceRow): AdminService {
     short_description: row.short_description,
     website_url: row.website_url,
     social_url: row.social_url,
-    business_email: row.business_email,
-    business_phone: row.business_phone,
+    // Same rule as the public projection: an unpublished contact detail is not
+    // shown here either. Deliberately NOT `row.business_email`.
+    business_email: row.show_email ? row.business_email : null,
+    business_phone: row.show_phone ? row.business_phone : null,
     shown_publicly: row.status === "active",
     moderation_status: row.moderation_status,
   };

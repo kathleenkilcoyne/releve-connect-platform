@@ -339,9 +339,10 @@ function ApplicationCard({
           {/* Professional Services — other businesses this member listed on
               their profile. Read-only: there is no per-service approval step
               (founder direction §6), so this is here to be READ before a
-              decision, not acted on. Shows hidden services and unpublished
-              contact details too — reviewing means seeing everything they
-              entered. Absent entirely when they've listed none. */}
+              decision, not acted on. Hidden services DO appear here (with a
+              badge), but contact details appear only when the member chose to
+              publish them — `show_*` means the same thing on every surface
+              (2026-08-15). Absent entirely when they've listed none. */}
           {app.services.length > 0 && (
             <div className="rounded-xl border border-neutral-200 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">

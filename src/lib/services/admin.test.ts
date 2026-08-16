@@ -3,15 +3,12 @@
 // What these pin: the admin console is an ALLOWLIST, not a spread. Adding a
 // column to professional_services must never silently surface it to a reviewer.
 //
-// On contact fields specifically: the admin projection DOES carry
-// business_email / business_phone regardless of the member's show_* toggles.
-// That is deliberate and admin-only (the console is gated on
-// users.account_type = 'admin'; a signed-in non-admin gets a 404), because
-// reviewing an application means reading what the member actually wrote. These
-// tests assert that rule explicitly rather than leaving it implied — and assert,
-// alongside it, that the PUBLIC projection of the same row never carries them.
-// If the rule should change so that admins also respect show_*, these are the
-// tests that will fail and say so.
+// On contact fields specifically (founder decision, 2026-08-15): the admin
+// projection shows business_email / business_phone ONLY when the member ticked
+// the matching "show this on my public profile" box. `show_*` means the same
+// thing on every surface — a detail the member kept private is private from the
+// reviewer too. The admin still sees more than the public in the ways that
+// matter for review: hidden services, and the moderation state.
 
 import { describe, it, expect } from "vitest";
 import { toAdminService, ADMIN_SERVICE_KEYS } from "./admin";
@@ -96,19 +93,27 @@ describe("toAdminService — the allowlist", () => {
   });
 });
 
-describe("contact fields — admin-only allowance", () => {
-  it("ADMIN: sees contact details even when the member kept them private", () => {
-    // Deliberate and admin-gated. If this ever needs to respect show_*, change
-    // toAdminService and this test together.
+describe("contact fields — show_* means the same thing everywhere", () => {
+  it("ADMIN: withholds contact details the member kept private", () => {
     const out = toAdminService(privateContactRow());
-    expect(out.business_email).toBe("private@example.com");
-    expect(out.business_phone).toBe("(212) 555-0134");
+    expect(out.business_email).toBeNull();
+    expect(out.business_phone).toBeNull();
   });
 
   it("PUBLIC: the very same row exposes neither", () => {
     const pub = toPublicService(privateContactRow());
     expect(pub.business_email).toBeNull();
     expect(pub.business_phone).toBeNull();
+  });
+
+  it("ADMIN: shows only what the member opted into, field by field", () => {
+    const emailOnly = toAdminService(privateContactRow({ show_email: true }));
+    expect(emailOnly.business_email).toBe("private@example.com");
+    expect(emailOnly.business_phone).toBeNull();
+
+    const phoneOnly = toAdminService(privateContactRow({ show_phone: true }));
+    expect(phoneOnly.business_email).toBeNull();
+    expect(phoneOnly.business_phone).toBe("(212) 555-0134");
   });
 
   it("PUBLIC: exposes only what the member opted into, field by field", () => {
@@ -121,14 +126,27 @@ describe("contact fields — admin-only allowance", () => {
     expect(phoneOnly.business_phone).toBe("(212) 555-0134");
   });
 
-  it("the two projections disagree ONLY about contact fields", () => {
-    // Guards against a future edit that quietly widens the public projection to
-    // match the admin one.
-    const row = privateContactRow();
+  it("the two projections now AGREE on every contact field", () => {
+    // The property that would break first if someone re-widened the admin view.
+    for (const over of [
+      {},
+      { show_email: true },
+      { show_phone: true },
+      { show_email: true, show_phone: true },
+    ] as const) {
+      const row = privateContactRow(over);
+      const admin = toAdminService(row);
+      const pub = toPublicService(row);
+      expect(admin.business_email).toBe(pub.business_email);
+      expect(admin.business_phone).toBe(pub.business_phone);
+    }
+  });
+
+  it("the admin still sees what review actually needs: hidden services and moderation state", () => {
+    const row = privateContactRow({ status: "hidden", moderation_status: "flagged" });
     const admin = toAdminService(row);
-    const pub = toPublicService(row);
-    expect(admin.business_email).not.toBe(pub.business_email);
-    expect(pub.business_email).toBeNull();
-    expect(pub.business_phone).toBeNull();
+    expect(admin.business_name).toBe("McAree Bodywork");
+    expect(admin.shown_publicly).toBe(false);
+    expect(admin.moderation_status).toBe("flagged");
   });
 });
