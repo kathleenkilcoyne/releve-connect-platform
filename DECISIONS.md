@@ -472,11 +472,107 @@ These were settled before the build began. Recorded here so they're not re-litig
 
 ### Money: plumbing only, NO policy
 
+> ⚠️ **SUPERSEDED IN PART — see “The Professional Services platform fee is 8%” (2026-08-15, below).**
+> The *rate* is no longer open: it is **8% of the gross service price, before payment-processing
+> fees**, for Professional Services booked AND paid through Relevé. Read that entry, not this one,
+> for the number. Everything else in this section still stands — in particular the **code and
+> database are unchanged**: `service_platform_fee_bps()` still returns NULL, no `app_config` row is
+> seeded, and checkout must still refuse to charge on NULL. Deciding a rate and configuring it are
+> two separate acts, and only the first has happened.
+
 - `service_bookings` follows the `experience_purchases` split shape (amount / application_fee /
   professional_transfer, `pending → paid → refunded → failed`), and `pricing_unit` maps back to the
   existing `rate_unit` enum for the shared earnings ledger.
-- **`platform_fee_bps` is UNSET.** `service_platform_fee_bps()` reads `app_config` and returns NULL;
-  no row is seeded. A future checkout MUST refuse to charge on NULL rather than assume a default.
-  **No fee percentage has been approved and nothing here implies one.**
+- **`platform_fee_bps` is UNSET IN THE DATABASE.** `service_platform_fee_bps()` reads `app_config`
+  and returns NULL; no row is seeded. A future checkout MUST refuse to charge on NULL rather than
+  assume a default. ~~No fee percentage has been approved and nothing here implies one.~~
+  **A rate has since been approved — 8%, see below — but it has deliberately NOT been written to
+  `app_config`, so the NULL guardrail is still the operative state of the system.**
 - No Stripe checkout, payment intent, payout, or transfer is implemented. The Stripe columns exist
   so the later wiring is an UPDATE, not a migration.
+
+---
+
+## 2026-08-15 — The Professional Services platform fee is 8% · subscriptions hold at $149 / $199
+
+**Decided (Kathleen, 2026-08-15).** The four economic lanes are now named and separated, and the
+one number that was open in the services lane is set.
+
+### The decision
+
+1. **Subscriptions stand firm — annual.** **Professional $149/yr · Creator $199/yr.** No change.
+   These are the membership prices and they are not being revisited as part of this decision.
+2. **Professional Services booked AND paid on Relevé carry an 8% platform fee.**
+   Both conditions. A service that is merely discovered or inquired about on Relevé, and then
+   booked and paid for elsewhere, is not a Relevé transaction and carries no fee.
+3. **The 8% is charged on the GROSS service price, BEFORE payment-processing fees**
+   *(founder decision, 2026-08-15)*. The base is the full amount the client is charged for the
+   booking — not a net-of-processing figure, and not a figure reduced by any discount Relevé did
+   not fund. In the `service_bookings` shape that is `amount_cents`:
+   `application_fee_cents = round(amount_cents × 0.08)`.
+4. **Payment-processing fees are separate from Relevé's platform fee, and are borne by the
+   professional receiving the payout** *(founder decision, 2026-08-15)*. Processing is its own
+   line: it is not bundled into the 8%, the 8% is not expected to absorb it, and it is not charged
+   to the client on top. Worked example on a $100 booking — Relevé's platform fee is $8.00 (8% of
+   $100, not of $100 minus processing); the processor's fee is deducted from the professional's
+   side; the professional nets $92.00 less processing.
+5. **Swing and Flex protected teaching wages are NOT subject to the 8%.** The teacher receives
+   100% of the agreed base rate, at or above the $50/hr floor. Relevé's participation in those
+   engagements remains on the employer side — studio subscription, included uses, per-use overage,
+   Flex match fee. The 8% does not reach into a protected teaching wage.
+6. **Licensing / IP keeps its own economics.** The marketplace and licensing lane is governed
+   separately and is untouched by this decision. The 8% is a Professional Services number only and
+   must not be applied to, confused with, or used to revise a licensing split.
+7. **SCOPE — this entry governs Professional Services / general on-platform service bookings, and
+   nothing else.** Points 3 and 4 (gross basis; professional bears processing) are part of that
+   same scope. Do **not** infer from them any change to the separately defined economics of Swing,
+   Flex, Senior Spotlight, licensing/marketplace, memberships, the $30 application fee, The Beat,
+   or any other existing product. Where another product defines its own fee basis or its own
+   treatment of processing, that definition governs there.
+
+### Why 8%
+
+It prices the services lane as **infrastructure, not as a cut of the artist's craft.** It is
+deliberately well below the licensing economics, because a service booking is a smaller, more
+frequent transaction against a person's working time, and because the member is already paying an
+annual subscription for presence. Standing firm on $149 / $199 alongside it is part of the same
+decision: the fee is set at a level that does not require the subscription to move.
+
+### The boundary that makes it enforceable
+
+The fee attaches to a transaction Relevé can actually observe — one booked and paid through the
+Relevé rail. This is consistent with the booking architecture already recorded on 2026-08-15
+("Professional Services bookings happen ON Relevé"), which removed the outbound Booking Link
+precisely because an off-platform booking takes the money and the record with it.
+
+### What this does NOT do
+
+- **It does not change any code, and no `app_config` row is seeded by this entry.**
+  `service_platform_fee_bps()` still reads `app_config` and still returns NULL. Setting it to
+  **800 bps** is a separate, explicit action — and the existing guardrail stands until then:
+  **checkout must refuse to charge on NULL rather than assume a default.**
+- It does not set the general marketplace / licensing fee, which remains open.
+- It does not change Senior Spotlight, which carries a written commitment to the Founding
+  choreographers.
+- It does not change any studio tier price, the $30 application fee, or The Beat posting prices.
+- It does not alter the Swing $20/use or Flex $250/run employer-side fees.
+
+### Still open (do not infer answers from this entry)
+
+- ~~**Who bears payment processing on a service booking**~~ — **ANSWERED 2026-08-15 (same day,
+  later): the professional receiving the payout bears it.** See points 3 and 4 above. Left visible
+  rather than deleted so the earlier "separate, not assigned" wording is not mistaken for a rule
+  that is still open.
+- Whether the Professional Services capability is gated to the $199 Creator tier.
+- Whether the 8% varies by service category, or is flat across all of them.
+- Refund, cancellation, and no-show treatment of the fee.
+
+**Source:** founder directive, 2026-08-15. Supersedes the "rate not set / TBD" state for
+Professional Services recorded in the Revenue Model working decision map of the same date, and the
+"No fee percentage has been approved" line in the *Money: plumbing only* section above — which now
+carries a pointer here so the two cannot both read as current.
+
+**Amended the same day (founder):** points 3 and 4 added — the 8% is charged on the **gross**
+service price **before** payment-processing fees, and **processing is borne by the professional
+receiving the payout**. This closed the "who bears payment processing" question that this entry had
+originally left open.
