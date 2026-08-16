@@ -49,7 +49,7 @@ export default async function ProfileEditPage() {
   if (!user) redirect("/login");
 
   // GATE (build spec §6 + §17): the profile builder is the Professional tier's
-  // product. Only members with an ACTIVE Professional / Professional·Full
+  // product. Only members with an ACTIVE Professional / Creator
   // membership may build or edit a profile. Everyone else is sent to /subscribe
   // (approved applicants activate there; the page itself explains the ladder).
   if (!(await hasActiveProfileTier(supabase, user.id))) {

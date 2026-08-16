@@ -606,3 +606,36 @@ the 8% is **flat across all service categories at launch**. Two of the four open
 therefore closed. **Refund / cancellation / no-show treatment remains open**, as does the
 availability-authoring UI recorded in the booking-architecture entry above. Still unchanged by any
 of this: no `app_config` row, no checkout, no payouts, no Vercel flag.
+
+---
+
+## 2026-08-16 — "Creator" is the public name of the $199 tier · `professional_full` stays internal
+
+**Decided (Kathleen, 2026-08-16).** The $199 individual tier is called **Creator** to members.
+
+**Public tier structure (individual):**
+
+| Name | Price | What it is |
+|---|---|---|
+| **Professional** | $149/year | Vetted Roster profile, Professional Services included |
+| **Creator** | $199/year | Everything in Professional, **plus** licensing / IP / creator-commerce |
+
+- **Display name only.** `TIERS.professional_full.label` in `src/lib/membership/tiers.ts` is the one
+  customer-facing string, and every surface that shows a tier name reads it from there — the
+  membership-active email included. Changing that label is the whole rename.
+- **`professional_full` remains the internal identifier**, deliberately and permanently: the slug,
+  the `TierSlug` union, `memberships.tier` values already in the database, `applications.approved_tier`,
+  the Stripe Price id, `STRIPE_PRICE_PROFESSIONAL_FULL`, `PROFILE_TIER_SLUGS`, and
+  `MARKETPLACE_SELLER_TIER_SLUGS` are all untouched. Renaming a slug that live rows are keyed on
+  buys nothing and risks everything; a customer-facing name is not an identifier.
+- **Supersedes** the 2026-08-14 note on that tier which deferred customer-facing naming to
+  Marketplace activation and floated the placeholder "Professional + Marketplace". That name is
+  retired; it never reached a member.
+- **Nothing else changed.** No price, no access logic, no entitlement, no checkout, no fee. Access
+  reads `marketplaceSeller` / the slug lists — never the label — so the rename cannot move a gate.
+- **One manual step outside the codebase:** the Stripe **product** name (shown on the hosted
+  Checkout page and on receipts) still reads "Relevé — Professional · Full (annual membership)" for
+  the already-created product. `scripts/setup-stripe-tiers.mjs` now produces
+  "Relevé — Creator (annual membership)" for future runs, but the existing product must be renamed
+  in the Stripe dashboard **in both test and live mode**. Renaming a product does not affect its
+  Price id or any active subscription.

@@ -2,7 +2,7 @@
 //
 // Build spec §6 + §17: the profile is what the Professional tier SELLS, so
 // building/publishing a profile is gated behind an ACTIVE membership on a
-// profile-bearing tier (Professional $149 or Professional · Full $199). Live
+// profile-bearing tier (Professional $149 or Creator $199). Live
 // Pass $99 has no profile; studios are the employer side, not talent.
 //
 // This centralizes the check that used to live inline in /subscribe. It reads

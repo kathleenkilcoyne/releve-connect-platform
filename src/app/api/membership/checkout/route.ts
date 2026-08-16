@@ -3,7 +3,7 @@
 // POST /api/membership/checkout   body: { tier: "professional" | "professional_full" | … }
 //
 // Rules:
-//   • Vetted tiers (Professional / Professional·Full) require an APPROVED
+//   • Vetted tiers (Professional / Creator) require an APPROVED
 //     application. Non-vetted tiers (Live Pass, studios) don't.
 //   • If the applicant PAID the $30 fee, it's CREDITED here — a one-time $30-off
 //     coupon on the first invoice — and the fee row is marked 'credited' by the

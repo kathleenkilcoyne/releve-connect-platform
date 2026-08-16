@@ -1,7 +1,12 @@
 // The membership tiers, in one place — matching the ratified pricing Single
 // Source of Truth (docs/Releve_Pricing_RATIFIED_2026-06-25_…). Prices are ANNUAL
 // and in cents. Names are the ratified names (Live Pass / Professional /
-// Professional·Full · Studio Connect / Growth / Accelerator).
+// Creator · Studio Connect / Growth / Accelerator).
+//
+// NAMING (founder decision 2026-08-16): the $199 individual tier is called
+// "Creator" to members. Its internal slug stays `professional_full` — the label
+// below is the ONLY customer-facing name, and nothing keyed on the slug (database
+// tier values, Stripe Price ids, env vars, entitlement lists) changed with it.
 //
 // IMPORTANT (build spec §17): annual billing only, no monthly, no "$10" anywhere.
 // `account_type` is identity; what someone BOUGHT is captured by a membership row
@@ -62,14 +67,18 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
   },
   professional_full: {
     slug: "professional_full",
-    label: "Professional · Full",
-    priceCents: 19_900, // $199 — multi-role + Marketplace (seller-enabled tier)
+    // CUSTOMER-FACING NAME: "Creator" (founder decision 2026-08-16). This
+    // supersedes the earlier plan to defer naming to Marketplace activation and
+    // the placeholder "Professional + Marketplace". The slug below is unchanged
+    // and remains the internal identifier everywhere.
+    label: "Creator",
+    priceCents: 19_900, // $199 — everything in Professional, plus licensing / IP / creator commerce
     side: "individual",
     applicationRequired: true,
     hasProfile: true,
-    // The seller-enabled entitlement. Internal recognition only — label/slug/price
-    // are unchanged during scaffolding; customer-facing "Professional + Marketplace"
-    // naming is deferred to Marketplace activation (founder decision 2026-08-14).
+    // The seller-enabled entitlement: Creator is what adds licensing / IP /
+    // creator-commerce capability on top of Professional. Internal flag only —
+    // access logic reads this, never the label.
     marketplaceSeller: true,
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL_FULL",
   },

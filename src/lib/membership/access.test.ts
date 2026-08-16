@@ -16,7 +16,7 @@ describe("hasActiveProfileTierFromRows", () => {
     ).toBe(true);
   });
 
-  it("grants access on an active Professional · Full membership", () => {
+  it("grants access on an active Creator membership", () => {
     expect(
       hasActiveProfileTierFromRows([{ tier: "professional_full", membership_status: "active" }]),
     ).toBe(true);
