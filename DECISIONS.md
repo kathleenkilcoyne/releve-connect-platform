@@ -529,6 +529,23 @@ one number that was open in the services lane is set.
    Flex, Senior Spotlight, licensing/marketplace, memberships, the $30 application fee, The Beat,
    or any other existing product. Where another product defines its own fee basis or its own
    treatment of processing, that definition governs there.
+8. **Professional Services is INCLUDED in the $149 Professional tier. It is NOT gated to $199**
+   *(founder decision, 2026-08-15)*. Listing services, showing them on your profile, and — when
+   booking ships — being bookable are all part of the $149 membership. What the **$199 Creator
+   tier** adds is **licensing / IP / creator-commerce capability**, which is a different lane with
+   its own economics (point 6). The dividing line is *the kind of thing being sold*, not a paywall
+   placed across the same feature.
+   **This ratifies what the code already does** — `/profile/services` gates on
+   `hasActiveProfileTier`, whose `PROFILE_TIER_SLUGS` is `professional` + `professional_full`,
+   while the marketplace seller workspace gates on `professional_full` alone. Both are pinned by
+   tests in `src/lib/membership/access.test.ts`. **No code change was required by this decision**,
+   and none was made.
+9. **One FLAT 8% across every service category at launch** *(founder decision, 2026-08-15)*.
+   Massage, Pilates, photography, accompanying and the rest all carry the same rate. **Do not build
+   category-specific rates** — not a per-category column, not a lookup table, not a config map.
+   A single platform number is simpler to explain, simpler to honour, and avoids Relevé implicitly
+   ranking one kind of work as worth more of a cut than another. If per-category pricing is ever
+   wanted it should arrive as a deliberate, separately-recorded decision.
 
 ### Why 8%
 
@@ -563,9 +580,15 @@ precisely because an off-platform booking takes the money and the record with it
   later): the professional receiving the payout bears it.** See points 3 and 4 above. Left visible
   rather than deleted so the earlier "separate, not assigned" wording is not mistaken for a rule
   that is still open.
-- Whether the Professional Services capability is gated to the $199 Creator tier.
-- Whether the 8% varies by service category, or is flat across all of them.
-- Refund, cancellation, and no-show treatment of the fee.
+- ~~Whether the Professional Services capability is gated to the $199 Creator tier.~~
+  **ANSWERED 2026-08-15: no — it is included in the $149 Professional tier. See point 8.**
+- ~~Whether the 8% varies by service category, or is flat across all of them.~~
+  **ANSWERED 2026-08-15: flat across all categories at launch. See point 9.**
+- **STILL OPEN — refund, cancellation, and no-show treatment of the fee.** Nothing in this entry
+  answers it, and nothing should be inferred: whether the 8% is refunded with the booking, retained,
+  or pro-rated is undecided, as is who absorbs processing on a reversal. This must be settled before
+  checkout is built, because a refund path that quietly keeps or quietly returns the platform fee is
+  a policy decision made by omission.
 
 **Source:** founder directive, 2026-08-15. Supersedes the "rate not set / TBD" state for
 Professional Services recorded in the Revenue Model working decision map of the same date, and the
@@ -576,3 +599,10 @@ carries a pointer here so the two cannot both read as current.
 service price **before** payment-processing fees, and **processing is borne by the professional
 receiving the payout**. This closed the "who bears payment processing" question that this entry had
 originally left open.
+
+**Amended again the same day (founder):** points 8 and 9 added — Professional Services is
+**included at $149** (the $199 Creator tier adds licensing / IP / creator commerce, not this), and
+the 8% is **flat across all service categories at launch**. Two of the four open questions are
+therefore closed. **Refund / cancellation / no-show treatment remains open**, as does the
+availability-authoring UI recorded in the booking-architecture entry above. Still unchanged by any
+of this: no `app_config` row, no checkout, no payouts, no Vercel flag.
