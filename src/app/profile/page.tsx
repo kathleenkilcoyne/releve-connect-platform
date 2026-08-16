@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor } from "@/lib/professional/actor";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import { isProfessionalServicesEnabled } from "@/lib/services";
 import { isGeneralMarketplaceEnabled } from "@/lib/marketplace/flags";
 import { hasMarketplaceSellerAccess } from "@/lib/membership/access";
 
@@ -81,6 +82,20 @@ export default async function ProfileHomePage() {
             <span className="block font-medium text-neutral-900">Professional Offerings</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
               Showcase the skills, services, creative work, experiences, and products you offer.
+            </span>
+          </Link>
+        )}
+        {/* Professional Services doorway — behind PROFESSIONAL_SERVICES_ENABLED,
+            so it's invisible in production until the feature is turned on. */}
+        {isProfessionalServicesEnabled() && (
+          <Link
+            href="/profile/services"
+            className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
+          >
+            <span className="block font-medium text-neutral-900">Professional Services</span>
+            <span className="mt-0.5 block text-sm text-neutral-500">
+              Another service or business you run — massage, Pilates, photography, accompanists /
+              class musicians.
             </span>
           </Link>
         )}

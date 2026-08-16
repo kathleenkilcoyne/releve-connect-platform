@@ -23,8 +23,16 @@ import { toReelEmbed } from "@/lib/profile/reel";
 import { hasAnyActiveMembership } from "@/lib/membership/access";
 import { canConnect } from "@/lib/connections/messages";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import {
+  isProfessionalServicesEnabled,
+  isPubliclyVisible,
+  toPublicService,
+  SERVICE_SELECT,
+  type ServiceRow,
+} from "@/lib/services";
 import ConnectActions from "./ConnectActions";
 import OfferingsSection, { type PublicOffering } from "./OfferingsSection";
+import ServicesSection, { type PublicService } from "./ServicesSection";
 
 export const dynamic = "force-dynamic";
 
@@ -152,6 +160,25 @@ async function loadPublicOfferings(profileId: string): Promise<PublicOffering[]>
   return (data as PublicOffering[] | null) ?? [];
 }
 
+// The professional's PUBLIC services (other businesses they run). The admin
+// client bypasses RLS, so the two guards are applied EXPLICITLY here:
+//   1. isPubliclyVisible — hidden services and moderated-away rows never render.
+//   2. toPublicService  — contact details the member did not choose to display
+//      are stripped on the SERVER, so they are never sent to the browser at all.
+// Ordered by the member's own sort_order. Only called when the flag is on.
+async function loadPublicServices(profileId: string): Promise<PublicService[]> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("professional_services")
+    .select(SERVICE_SELECT)
+    .eq("profile_id", profileId)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true });
+  return ((data as unknown as ServiceRow[] | null) ?? [])
+    .filter(isPubliclyVisible)
+    .map(toPublicService);
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -204,6 +231,12 @@ export default async function PublicProfilePage({
   // it OFF this page issues no extra query and renders exactly as before.
   const offerings = isProfessionalOfferingsEnabled()
     ? await loadPublicOfferings(profile.profile_id)
+    : [];
+
+  // Professional Services — same shape: only queried when the flag is on, so
+  // with it OFF this page issues no extra query and renders exactly as before.
+  const services = isProfessionalServicesEnabled()
+    ? await loadPublicServices(profile.profile_id)
     : [];
 
   // ---- Viewer state: can this visitor save / request an intro? ------------
@@ -465,6 +498,13 @@ export default async function PublicProfilePage({
           <p className="mt-2 whitespace-pre-line text-neutral-700">{profile.credentials}</p>
         </section>
       )}
+
+      {/* ===== PROFESSIONAL SERVICES ======================================
+          Other businesses this member runs. Deliberately placed AFTER the dance
+          identity and Relevé offerings and BEFORE contact/social (spec §3) — it
+          complements the dance profile, it never leads it. Flag-gated AND
+          guarded by services.length (the section returns null when empty). */}
+      {isProfessionalServicesEnabled() && <ServicesSection services={services} />}
 
       {/* Résumé / CV + Links */}
       {(profile.resume_url || Object.keys(social).length > 0) && (

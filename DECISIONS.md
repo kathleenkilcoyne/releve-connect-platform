@@ -364,3 +364,119 @@ These were settled before the build began. Recorded here so they're not re-litig
 - **Publish → "Ready to Join the Relevé Roster"** (§10), default OFF. Same `profile_status` values.
 - **Heading "Create your profile" → "Welcome to the Relevé Roster"** for a first-time member; a
   returning member still sees "Edit your profile".
+
+## 2026-08-15 — Professional Services (another way I serve the dance community)
+
+*From the founder brief "RELEVÉ PROFESSIONAL PROFILE — ADD 'PROFESSIONAL SERVICES' MODULE".*
+
+- **A Service is NOT an Offering, so it gets its own table.** `professional_offerings` is what you do
+  as a dance professional ("What I Offer"). `professional_services` is a *separate business you run* —
+  massage therapy, physical therapy, Pilates, photography, costume design, music editing,
+  accompanying. Different fields (business identity, business card/logo, category taxonomy, business
+  contact), different section, different meaning. Merging them would have blurred both. Everything
+  else deliberately MIRRORS Offerings — pure lib + flag + owner-scoped workspace + public section —
+  so the two feel like one product and the patterns stay learnable.
+- **It is part of the profile, never advertising.** No "Sponsored", no "Advertisement", no ranking,
+  no boosting, no placement anyone can buy, and Relevé takes **no cut** of anything a member earns
+  from these businesses (guardrail §7.1). It sits BELOW the dance identity and Relevé offerings and
+  ABOVE contact/social, so it complements the dance profile rather than competing with it.
+- **`category` is a controlled vocabulary, indexed now, filtered later.** Fourteen categories as
+  CHECK-constrained text (mirrored by `SERVICE_CATEGORIES` in TS), with a partial index on
+  `(category) where displayed`. The founder asked for search-readiness, not a marketplace page —
+  so the future Roster facet is a query change, not a schema change. **No separate services
+  directory route was built.**
+- **Contact details are private by default and stripped on the SERVER.** `business_email` /
+  `business_phone` are stored so a member keeps them on file; `show_email` / `show_phone` default
+  **false**. `toPublicService()` nulls anything not opted into *before* the row leaves the server, so
+  a private number is never sent to the browser and hidden with CSS. A `show_*` flag with nothing to
+  show is forced back to false (validation), so the profile can never claim to publish a blank.
+- **URL safety:** every external link is normalized and validated http(s)-only. A bare domain
+  ("mcareebodywork.com") is upgraded to https; anything carrying an explicit non-http scheme
+  (`javascript:`, `data:`) is **rejected, never coerced**. All outbound links render with
+  `rel="noopener noreferrer nofollow"` and `target="_blank"`. Member prose is markup-stripped at
+  save time as well as escaped at render.
+- **Button rules (founder spec §2):** Booking link → **Book**; else website → **Visit Website**; else
+  published contact → **Contact**; else no button. A label override changes the WORDS only, never the
+  destination. The business card image is clickable only when a website/booking URL exists.
+- **"Accompanist / Class Musician" is one category today, with real columns — the musicians seam.**
+  `instrument`, `accompanist_for` (text[] + GIN index), `rate_display` / `rate_contact`, `media_url`.
+  Structured, not JSON, precisely so musicians can later become their own full Relevé professional
+  category and The Swing can match "studio needs a vetted ballet pianist Thursday" **without a
+  rebuild or a data migration**. No Musicians Roster was built. Rate is always the musician's own —
+  Relevé never sets it (contrast: the Swing's $50/hr platform constant).
+- **Moderation is a seam, not a workflow.** `moderation_status` (`ok | flagged | removed`) exists and
+  is enforced on the public read from day one, defaulting to `ok`. The founder does not want
+  per-service approval yet; adding it later means writing to a column that already gates the render.
+  The admin console shows every service a member entered — including hidden ones and unpublished
+  contact details — read-only, because reviewing means reading what they actually wrote.
+- **Flag-gated OFF (`PROFESSIONAL_SERVICES_ENABLED`), like Offerings.** With the flag off, no
+  doorway renders, no extra query runs on the public profile or the profile editor or the admin
+  console, and the server actions refuse. A profile with no services is byte-for-byte unchanged.
+- **The editor gets a doorway, not more fields.** Services are repeatable records with their own
+  media and links, so they live at `/profile/services` (same shape as Offerings) and the profile form
+  shows an optional "Professional Services" section linking to it. **Nothing about a Professional
+  Service is required to complete a Relevé profile.**
+
+## 2026-08-15 — Professional Services bookings happen ON Relevé
+
+*Founder decision, mid-build: Professional Services is on-platform commerce, not an outbound directory.*
+
+- **The external Booking Link is GONE as a booking pathway.** Sending a ready-to-buy visitor to
+  someone's Calendly took the booking, the money, AND the record of the work off Relevé at the first
+  click — which made the intended flow impossible. The `booking_url` column was dropped (0 rows, 0
+  dependents) rather than left dormant, because a dead column is an open invitation to re-add the
+  outbound button. **Website and social links stay** — identity and credibility, not a booking path.
+  A stored `cta_label = 'book'` can no longer label an outbound link either (`externalLabel()`).
+- **The public CTA is "Book on Relevé"**, rendered as a DISABLED coming-soon button until the rail
+  ships. A button that lies is worse than no button.
+- **Intended flow:** Professional Profile → Professional Service → Relevé availability → Book on
+  Relevé → Relevé checkout/payment → professional payout + configurable platform fee.
+
+### The privacy architecture (founder-ratified)
+
+> This Week / personal_events (PRIVATE) → professional publishes a chosen window → service_availability (PUBLIC) → Book on Relevé
+
+- **The booking system NEVER reads a professional's private calendar.** Not "respects a policy" —
+  there is no code path to `personal_events` at all. `personal_events` is unchanged: no new column,
+  no policy change, still owner-only.
+- **Publishing is an INSERT into a different table, not a flag.** The founder's constraint was that
+  "a private event should never become public merely because of a flag mistake." A boolean can be
+  flipped by a bad UPDATE, a careless upsert, or a mis-scoped script; a separate table cannot be
+  exposed by accident, because *nothing about personal_events changes when a window is published*.
+- **Only start/end/timezone cross the boundary.** Never title, note, location, category, or
+  attachments — an audition or a medical appointment stays invisible even when the hours around it
+  are published. `source_personal_event_id` records provenance for the OWNER's editor only.
+- **Only OPEN windows are public.** A booked or cancelled window is not publicly readable, because
+  publishing "she's busy every Tuesday at 4" is the same leak by another route.
+- **⚠️ REVOKE BEFORE GRANT — found by testing the live result, not by trusting the SQL.** This
+  project carries Supabase's default privileges, which already grant ALL columns on every new
+  public-schema table to `anon`/`authenticated`. A narrower column GRANT is therefore purely
+  ADDITIVE and creates NO boundary. `source_personal_event_id` / `internal_note` are private only
+  because of an explicit `revoke all ... from anon, authenticated` first. **Any future table relying
+  on column-level privacy must do the same** — the grant alone is a false sense of security.
+  INSERT/UPDATE stay table-level so publishing can still record provenance; owner-facing reads of
+  those columns go through the service role.
+
+### No double-booking — guaranteed by Postgres, not by application code
+
+- A GiST **exclusion constraint** (`btree_gist`, newly installed): for one professional, no two
+  non-cancelled windows may overlap. The timeline is anchored on `profile_id`, not `service_id` —
+  a person cannot be in two places at once however many services they offer.
+- The failure mode is a RACE (two buyers hitting Book in the same second). An application check
+  loses that race; a constraint cannot. Verified live: overlap rejected, adjacent `[)` window
+  accepted, cancelled window may overlap so a withdrawn slot can be re-published.
+- Plus `open → held → booked` as a conditional update, one live booking per one-to-one window
+  (partial unique index), and `booked_count <= capacity` for group windows.
+- Conflict-checking against the private calendar happens at PUBLISH time in the owner's own session.
+  The booking system never performs that check, because it never sees that data.
+
+### Money: plumbing only, NO policy
+
+- `service_bookings` follows the `experience_purchases` split shape (amount / application_fee /
+  professional_transfer, `pending → paid → refunded → failed`), and `pricing_unit` maps back to the
+  existing `rate_unit` enum for the shared earnings ledger.
+- **`platform_fee_bps` is UNSET.** `service_platform_fee_bps()` reads `app_config` and returns NULL;
+  no row is seeded. A future checkout MUST refuse to charge on NULL rather than assume a default.
+  **No fee percentage has been approved and nothing here implies one.**
+- No Stripe checkout, payment intent, payout, or transfer is implemented. The Stripe columns exist
+  so the later wiring is an UPDATE, not a migration.

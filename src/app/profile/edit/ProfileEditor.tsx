@@ -4,6 +4,7 @@
 // action; React shows "Saving…", then a success or error message. Checkbox
 // groups (styles / levels / focus) submit their checked values as arrays.
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
 
@@ -51,6 +52,8 @@ export default function ProfileEditor({
   selectedFocus,
   selectedCerts,
   selectedAvailability,
+  servicesEnabled = false,
+  servicesCount = 0,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -64,6 +67,9 @@ export default function ProfileEditor({
   selectedFocus: string[];
   selectedCerts: string[];
   selectedAvailability: string[];
+  /** Professional Services doorway — off unless PROFESSIONAL_SERVICES_ENABLED. */
+  servicesEnabled?: boolean;
+  servicesCount?: number;
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -515,6 +521,39 @@ export default function ProfileEditor({
           You will receive opportunities when Swing launches.
         </p>
       </section>
+
+      {/* Professional Services (optional) --------------------------------
+          A service is a repeatable record with its own media and links, so it
+          gets its own workspace rather than more fields on this form — the same
+          shape as Offerings. This is the doorway, and it is entirely optional:
+          nothing here is required to complete a Relevé profile. Rendered only
+          when PROFESSIONAL_SERVICES_ENABLED is on. */}
+      {servicesEnabled && (
+        <section className="rounded-xl border border-neutral-200 p-5">
+          <h2 className="text-lg font-semibold text-neutral-900">Professional Services</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Do you offer another professional service or own a business you’d like the Relevé
+            community to know about?
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <Link
+              href="/profile/services"
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            >
+              {servicesCount > 0 ? "Manage my services" : "+ Add Professional Service"}
+            </Link>
+            {servicesCount > 0 && (
+              <span className="text-sm text-neutral-500">
+                {servicesCount} {servicesCount === 1 ? "service" : "services"} added
+              </span>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            Optional. Save this page first if you have unsaved changes — the services workspace is a
+            separate page.
+          </p>
+        </section>
+      )}
 
       {/* Publish + save ------------------------------------------------- */}
       <section className="rounded-xl border border-neutral-200 p-5">

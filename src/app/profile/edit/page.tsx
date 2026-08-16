@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasActiveProfileTier } from "@/lib/membership/access";
+import { isProfessionalServicesEnabled } from "@/lib/services";
 import ProfileEditor from "./ProfileEditor";
 
 export const dynamic = "force-dynamic";
@@ -125,6 +126,20 @@ export default async function ProfileEditPage() {
     selectedAvailability = slugsOf(pa.data, "availability_tags");
   }
 
+  // Professional Services live in their own workspace (they're repeatable records
+  // with their own media, not fields on this form). The editor shows a doorway
+  // with a count — only when the flag is on, so with it OFF this page issues no
+  // extra query and renders exactly as before.
+  const servicesEnabled = isProfessionalServicesEnabled();
+  let servicesCount = 0;
+  if (servicesEnabled && p) {
+    const { count } = await supabase
+      .from("professional_services")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", p.profile_id);
+    servicesCount = count ?? 0;
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
@@ -188,6 +203,8 @@ export default async function ProfileEditPage() {
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
         selectedAvailability={selectedAvailability}
+        servicesEnabled={servicesEnabled}
+        servicesCount={servicesCount}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">

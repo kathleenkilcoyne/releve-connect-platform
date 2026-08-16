@@ -336,6 +336,55 @@ function ApplicationCard({
             />
           </div>
 
+          {/* Professional Services — other businesses this member listed on
+              their profile. Read-only: there is no per-service approval step
+              (founder direction §6), so this is here to be READ before a
+              decision, not acted on. Shows hidden services and unpublished
+              contact details too — reviewing means seeing everything they
+              entered. Absent entirely when they've listed none. */}
+          {app.services.length > 0 && (
+            <div className="rounded-xl border border-neutral-200 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                Professional Services ({app.services.length})
+              </p>
+              <ul className="mt-3 space-y-3">
+                {app.services.map((s) => (
+                  <li key={s.id} className="border-l-2 border-neutral-200 pl-3">
+                    <p className="text-sm font-medium text-neutral-900">
+                      {s.business_name}{" "}
+                      <span className="font-normal text-neutral-500">· {s.category}</span>
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                      {s.location && <span>{s.location}</span>}
+                      <Badge tone={s.shown_publicly ? "green" : "neutral"}>
+                        {s.shown_publicly ? "on profile" : "hidden"}
+                      </Badge>
+                      {s.moderation_status !== "ok" && (
+                        <Badge tone="red">{s.moderation_status}</Badge>
+                      )}
+                    </p>
+                    {s.short_description && (
+                      <p className="mt-1 text-sm text-neutral-700">{s.short_description}</p>
+                    )}
+                    <div className="mt-1">
+                      <LinkList
+                        links={[
+                          ["Website", s.website_url ?? ""],
+                          ["Social", s.social_url ?? ""],
+                        ]}
+                      />
+                    </div>
+                    {(s.business_email || s.business_phone) && (
+                      <p className="mt-1 text-xs text-neutral-500">
+                        {[s.business_email, s.business_phone].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Decision</p>

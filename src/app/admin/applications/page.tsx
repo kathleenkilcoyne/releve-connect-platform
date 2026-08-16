@@ -6,11 +6,38 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
+import {
+  isProfessionalServicesEnabled,
+  categoryLabel,
+  locationLine,
+  type ServiceRow,
+} from "@/lib/services";
 import ApplicationsConsole from "./ApplicationsConsole";
 
 export const dynamic = "force-dynamic";
 
 export type FeeStatus = "pending" | "paid" | "refunded" | "credited" | "forfeited" | "waived" | null;
+
+/**
+ * One of the applicant's Professional Services, flattened for the console. The
+ * admin sees WHAT they entered — including a service they've kept hidden, and
+ * the contact details they chose not to publish — because reviewing a member
+ * means reading what they actually wrote. No approval workflow exists yet
+ * (founder direction §6); the `moderation_status` column is the seam for one.
+ */
+export type AdminService = {
+  id: string;
+  business_name: string;
+  category: string;
+  location: string | null;
+  short_description: string | null;
+  website_url: string | null;
+  social_url: string | null;
+  business_email: string | null;
+  business_phone: string | null;
+  shown_publicly: boolean;
+  moderation_status: string;
+};
 
 export type ApplicationRow = {
   application_id: string;
@@ -29,6 +56,8 @@ export type ApplicationRow = {
   created_at: string;
   answers: Record<string, unknown> | null;
   fee_status: FeeStatus;
+  /** Any Professional Services on this person's profile (empty when none). */
+  services: AdminService[];
 };
 
 export default async function AdminApplicationsPage() {
@@ -40,7 +69,7 @@ export default async function AdminApplicationsPage() {
   const { data: appData } = await db
     .from("applications")
     .select(
-      "application_id, email, first_name, last_name, roles, primary_role, city, state_province, " +
+      "application_id, user_id, email, first_name, last_name, roles, primary_role, city, state_province, " +
         "state, approved_tier, honorifics, is_founding_25, submitted_at, created_at, answers",
     )
     .order("submitted_at", { ascending: false, nullsFirst: false })
@@ -57,9 +86,70 @@ export default async function AdminApplicationsPage() {
     if (!feeByApp.has(f.application_id)) feeByApp.set(f.application_id, f.status);
   }
 
-  const applications: ApplicationRow[] = ((appData ?? []) as unknown as ApplicationRow[]).map((a) => ({
+  // Professional Services this person listed on their profile, keyed by user.
+  // Only queried when the flag is on, so with it OFF this console issues no
+  // extra reads and renders exactly as before.
+  const servicesByUser = new Map<string, AdminService[]>();
+  if (isProfessionalServicesEnabled()) {
+    const userIds = [
+      ...new Set(
+        ((appData ?? []) as unknown as Array<{ user_id: string | null }>)
+          .map((a) => a.user_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (userIds.length > 0) {
+      const { data: profileRows } = await db
+        .from("talent_profiles")
+        .select("profile_id, user_id")
+        .in("user_id", userIds);
+      const userByProfile = new Map(
+        ((profileRows ?? []) as Array<{ profile_id: string; user_id: string }>).map((p) => [
+          p.profile_id,
+          p.user_id,
+        ]),
+      );
+      if (userByProfile.size > 0) {
+        const { data: serviceRows } = await db
+          .from("professional_services")
+          .select(
+            "id, profile_id, category, category_other_label, business_name, short_description, " +
+              "location, service_type, website_url, social_url, business_email, " +
+              "business_phone, status, moderation_status, sort_order",
+          )
+          .in("profile_id", [...userByProfile.keys()])
+          .order("sort_order", { ascending: true });
+
+        type Row = ServiceRow & { profile_id: string };
+        for (const s of (serviceRows ?? []) as unknown as Row[]) {
+          const uid = userByProfile.get(s.profile_id);
+          if (!uid) continue;
+          const list = servicesByUser.get(uid) ?? [];
+          list.push({
+            id: s.id,
+            business_name: s.business_name,
+            category: categoryLabel(s.category, s.category_other_label),
+            location: locationLine(s.location, s.service_type),
+            short_description: s.short_description,
+            website_url: s.website_url,
+            social_url: s.social_url,
+            business_email: s.business_email,
+            business_phone: s.business_phone,
+            shown_publicly: s.status === "active",
+            moderation_status: s.moderation_status,
+          });
+          servicesByUser.set(uid, list);
+        }
+      }
+    }
+  }
+
+  const applications: ApplicationRow[] = (
+    (appData ?? []) as unknown as Array<ApplicationRow & { user_id: string | null }>
+  ).map((a) => ({
     ...a,
     fee_status: feeByApp.get(a.application_id) ?? null,
+    services: (a.user_id && servicesByUser.get(a.user_id)) || [],
   }));
 
   return (
