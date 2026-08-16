@@ -6,38 +6,18 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
-import {
-  isProfessionalServicesEnabled,
-  categoryLabel,
-  locationLine,
-  type ServiceRow,
-} from "@/lib/services";
+import { isProfessionalServicesEnabled, type ServiceRow } from "@/lib/services";
+import { toAdminService, type AdminService } from "@/lib/services/admin";
 import ApplicationsConsole from "./ApplicationsConsole";
 
 export const dynamic = "force-dynamic";
 
 export type FeeStatus = "pending" | "paid" | "refunded" | "credited" | "forfeited" | "waived" | null;
 
-/**
- * One of the applicant's Professional Services, flattened for the console. The
- * admin sees WHAT they entered — including a service they've kept hidden, and
- * the contact details they chose not to publish — because reviewing a member
- * means reading what they actually wrote. No approval workflow exists yet
- * (founder direction §6); the `moderation_status` column is the seam for one.
- */
-export type AdminService = {
-  id: string;
-  business_name: string;
-  category: string;
-  location: string | null;
-  short_description: string | null;
-  website_url: string | null;
-  social_url: string | null;
-  business_email: string | null;
-  business_phone: string | null;
-  shown_publicly: boolean;
-  moderation_status: string;
-};
+// The admin projection (and the rule about what a reviewer may see) lives in
+// @/lib/services/admin so it can be unit-tested. Re-exported here because
+// ApplicationsConsole imports its types from this module.
+export type { AdminService };
 
 export type ApplicationRow = {
   application_id: string;
@@ -125,19 +105,8 @@ export default async function AdminApplicationsPage() {
           const uid = userByProfile.get(s.profile_id);
           if (!uid) continue;
           const list = servicesByUser.get(uid) ?? [];
-          list.push({
-            id: s.id,
-            business_name: s.business_name,
-            category: categoryLabel(s.category, s.category_other_label),
-            location: locationLine(s.location, s.service_type),
-            short_description: s.short_description,
-            website_url: s.website_url,
-            social_url: s.social_url,
-            business_email: s.business_email,
-            business_phone: s.business_phone,
-            shown_publicly: s.status === "active",
-            moderation_status: s.moderation_status,
-          });
+          // Allowlist projection — see toAdminService. Never a spread of the row.
+          list.push(toAdminService(s));
           servicesByUser.set(uid, list);
         }
       }
