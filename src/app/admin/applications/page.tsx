@@ -146,6 +146,9 @@ export default async function AdminApplicationsPage() {
         <Link href="/admin/studios" className="text-neutral-700 underline">
           Founding Studios
         </Link>
+        <Link href="/admin/profiles" className="text-neutral-700 underline">
+          Trust signals
+        </Link>
         <Link href="/" className="text-neutral-500 underline">
           ← Back to Relevé
         </Link>

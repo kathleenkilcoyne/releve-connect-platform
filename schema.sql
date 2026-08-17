@@ -1334,6 +1334,47 @@ create table if not exists public.processed_stripe_events (
   constraint processed_stripe_events_pkey PRIMARY KEY (event_id)
 );
 
+-- PROFILE_TRUST_EVENTS — the audit trail behind Relevé-conferred trust signals
+-- (migration 20260817232844, applied 2026-08-17).
+--
+-- Trust signals are conferred by Relevé: not purchased, not self-entered. The
+-- member's own form cannot write any of them. This table records who conferred,
+-- corrected, or withdrew one, when, and on what stated grounds — so "Founding 25"
+-- stays answerable years later instead of being decoration nobody can account for.
+--
+-- Append-only, one row per FIELD per change. Values are TEXT, not typed columns,
+-- so an audit row stays readable even if a vocabulary is later retired and is
+-- never re-interpreted by a schema change made afterwards.
+--
+-- NOT a source of truth: talent_profiles holds the current values; this explains
+-- how they got there. Nothing reads this table to decide anything.
+--
+-- `actor_user_id` is ON DELETE RESTRICT deliberately — an admin account must not
+-- be deletable while conferrals are attributed to it. "Some admin, at some point"
+-- is not an audit trail.
+--
+-- RLS is ON with NO POLICIES and no Data-API grants: service-role only. A member
+-- must not read their own trust history — it would expose internal review notes,
+-- and the profile already shows the outcome.
+create table if not exists public.profile_trust_events (
+  event_id uuid not null default gen_random_uuid(),
+  profile_id uuid not null,
+  actor_user_id uuid not null,
+  field text not null,
+  previous_value text,
+  new_value text,
+  reason text,
+  created_at timestamp with time zone not null default now(),
+  constraint profile_trust_events_pkey PRIMARY KEY (event_id),
+  constraint profile_trust_events_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES talent_profiles(profile_id) ON DELETE CASCADE,
+  constraint profile_trust_events_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+  constraint profile_trust_events_field_check CHECK ((field = ANY (ARRAY['honorifics'::text, 'founder_distinction'::text, 'choreographer_tier'::text, 'verification_flag'::text])))
+);
+-- index profile_trust_events_profile_idx on (profile_id, created_at desc)
+-- index profile_trust_events_actor_idx   on (actor_user_id, created_at desc)
+-- `verification_flag` is a permitted field value with no admin UI yet — so the
+-- future Verified-admin path needs no second migration.
+
 
 -- ----------------------------------------------------------------------------
 -- 20.6 — THE STUDIO / FAMILY / TEAM LAYER ("This Week" and the org tools)
