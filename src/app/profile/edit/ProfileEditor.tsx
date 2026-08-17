@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
+import { VISIBILITY_COPY } from "@/lib/profile/visibility";
 
 type Option = { slug: string; label: string };
 type AvailOption = Option & { kind: "general" | "currently" };
@@ -28,6 +29,7 @@ type Initial = {
   resume_url: string;
   social_links: Record<string, string>;
   profile_status: string;
+  visibility: string;
   teaching_at: string;
   touring_with: string;
 } | null;
@@ -570,8 +572,44 @@ export default function ProfileEditor({
         </label>
         <p className="mt-1 pl-7 text-xs text-neutral-500">
           Turn this on when you&apos;re ready for studios and fellow professionals to discover you.
-          Off means your profile stays a private draft.
+          Off means your profile stays a private draft that only you can see.
         </p>
+
+        {/* Visibility — the SECOND axis (founder decision §7). Publishing decides
+            whether the page is live at all; this decides how discoverable it is
+            once it is. The two were conflated before Profile V2: every save
+            forcibly wrote 'public', so this choice did not exist. The copy states
+            plainly what each option means BEFORE the member publishes. */}
+        <fieldset className="mt-6 border-t border-neutral-200 pt-5">
+          <legend className="text-sm font-medium text-neutral-800">
+            Once published, who can find it?
+          </legend>
+          <div className="mt-3 space-y-3">
+            {(["public", "unlisted"] as const).map((v) => (
+              <label key={v} className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value={v}
+                  defaultChecked={(initial?.visibility ?? "public") === v}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-neutral-800">
+                    {VISIBILITY_COPY[v].label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
+                    {VISIBILITY_COPY[v].help}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            You can change this at any time, and switching to unlisted takes you off the Roster
+            immediately.
+          </p>
+        </fieldset>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <button

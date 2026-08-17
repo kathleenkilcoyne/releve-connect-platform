@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { slugify, resolveUniqueSlug } from "@/lib/profile/slug";
+import { normalizeVisibility } from "@/lib/profile/visibility";
 
 export type SaveState = {
   ok: boolean;
@@ -110,7 +111,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // "something is wrong", not a path to quietly create an unvetted profile.
   const { data: existing } = await supabase
     .from("talent_profiles")
-    .select("profile_id, public_slug, headshot_url, gallery_urls, resume_url")
+    .select("profile_id, public_slug, headshot_url, gallery_urls, resume_url, visibility")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -227,7 +228,15 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     gallery_urls: galleryUrls,
     social_links: social,
     profile_status: publish ? "published" : "draft",
-    visibility: "public",
+    // PROFILE V2 (founder decision §7). This line used to read `visibility:
+    // "public"` unconditionally — every save silently rewrote the member's
+    // choice, which made `unlisted` unreachable no matter what any UI offered.
+    // Now it takes what the member chose, and falls back to what they already
+    // had. A missing or unrecognised value can never widen exposure.
+    visibility: normalizeVisibility(
+      formData.get("visibility"),
+      (existing as { visibility?: string }).visibility,
+    ),
     updated_at: new Date().toISOString(),
   };
   if (headshotUrl !== undefined) row.headshot_url = headshotUrl;

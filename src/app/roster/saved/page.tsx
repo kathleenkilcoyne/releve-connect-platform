@@ -47,12 +47,22 @@ export default async function SavedPage() {
   let cards: Card[] = [];
   if (ids.length) {
     const admin = createAdminClient();
+    // PROFILE V2 (founder decision §7). This read had NO publication filter at
+    // all: a profile saved while live and later unpublished kept rendering here,
+    // so a member's DRAFT was visible to anyone who had saved them. The service
+    // role bypasses RLS, so the filter has to be explicit.
+    //
+    // `published` is the bar, not `public`: an unlisted profile stays on the list
+    // of someone who had already saved it. Unlisted means "not discoverable by
+    // strangers", not "hidden from people who already have your link" — and a
+    // shortlist you built yourself is not discovery. Drafts are excluded either way.
     const { data } = await admin
       .from("talent_profiles")
       .select(
         "profile_id, display_name, public_slug, primary_role, city, state_province, country, headshot_url, verification_flag",
       )
-      .in("profile_id", ids);
+      .in("profile_id", ids)
+      .eq("profile_status", "published");
     // Preserve the saved order.
     const byId = new Map((data as Card[] | null ?? []).map((c) => [c.profile_id, c]));
     cards = ids.map((id) => byId.get(id)).filter((c): c is Card => Boolean(c));
