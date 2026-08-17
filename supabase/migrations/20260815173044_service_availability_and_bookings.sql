@@ -1,7 +1,17 @@
 -- ============================================================================
--- Relevé Connect — Migration: service_availability + service_bookings (DRAFT)
+-- Relevé Connect — Migration: service_availability + service_bookings
 -- ----------------------------------------------------------------------------
--- ⚠️  NOT APPLIED. Awaiting founder approval of the schema.
+-- ✅ APPLIED TO PRODUCTION — registered version 20260815173044.
+--    (Header corrected 2026-08-17. It previously read "NOT APPLIED. Awaiting
+--    founder approval of the schema," and the file was titled DRAFT. Both were
+--    true when written and became false when it was applied. A read-only audit on
+--    2026-08-17 verified against the live catalog: both tables, all columns, the
+--    btree_gist extension, every CHECK and FK, the no-overlap EXCLUDE constraint,
+--    all 8 indexes, and all 5 RLS policies are present in Supabase project
+--    hmqqxbkhcqspqmsjxodq. Both tables are EMPTY (0 rows) and no application code
+--    reads them — the feature is schema-only, which is probably why the header was
+--    never corrected. Do not treat this file as pending work. Only comments
+--    changed — no SQL below was touched.)
 --
 -- ── The rule this file exists to enforce ──
 -- The booking system NEVER reads a professional's private calendar.
@@ -299,7 +309,8 @@ comment on table public.service_bookings is
 commit;
 
 -- ============================================================================
--- END (DRAFT — not applied).
+-- END. APPLIED to production 2026-08-15; verified against the live catalog
+-- 2026-08-17. (This line previously read "END (DRAFT — not applied)".)
 --
 -- ROLLBACK:
 --   begin;

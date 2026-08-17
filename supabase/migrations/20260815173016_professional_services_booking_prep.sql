@@ -1,7 +1,15 @@
 -- ============================================================================
 -- Relevé Connect — Migration: Professional Services, native-booking preparation
 -- ----------------------------------------------------------------------------
--- ⚠️  NOT YET APPLIED. Written for review; apply on the founder's word.
+-- ✅ APPLIED TO PRODUCTION — registered version 20260815173016.
+--    (Header corrected 2026-08-17. It previously read "NOT YET APPLIED. Written
+--    for review; apply on the founder's word." That was true when the file was
+--    written and became false when it was applied, and nobody updated it. A
+--    read-only audit on 2026-08-17 verified every object below against the live
+--    catalog: the 9 columns, all 6 CHECK constraints, the bookable index, the
+--    dropped `booking_url`, and the service_platform_fee_bps() function are all
+--    present in Supabase project hmqqxbkhcqspqmsjxodq. Do not treat this file as
+--    pending work. Only the comment changed — no SQL below was touched.)
 --
 -- ── Why ──
 -- A Professional Service is NOT an outbound directory listing. The external
