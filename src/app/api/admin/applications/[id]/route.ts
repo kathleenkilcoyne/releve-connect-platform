@@ -23,6 +23,7 @@ import {
   sendApplicationDeclined,
 } from "@/lib/notifications";
 import { grantFoundingMembership } from "@/lib/membership/founding";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,6 +130,16 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
             comp.detail,
           );
         }
+
+        // ── PROFILE V2 — activation ──
+        // During the free founding period the comp above IS the activation, so
+        // approval and payment land in the same request and the draft profile can
+        // be created now. Called unconditionally (not only when `granted` is
+        // true): `already_active` means they were activated earlier and are just
+        // as eligible. Returns without creating anything if they are not, or if a
+        // profile already exists. Never throws — the approval decision is already
+        // recorded and must not be undone by a profile-creation problem.
+        await activateProfessionalProfile(db, app.user_id);
       }
 
       await fireMailerLiteTag(app.email, "application_approved");

@@ -7,7 +7,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { hasActiveProfileTier } from "@/lib/membership/access";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 import { isProfessionalServicesEnabled } from "@/lib/services";
 import ProfileEditor from "./ProfileEditor";
 
@@ -56,6 +58,18 @@ export default async function ProfileEditPage() {
     redirect("/subscribe?from=profile");
   }
 
+  // PROFILE V2 — catch-up activation.
+  //
+  // Profiles are created by the activation service, not by saving this form. Two
+  // groups of people can hold an active membership and still have no profile row:
+  // anyone activated BEFORE Profile V2 shipped, and anyone whose webhook or
+  // approve-time activation failed. Running it here means they simply arrive and
+  // find their profile waiting, instead of hitting an editor that cannot save.
+  //
+  // Idempotent and cheap: it returns immediately when a profile already exists,
+  // which is the case on every visit after the first.
+  await activateProfessionalProfile(createAdminClient(), user.id);
+
   // Pick-lists (world-readable).
   const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
@@ -90,6 +104,14 @@ export default async function ProfileEditPage() {
 
   // The untyped client returns a loose type; cast once to a known shape.
   const p = profile as unknown as ProfileFields | null;
+
+  // Still no profile after the catch-up above means this person holds an active
+  // membership but was never approved and holds no founding grant — so under the
+  // Profile V2 rule they are not a vetted professional and must not have a
+  // professional profile. Paying for a membership does not confer one. Send them
+  // to /subscribe, which explains where they stand, rather than to an editor that
+  // could not save anyway.
+  if (!p) redirect("/subscribe?from=profile");
 
   // Which tags are currently selected.
   //
