@@ -871,6 +871,40 @@ alter table public.talent_profiles
 -- touring_with             free-text "Touring with ..." line
 -- available_for_licensing  the Licensing capability switch — see `works` in 20.3
 
+-- PROFILE V2 — activation + provenance (migration 20260817221638, applied
+-- 2026-08-17). A talent_profiles row is created at ACTIVATION (approved AND an
+-- active profile-bearing membership, paid or authorized comp), seeded ONCE from
+-- the accepted application, and always created as a DRAFT. The application is
+-- preserved unchanged as the historical vetting record; there is no two-way sync.
+alter table public.talent_profiles
+  add column if not exists prefilled_from_application_id uuid
+    references public.applications(application_id) on delete set null,
+  add column if not exists prefilled_at        timestamptz,
+  add column if not exists teaching_philosophy text,
+  add column if not exists adaptive_experience text,
+  add column if not exists choreographer_years text;
+-- prefilled_from_application_id  provenance: which accepted application seeded this
+--                               profile. ON DELETE SET NULL — a member's professional
+--                               record must survive deletion of their paperwork.
+--                               NULL is meaningful: a Founding Professional (never
+--                               applied), or a profile predating Profile V2.
+-- prefilled_at                   when the one-time seed ran. Non-null = done, never repeat.
+-- teaching_philosophy            narrative; the application's four teaching prompts
+-- adaptive_experience            adaptive / inclusive dance experience (its own column
+--                               so it stays findable rather than buried in prose)
+-- choreographer_years            years choreographing — DISTINCT from years_experience
+--                               (overall career length). Text, because the application
+--                               asks for free text and we preserve what was written.
+--
+-- ONE PROFILE PER PERSON, enforced by the database rather than by an application-
+-- level existence check — activation fires from a Stripe webhook, an admin approve
+-- click, and a sign-in claim, any two of which can race:
+create unique index if not exists talent_profiles_user_id_key
+  on public.talent_profiles (user_id);
+create index if not exists talent_profiles_prefilled_from_idx
+  on public.talent_profiles (prefilled_from_application_id)
+  where prefilled_from_application_id is not null;
+
 -- users: the onboarding gateway's memory of which door someone chose.
 alter table public.users
   add column if not exists onboarding_intent text;   -- professional | studio | team | partner
