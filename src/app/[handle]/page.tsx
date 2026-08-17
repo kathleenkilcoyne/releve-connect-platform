@@ -21,6 +21,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { toReelEmbed } from "@/lib/profile/reel";
 import { hasAnyActiveMembership } from "@/lib/membership/access";
+import { canViewByDirectLink, shouldIndex } from "@/lib/profile/visibility";
 import { canConnect } from "@/lib/connections/messages";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
 import ConnectActions from "./ConnectActions";
@@ -72,7 +73,16 @@ async function loadProfile(handle: string) {
   const profile = data as ProfileRow | null;
   if (!profile) return null;
 
-  const isLive = profile.profile_status === "published" && profile.visibility === "public";
+  // PROFILE V2 (founder decision §7). This used to require visibility === 'public',
+  // which meant an `unlisted` profile 404'd for everyone — the value was honoured
+  // on read but achieved nothing. Link-only now means what it says: published is
+  // what makes a page reachable; visibility decides only whether it is DISCOVERABLE
+  // (Roster inclusion + search indexing), not whether it loads for someone holding
+  // the URL.
+  const isLive = canViewByDirectLink({
+    profileStatus: profile.profile_status,
+    visibility: profile.visibility,
+  });
   let isDraftPreview = false;
   if (!isLive) {
     // Not public yet — only the owner (if signed in) may preview it.
@@ -160,9 +170,19 @@ export async function generateMetadata({
   const { handle } = await params;
   const loaded = await loadProfile(handle);
   if (!loaded) return { title: "Profile · Relevé Connect" };
+
+  // An unlisted profile asks search engines not to index it — without this,
+  // "link-only" survives exactly until the first crawl of a shared link. A draft
+  // being previewed by its owner is likewise never indexable.
+  const indexable = shouldIndex({
+    profileStatus: loaded.profile.profile_status,
+    visibility: loaded.profile.visibility,
+  });
+
   return {
     title: `${loaded.profile.display_name} · Relevé Connect`,
     description: loaded.profile.bio?.slice(0, 160) ?? undefined,
+    robots: indexable ? undefined : { index: false, follow: false },
   };
 }
 
