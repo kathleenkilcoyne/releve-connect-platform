@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
 import { claimFoundingProfessionalOnSignIn } from "@/lib/founding/founding-professional";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 /**
  * Cookie the family-join gate drops before sending a prospective parent to sign
@@ -121,6 +122,35 @@ export async function resolveSignedInDestination(
       // professional default which would bounce them to /subscribe.
       const orgId = await resolveStudioForUser(user.id);
       if (orgId) return "/studio/schedule";
+
+      // ── PROFILE V2 — catch-up activation (2026-08-17) ──
+      //
+      // Found in the end-to-end browser test: an APPROVED professional with an
+      // ACTIVE membership but no profile row signed in and landed on /welcome,
+      // the cold-user gateway, asking how they were joining Relevé. They had
+      // already applied, been accepted, and activated.
+      //
+      // The cause: the draft check above has no row to read, and the checks
+      // below are all "who else might you be?". /profile/edit and
+      // /profile/review both run a catch-up activation on load; sign-in routing
+      // was the one door that did not, so whether someone got their profile
+      // depended on which URL they happened to open first.
+      //
+      // This calls the SAME service those pages call — no second creation path,
+      // and every Profile V2 rule stays where it lives:
+      //   · an application alone creates nothing
+      //   · approval alone is not enough without an active paid or authorized
+      //     complimentary membership
+      //   · the profile is seeded once from the accepted application
+      //   · it is always created as a DRAFT
+      //   · trust signals are stamped by activation, never by a member action
+      //
+      // Placed AFTER the family and org checks so their precedence is unchanged,
+      // and so the extra reads only happen for someone who would otherwise have
+      // hit the gateway. `created: false` (not eligible) simply falls through to
+      // the gateway exactly as before.
+      const activation = await activateProfessionalProfile(admin, user.id);
+      if (activation.created) return "/profile/review";
 
       // ── The onboarding gateway (2026-08-06) ──
       // A signed-in person with NO talent profile, NO family/guardianship, and NO
