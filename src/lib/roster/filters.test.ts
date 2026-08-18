@@ -18,6 +18,7 @@ describe("parseRosterParams", () => {
       levels: [],
       certs: [],
       availability: [],
+      services: [],
       region: null,
       state: null,
       q: null,
@@ -60,6 +61,8 @@ const base: RosterRow = {
   level_slugs: ["advanced", "professional"],
   cert_slugs: ["abt-ntc"],
   availability_slugs: ["weekends", "willing-to-travel", "accepting-choreography"],
+  // My Services — the source of truth for what this person offers.
+  service_slugs: ["choreography", "master-classes"],
   region_id: "region-nj",
   state_province: "NJ",
   display_name: "Ava Marchetti",
@@ -164,5 +167,122 @@ describe("profileMatchesFilters", () => {
 
   it("counts availability as an active filter (so 'Clear filters' shows)", () => {
     expect(hasNoActiveFilters(parseRosterParams({ avail: "weekends" }))).toBe(false);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MY SERVICES as the Roster's source of truth for what someone offers.
+   (2026-08-18 — "one fact, one source of truth, many useful places".)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+describe("the services facet", () => {
+  it("parses ?svc= into the services filter", () => {
+    expect(parseRosterParams({ svc: "choreography" }).services).toEqual(["choreography"]);
+    expect(parseRosterParams({ svc: ["choreography", "adjudication"] }).services).toEqual([
+      "choreography",
+      "adjudication",
+    ]);
+    expect(parseRosterParams({ svc: "choreography,guest-teaching" }).services).toEqual([
+      "choreography",
+      "guest-teaching",
+    ]);
+  });
+
+  it("counts as an active filter", () => {
+    expect(hasNoActiveFilters(parseRosterParams({ svc: "choreography" }))).toBe(false);
+  });
+
+  it("matches a profile that offers the service", () => {
+    const f = parseRosterParams({ svc: "choreography" });
+    expect(profileMatchesFilters(base, f)).toBe(true);
+  });
+
+  it("excludes a profile that does not offer it", () => {
+    const f = parseRosterParams({ svc: "adjudication" });
+    expect(profileMatchesFilters(base, f)).toBe(false);
+  });
+
+  it("is ANY-within-facet — one match is enough", () => {
+    const f = parseRosterParams({ svc: ["adjudication", "master-classes"] });
+    expect(profileMatchesFilters(base, f)).toBe(true);
+  });
+
+  it("is AND-across-facets — services plus style must both hold", () => {
+    expect(
+      profileMatchesFilters(base, parseRosterParams({ svc: "choreography", style: "ballet" })),
+    ).toBe(true);
+    expect(
+      profileMatchesFilters(base, parseRosterParams({ svc: "choreography", style: "tap" })),
+    ).toBe(false);
+  });
+
+  it("treats a profile with no services as unmatched, not as a wildcard", () => {
+    const noServices = { ...base, service_slugs: null };
+    expect(profileMatchesFilters(noServices, parseRosterParams({ svc: "choreography" }))).toBe(
+      false,
+    );
+    // …but an unfiltered search still returns them.
+    expect(profileMatchesFilters(noServices, parseRosterParams({}))).toBe(true);
+  });
+});
+
+// NOTHING may lose results. The four retired tags were preserved (inactive), and
+// the availability facet now matches through EITHER path.
+describe("no existing search path loses results", () => {
+  it("a retired tag still matches a profile that HOLDS the tag", () => {
+    const tagOnly = { ...base, service_slugs: [] };
+    expect(
+      profileMatchesFilters(tagOnly, parseRosterParams({ avail: "accepting-choreography" })),
+    ).toBe(true);
+  });
+
+  // The case the tag-only path could never have handled: someone who joined
+  // after the conversion has the service and no tag at all.
+  it("a retired tag ALSO matches a profile that only has the SERVICE", () => {
+    const serviceOnly = {
+      ...base,
+      availability_slugs: ["weekends"],
+      service_slugs: ["choreography"],
+    };
+    expect(
+      profileMatchesFilters(serviceOnly, parseRosterParams({ avail: "accepting-choreography" })),
+    ).toBe(true);
+  });
+
+  it("still excludes someone with neither the tag nor the service", () => {
+    const neither = {
+      ...base,
+      availability_slugs: ["weekends"],
+      service_slugs: ["master-classes"],
+    };
+    expect(
+      profileMatchesFilters(neither, parseRosterParams({ avail: "accepting-choreography" })),
+    ).toBe(false);
+  });
+
+  it("general availability behaves exactly as it always did", () => {
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "weekends" }))).toBe(true);
+    expect(profileMatchesFilters(base, parseRosterParams({ avail: "summers-only" }))).toBe(false);
+    // …and is not rescued by any service, because it maps to none.
+    const noTags = { ...base, availability_slugs: [] };
+    expect(profileMatchesFilters(noTags, parseRosterParams({ avail: "weekends" }))).toBe(false);
+  });
+
+  it("every retired tag finds a profile holding only its service equivalent", () => {
+    const cases: Array<[string, string]> = [
+      ["accepting-choreography", "choreography"],
+      ["accepting-master-classes", "master-classes"],
+      ["available-for-adjudication", "adjudication"],
+      ["available-for-guest-teaching", "guest-teaching"],
+    ];
+    for (const [tag, service] of cases) {
+      const row = { ...base, availability_slugs: [], service_slugs: [service] };
+      expect(profileMatchesFilters(row, parseRosterParams({ avail: tag })), tag).toBe(true);
+    }
+  });
+
+  it("clearing filters returns everyone again", () => {
+    expect(hasNoActiveFilters(parseRosterParams({}))).toBe(true);
+    expect(profileMatchesFilters(base, parseRosterParams({}))).toBe(true);
   });
 });

@@ -54,8 +54,12 @@ export default function OfferingsSection({
 
   return (
     <section className="mt-10">
+      {/* "Services" rather than "My Services" — this heading is read by a
+          studio looking at someone else's profile, where "my" has no owner.
+          The member-facing name is My Services (founder, 2026-08-18); this is
+          the same concept in the third person. */}
       <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-neutral-500">
-        What I Offer
+        Services
       </h2>
       <div className="mt-3 grid gap-4 sm:grid-cols-2">
         {offerings.map((o) => (

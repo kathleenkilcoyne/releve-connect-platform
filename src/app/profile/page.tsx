@@ -104,7 +104,7 @@ export default async function ProfileHomePage() {
             href="/profile/offerings"
             className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
           >
-            <span className="block font-medium text-neutral-900">Professional Offerings</span>
+            <span className="block font-medium text-neutral-900">My Services</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
               Showcase the skills, services, creative work, experiences, and products you offer.
             </span>

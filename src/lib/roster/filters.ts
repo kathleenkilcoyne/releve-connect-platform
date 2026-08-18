@@ -8,6 +8,8 @@
 // query, approximated here as a name substring). The Roster page builds its
 // Supabase query from the same parsed filters.
 
+import { legacyAvailabilityAsServices } from "./services";
+
 /** Result page size. */
 export const ROSTER_PAGE_SIZE = 24;
 
@@ -34,6 +36,13 @@ export type RosterFilters = {
   // filter identically and a studio combining them ("weekends AND accepting
   // master classes") wants a single ANY-within / AND-across rule, not two.
   availability: string[];
+  /**
+   * MY SERVICES — what the professional offers. Sourced from
+   * `professional_offerings` via `roster_profiles.service_slugs`; the Roster
+   * keeps no vocabulary of its own (the 2026-08-18 principle: one fact, one
+   * source of truth). Replaces the retired `kind = currently` availability tags.
+   */
+  services: string[];
   region: string | null; // region_id (uuid) as string
   state: string | null; // state/province, case-insensitive
   q: string | null; // free-text (name/bio)
@@ -47,6 +56,8 @@ export type RosterRow = {
   level_slugs: string[] | null;
   cert_slugs: string[] | null;
   availability_slugs: string[] | null;
+  /** Derived from the member's ACTIVE My Services rows (the source of truth). */
+  service_slugs: string[] | null;
   region_id: string | null;
   state_province: string | null;
   display_name: string;
@@ -90,6 +101,7 @@ export function parseRosterParams(sp: RawParams): RosterFilters {
     levels: multi(sp.level),
     certs: multi(sp.cert),
     availability: multi(sp.avail),
+    services: multi(sp.svc),
     region,
     state,
     q,
@@ -105,6 +117,29 @@ function overlaps(have: string[] | null, want: string[]): boolean {
 }
 
 /**
+ * The availability facet, with the retired tags kept working.
+ *
+ * A profile satisfies an `avail` value if it still HOLDS that tag, **or** if it
+ * offers the service that replaced it. Both paths are honoured because the four
+ * `kind = 'currently'` tags became My Services on 2026-08-18 and the tags were
+ * deliberately kept (inactive) rather than deleted:
+ *
+ *   · an existing member who held the tag keeps matching — nothing lost today;
+ *   · a member who joined AFTERWARDS has the service and no tag, and now
+ *     matches too — which the tag-only path could never have done;
+ *   · and it keeps matching once the tags are finally deleted.
+ *
+ * A plain `general` availability filter (weekends, willing to travel) expands to
+ * no services and behaves exactly as it always did.
+ */
+function matchesAvailability(row: RosterRow, want: string[]): boolean {
+  if (want.length === 0) return true;
+  if (overlaps(row.availability_slugs, want)) return true;
+  const asServices = legacyAvailabilityAsServices(want);
+  return asServices.length > 0 && overlaps(row.service_slugs, asServices);
+}
+
+/**
  * Reference predicate the SQL query mirrors: a profile matches when it's an
  * active-owner row AND satisfies every applied facet (AND across facets, ANY
  * within a facet). Text `q` is approximated as a case-insensitive name substring
@@ -116,7 +151,8 @@ export function profileMatchesFilters(row: RosterRow, f: RosterFilters): boolean
   if (!overlaps(row.style_slugs, f.styles)) return false;
   if (!overlaps(row.level_slugs, f.levels)) return false;
   if (!overlaps(row.cert_slugs, f.certs)) return false;
-  if (!overlaps(row.availability_slugs, f.availability)) return false;
+  if (!matchesAvailability(row, f.availability)) return false;
+  if (!overlaps(row.service_slugs, f.services)) return false;
   if (f.region && row.region_id !== f.region) return false;
   if (f.state && (row.state_province ?? "").toLowerCase() !== f.state.toLowerCase()) return false;
   if (f.q && !row.display_name.toLowerCase().includes(f.q.toLowerCase())) return false;
@@ -130,6 +166,7 @@ export function hasNoActiveFilters(f: RosterFilters): boolean {
     f.levels.length === 0 &&
     f.certs.length === 0 &&
     f.availability.length === 0 &&
+    f.services.length === 0 &&
     !f.region &&
     !f.state &&
     !f.q

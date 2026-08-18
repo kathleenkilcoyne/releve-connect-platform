@@ -114,10 +114,18 @@ async function loadProfile(handle: string) {
     db.from("profile_styles").select("styles(label)").eq("profile_id", pid),
     db.from("profile_levels").select("levels(label)").eq("profile_id", pid),
     db.from("profile_focus_areas").select("focus_areas(label)").eq("profile_id", pid),
+    // `is_active` is filtered here to match the editor and the Roster filter,
+    // which both already read only active tags. Without it, a RETIRED tag would
+    // keep rendering publicly forever — which is exactly what would have
+    // happened to the four "I'm currently accepting" tags after they became My
+    // Services on 2026-08-18: the member could no longer see or change them,
+    // and studios would still see them. The rows are deliberately preserved in
+    // the database (nothing is deleted); they simply stop being published.
     db
       .from("profile_availability")
-      .select("availability_tags(label, kind, sort_order)")
-      .eq("profile_id", pid),
+      .select("availability_tags!inner(label, kind, sort_order, is_active)")
+      .eq("profile_id", pid)
+      .eq("availability_tags.is_active", true),
   ]);
   const labelsOf = (rows: unknown, key: string): string[] =>
     ((rows as Array<Record<string, { label: string } | { label: string }[]>>) ?? [])
@@ -133,7 +141,7 @@ async function loadProfile(handle: string) {
   // The embedded row comes back as either an object or a one-element array
   // depending on how the client infers the relationship — same reason `labelsOf`
   // above handles both. Cast through `unknown` and normalize.
-  type AvailTag = { label: string; kind: string; sort_order: number };
+  type AvailTag = { label: string; kind: string; sort_order: number; is_active?: boolean };
   const availRows = ((avail.data ?? []) as unknown as Array<{
     availability_tags: AvailTag | AvailTag[] | null;
   }>)

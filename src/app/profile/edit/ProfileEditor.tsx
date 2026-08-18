@@ -97,10 +97,14 @@ export default function ProfileEditor({
 
   const social = initial?.social_links ?? {};
 
-  // Availability comes from one table in two flavours: when you can work, and
-  // what you're taking on right now. Rendered as two groups, saved as one facet.
+  // Availability is now ONE thing: where and how you can work (founder IA,
+  // 2026-08-18). The `kind = 'currently'` flavour — "I'm currently accepting
+  // choreography / master classes / adjudication / guest teaching" — described
+  // what someone OFFERS, not when they are free, and became My Services in
+  // migration 20260818143121. Those tags are `is_active = false`, so
+  // `availOptions` no longer contains them and there is nothing to filter out
+  // here; the page reads whatever is active.
   const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -306,6 +310,44 @@ export default function ProfileEditor({
         />
       </section>
 
+      {/* Current work (moved out of Availability, 2026-08-18) ------------
+          Founder: "'Currently teaching at / touring with' should remain
+          professional context, separate from availability."
+          These are FACTS ABOUT SOMEONE'S CAREER — where they are right now —
+          not a statement of when or how they can be booked. They sat under
+          Availability only because the "Currently" grouping used to hold both
+          these lines and the "I'm currently accepting" tags. Those tags are now
+          My Services, so the grouping had nothing left to justify it. Neither
+          field is a Roster filter; both are free text, and they render as
+          context on the public profile. */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Current work</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Where you are right now. Context for anyone reading your profile — not a
+          statement of availability.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className={label}>Teaching at</label>
+            <input
+              name="teaching_at"
+              defaultValue={initial?.teaching_at}
+              placeholder="e.g. Broadway Dance Center"
+              className={input}
+            />
+          </div>
+          <div>
+            <label className={label}>Touring with</label>
+            <input
+              name="touring_with"
+              defaultValue={initial?.touring_with}
+              placeholder="e.g. Hamilton — National Tour"
+              className={input}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Photo gallery (up to 8, shown as a grid — spec §6) ------------- */}
       <section>
         <h2 className="text-lg font-semibold text-neutral-900">Photo gallery</h2>
@@ -461,8 +503,8 @@ export default function ProfileEditor({
       <section className="rounded-xl border border-neutral-200 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">Availability</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          Optional — but this is how studios find you. Each of these is a search filter on the
-          Roster.
+          Where and how you can work. What you offer lives in My Services; when you&apos;re free
+          for it lives in This Week. Each of these is a search filter on the Roster.
         </p>
 
         <div className="mt-5">
@@ -474,38 +516,6 @@ export default function ProfileEditor({
           />
         </div>
 
-        <div className="mt-7 border-t border-neutral-200 pt-6">
-          <p className="text-sm font-medium text-neutral-800">Currently</p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Teaching at</label>
-              <input
-                name="teaching_at"
-                defaultValue={initial?.teaching_at}
-                placeholder="e.g. Broadway Dance Center"
-                className={input}
-              />
-            </div>
-            <div>
-              <label className={label}>Touring with</label>
-              <input
-                name="touring_with"
-                defaultValue={initial?.touring_with}
-                placeholder="e.g. Hamilton — National Tour"
-                className={input}
-              />
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <AvailChipRow
-              title="I'm currently accepting"
-              name="availability"
-              options={currentlyAvail}
-              selected={selectedAvailability}
-            />
-          </div>
-        </div>
       </section>
 
       {/* The Swing (revisions 2026-07-24 §7) -----------------------------
