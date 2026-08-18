@@ -108,11 +108,17 @@ in the repo. Everything is configured in the host's dashboard.
 | Thing | Consequence |
 |---|---|
 | Supabase redirect allow-list | **Login completely broken, no error in your logs.** The classic cutover outage. |
-| `NEXT_PUBLIC_SITE_URL` | Every Stripe link + email link silently points at `localhost:3000`. Fails soft — payments look fine, then dead-end. |
+| `NEXT_PUBLIC_SITE_URL` | ✅ **No longer fails soft (F5, 2026-08-18).** Production now refuses to boot without a valid value, and says why in the deploy log. Email links were never exposed — `emailSiteUrl()` always fell back to production, not localhost. |
 | Stripe webhook endpoint | Payments take money and never grant access. |
 
-⚠️ `src/lib/stripe/config.ts` falls back to `localhost:3000` **silently** if the
-site URL is unset. Consider making it throw in production.
+✅ **CLOSED (F5, 2026-08-18).** `src/lib/stripe/config.ts` no longer falls back
+silently. In production a missing, blank, relative, non-http, **or loopback**
+`NEXT_PUBLIC_SITE_URL` throws `SiteUrlNotConfiguredError`, naming the variable and
+the fix. Checked twice — at call time, and at boot from `src/instrumentation.ts`.
+Verified in a production-like run: the server logs the reason and **refuses to
+serve** (connection refused) rather than taking money and stranding the payer.
+`next build` is deliberately exempt, so a config gap can never break the build.
+Local development is unchanged.
 
 **Also absent (not blockers):** no `robots.txt`, no sitemap, no `metadataBase`,
 no OpenGraph tags — profile links shared to Instagram render as bare links. No
