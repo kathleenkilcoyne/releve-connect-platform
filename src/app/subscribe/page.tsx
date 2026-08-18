@@ -154,6 +154,21 @@ function ManageBilling({ situation }: { situation: MembershipSituation }) {
  * The Professional Roster is a PATHWAY, not an upsell (founder rule
  * 2026-08-18). Someone who has not been vetted is invited to apply; they are
  * never handed a checkout button that would 403.
+ *
+ * ── Why this points at /welcome and NOT /apply (founder rule 2026-08-18) ──
+ * `/welcome` is the intended front door: it asks how someone is joining and
+ * routes them into the right onboarding path. `/apply` is the raw Roster
+ * application that sits behind it. `welcome/page.tsx` records the exact funnel
+ * it was built to prevent — "/profile/edit → /subscribe → /apply" — which
+ * pushed studios, teams and partners into the Roster application because
+ * nothing asked them first. Linking straight to /apply from here would rebuild
+ * that funnel from this page.
+ *
+ * Nothing on that path touches an existing membership: /welcome writes only
+ * `users.onboarding_intent`, and an application is its own row. A Live Pass
+ * member keeps their Live Pass throughout — the resolver still returns
+ * `active_live_pass` while their application is submitted and under review,
+ * which is asserted in state.test.ts.
  */
 function ProfessionalPath({ situation }: { situation: MembershipSituation }) {
   const path = professionalPathway(situation);
@@ -168,10 +183,11 @@ function ProfessionalPath({ situation }: { situation: MembershipSituation }) {
         <>
           <p className="mt-1 text-sm text-neutral-600">
             The Professional Roster is a separate, vetted membership — a built profile that
-            studios search. It starts with an application, reviewed with care.
+            studios search. We&apos;ll walk you through it, and anything you already have with
+            Relevé stays exactly as it is.
           </p>
           <Link
-            href="/apply"
+            href="/welcome"
             className="mt-4 inline-block rounded-lg border border-neutral-900 px-5 py-2.5 text-sm font-medium text-neutral-900"
           >
             Apply for Professional membership →

@@ -583,6 +583,38 @@ describe("the Professional Roster is a pathway, never a 403", () => {
     }
   });
 
+  // "Preserve their existing Live Pass membership while they explore/apply for
+  //  Professional." Applying must never cost someone the membership they hold.
+  it("a Live Pass member KEEPS their Live Pass at every step of applying", () => {
+    for (const applicationState of [null, "draft", "submitted", "in-review", "more-info"]) {
+      const s = resolve({
+        applicationState,
+        membershipRows: [row({ tier: "live_pass" })],
+      });
+      expect(s.state, `application ${applicationState}`).toBe("active_live_pass");
+      expect(s.tier, `application ${applicationState}`).toBe("live_pass");
+      expect(offeredTiers(s), `application ${applicationState}`).not.toContain("live_pass");
+    }
+  });
+
+  it("keeps their Live Pass even once they are approved and could buy Professional", () => {
+    const s = resolve({
+      applicationState: "approved",
+      membershipRows: [row({ tier: "live_pass" })],
+    });
+    expect(s.state).toBe("active_live_pass");
+    expect(offeredTiers(s)).not.toContain("live_pass");
+  });
+
+  it("keeps their Live Pass if the application is declined", () => {
+    const s = resolve({
+      applicationState: "declined",
+      membershipRows: [row({ tier: "live_pass" })],
+    });
+    expect(s.state).toBe("active_live_pass");
+    expect(professionalPathway(s)).toBe("none");
+  });
+
   it("only offers the purchase once it will actually succeed", () => {
     const s = resolve({
       applicationState: "approved",
