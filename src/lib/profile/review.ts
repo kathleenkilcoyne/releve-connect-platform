@@ -50,6 +50,85 @@ export type ReviewProfile = {
 const filled = (v: unknown): boolean =>
   typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : Boolean(v);
 
+/* ───────────────────────────  The four essentials  ──────────────────────── */
+
+/** The only fields a published profile may never be without. */
+export type EssentialFields = {
+  headshot_url: string | null;
+  bio: string | null;
+  primary_role: string | null;
+  city: string | null;
+};
+
+/**
+ * ONE definition of the four essentials, used by BOTH rules that depend on them:
+ *   · the publish gate on the review screen (can this draft go live?)
+ *   · the integrity rule in saveProfile (may this edit leave it live?)
+ *
+ * They were written separately at first, which is exactly how a profile ends up
+ * publishable under one rule and unsaveable under the other. Defining them once
+ * means the two can never disagree.
+ */
+export const ESSENTIALS: ReadonlyArray<{
+  key: string;
+  label: string;
+  why: string;
+  read: (p: EssentialFields) => string | null;
+}> = [
+  {
+    key: "headshot",
+    label: "A headshot",
+    why: "It is the first thing a studio sees on the Roster. A profile without one reads as unfinished.",
+    read: (p) => p.headshot_url,
+  },
+  {
+    key: "bio",
+    label: "Your story",
+    why: "Carried across from your application if you wrote one. This is where a studio decides you are the right person.",
+    read: (p) => p.bio,
+  },
+  {
+    key: "role",
+    label: "What you do",
+    why: "Your primary role decides which Roster category you appear under.",
+    read: (p) => p.primary_role,
+  },
+  {
+    key: "location",
+    label: "Where you are",
+    why: "Studios search by location more than by anything else.",
+    read: (p) => p.city,
+  },
+];
+
+/**
+ * Which of the four a given set of values is missing. Pure, and deliberately
+ * takes the PROPOSED values rather than a stored row — saveProfile has to judge
+ * the edit before it is written, not after.
+ */
+export function missingEssentials(p: EssentialFields): Array<{ key: string; label: string; why: string }> {
+  return ESSENTIALS.filter((e) => !filled(e.read(p))).map(({ key, label, why }) => ({
+    key,
+    label,
+    why,
+  }));
+}
+
+/**
+ * The refusal shown when an edit would leave a LIVE profile incomplete. Names
+ * what is missing and both ways forward — never a dead end.
+ */
+export function incompleteSaveMessage(missing: Array<{ label: string }>): string {
+  const names = missing.map((m) => m.label.toLowerCase());
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `Your profile is live, so it can't be saved without ${list}. Add ${
+    names.length === 1 ? "it" : "them"
+  } back, or choose "Unpublish and save as draft" to keep your changes while you finish.`;
+}
+
 /**
  * Build the review checklist. Counts of styles/levels are passed in because they
  * live in join tables, not on the profile row.
@@ -59,34 +138,15 @@ export function buildChecklist(
   counts: { styles: number; levels: number },
 ): ChecklistItem[] {
   return [
-    {
-      key: "headshot",
-      label: "A headshot",
-      why: "It is the first thing a studio sees on the Roster. A profile without one reads as unfinished.",
-      done: filled(p.headshot_url),
+    // The four essentials, read from the single ESSENTIALS definition above so
+    // the checklist and saveProfile's integrity rule can never disagree.
+    ...ESSENTIALS.map((e) => ({
+      key: e.key,
+      label: e.label,
+      why: e.why,
+      done: filled(e.read(p)),
       essential: true,
-    },
-    {
-      key: "bio",
-      label: "Your story",
-      why: "Carried across from your application if you wrote one. This is where a studio decides you are the right person.",
-      done: filled(p.bio),
-      essential: true,
-    },
-    {
-      key: "role",
-      label: "What you do",
-      why: "Your primary role decides which Roster category you appear under.",
-      done: filled(p.primary_role),
-      essential: true,
-    },
-    {
-      key: "location",
-      label: "Where you are",
-      why: "Studios search by location more than by anything else.",
-      done: filled(p.city),
-      essential: true,
-    },
+    })),
     {
       key: "styles",
       label: "Styles and levels you teach",

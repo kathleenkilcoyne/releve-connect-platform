@@ -630,10 +630,41 @@ export default function ProfileEditor({
           )}
         </div>
 
-        {state.message && (
+        {state.message && !state.missingEssentials && (
           <p className={`mt-4 text-sm ${state.ok ? "text-green-700" : "text-red-600"}`}>
             {state.message}
           </p>
+        )}
+
+        {/* A live profile may never be left without the four essentials. The save
+            is refused rather than silently taking the member off the Roster —
+            and it is never a dead end: restore the field, or deliberately
+            unpublish and keep the edit. */}
+        {state.missingEssentials && state.missingEssentials.length > 0 && (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900">{state.message}</p>
+            <ul className="mt-2 space-y-1">
+              {state.missingEssentials.map((m) => (
+                <li key={m.key} className="text-xs text-amber-900">
+                  <span className="font-medium">{m.label}</span> — {m.why}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-800">
+              Your profile is still live and unchanged — nothing was saved.
+            </p>
+            {state.canUnpublishAndSave && (
+              <button
+                type="submit"
+                name="intent"
+                value="unpublish_and_save"
+                disabled={pending}
+                className="mt-3 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-40"
+              >
+                {pending ? "Saving…" : "Unpublish and save as draft"}
+              </button>
+            )}
+          </div>
         )}
       </section>
     </form>

@@ -13,12 +13,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { slugify, resolveUniqueSlug } from "@/lib/profile/slug";
 import { normalizeVisibility } from "@/lib/profile/visibility";
+import { missingEssentials, incompleteSaveMessage } from "@/lib/profile/review";
 
 export type SaveState = {
   ok: boolean;
   message: string;
   slug?: string;
   published?: boolean;
+  /**
+   * Set when a save was refused because it would have left a LIVE profile
+   * without one of the four essentials. The editor renders these by name and
+   * offers the deliberate way out.
+   */
+  missingEssentials?: Array<{ key: string; label: string; why: string }>;
+  /** True alongside `missingEssentials` — offer "Unpublish and save as draft". */
+  canUnpublishAndSave?: boolean;
 };
 
 // slugify + the uniqueness loop moved to @/lib/profile/slug when activation
@@ -241,6 +250,47 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   };
   if (headshotUrl !== undefined) row.headshot_url = headshotUrl;
   if (resumeUrl !== undefined) row.resume_url = resumeUrl;
+
+  // ---- The four-essential integrity rule ----------------------------------
+  //
+  // A LIVE profile must never be left without a headshot, a story, a role, or a
+  // location. The publish gate stops an incomplete profile going live; without
+  // this, the same profile could be emptied out the moment after.
+  //
+  // Three deliberate choices in how it refuses:
+  //   · It does NOT silently demote to draft. Quietly removing someone from the
+  //     Roster because they cleared a field while editing is the kind of surprise
+  //     that destroys trust in the tool.
+  //   · It does NOT let the incomplete version stay live either.
+  //   · It refuses the SAVE and hands back both ways forward — restore the field,
+  //     or unpublish deliberately and keep the edit.
+  //
+  // Judged on the PROPOSED values, not the stored ones: the headshot may be
+  // arriving in this very request, or may be one the member is keeping.
+  //
+  // Scope: only when the result would be PUBLISHED. Saving as a draft is always
+  // allowed however incomplete — a draft is private, and a member must never be
+  // trapped in a live state.
+  const proposedHeadshot = headshotUrl !== undefined ? headshotUrl : (existing.headshot_url as string | null);
+  const missing = missingEssentials({
+    headshot_url: proposedHeadshot ?? null,
+    bio: bio || null,
+    primary_role: primaryRole,
+    city,
+  });
+
+  // The member's explicit "keep my changes but take it offline" choice.
+  const unpublishAndSave = String(formData.get("intent") ?? "") === "unpublish_and_save";
+  if (unpublishAndSave) row.profile_status = "draft";
+
+  if (missing.length > 0 && row.profile_status === "published") {
+    return {
+      ok: false,
+      message: incompleteSaveMessage(missing),
+      missingEssentials: missing.map((m) => ({ key: m.key, label: m.label, why: m.why })),
+      canUnpublishAndSave: true,
+    };
+  }
 
   // UPDATE ONLY. Creation belongs to the activation service (@/lib/profile/activate),
   // which runs when someone is approved AND activated — never when they simply
