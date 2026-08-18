@@ -166,7 +166,16 @@ Also in the **Supabase dashboard** (not the repo):
 handler, so annual renewals never extend `renewal_date`, and a member who lapses
 on one failed payment is **never restored** when the retry succeeds.
 
-🔨 **Known gap — NO UI PATH TO BUY A MEMBERSHIP (logged 2026-08-16).**
+✅ **CLOSED 2026-08-18 (F1).** `/subscribe` is now the canonical membership chooser
+and billing home. It renders the tiers, the prices and what each includes, wires in
+`SubscribeButtons`, and renders for a **signed-out** visitor so a stranger can see
+what Relevé costs before signing in. All three individual tiers are sellable.
+Built on the membership-state resolver, so each of the twelve situations gets its
+own copy — a Live Pass holder is never re-sold Live Pass (F3), a complimentary
+member never meets a price list, and nobody is handed a checkout that would 403.
+The original gap, for the record:
+
+🔨 ~~**Known gap — NO UI PATH TO BUY A MEMBERSHIP (logged 2026-08-16).**~~
 `POST /api/membership/checkout` works end to end — proven with a real $99 Live
 Pass test purchase in Stripe test mode: Checkout → webhook → membership `active`
 → subscription id + annual renewal date saved → correct confirmation email

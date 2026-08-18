@@ -4,6 +4,7 @@ import {
   isComplimentarySource,
   offeredTiers,
   PENDING_FRESH_SECONDS,
+  professionalPathway,
   resolveMembershipSituation,
   type MembershipSituationInput,
   type MembershipStateRow,
@@ -200,7 +201,7 @@ describe("a STALE pending row is an abandoned checkout, not a dead end", () => {
         }),
       ],
     });
-    expect(s.state).toBe("active_non_profile");
+    expect(s.state).toBe("active_live_pass");
     expect(s.stalePendingTier).toBe("professional");
   });
 });
@@ -312,10 +313,10 @@ describe("active_profile_tier — a paying Professional or Creator", () => {
 
 /* ───────────  F3: the Live Pass loop that never resolved  ─────────────── */
 
-describe("active_non_profile — F3, the loop that never resolved", () => {
+describe("active_live_pass / active_studio — F3, the loop that never resolved", () => {
   it("a Live Pass holder is NOT an active profile member", () => {
     const s = resolve({ membershipRows: [row({ tier: "live_pass" })] });
-    expect(s.state).toBe("active_non_profile");
+    expect(s.state).toBe("active_live_pass");
   });
 
   // The bug, stated directly: this is what put a profile button in front of
@@ -348,7 +349,7 @@ describe("active_non_profile — F3, the loop that never resolved", () => {
 
   it("keeps a studio member in the studio lane, never the profile lane", () => {
     const s = resolve({ membershipRows: [row({ tier: "studio_connect" })] });
-    expect(s.state).toBe("active_non_profile");
+    expect(s.state).toBe("active_studio");
     expect(s.hasProfile).toBe(false);
     expect(offeredTiers(s)).toEqual(["studio_growth", "studio_accelerator"]);
   });
@@ -399,7 +400,7 @@ describe("lapsed — a way back, not a locked door", () => {
         row({ tier: "live_pass", membership_status: "active" }),
       ],
     });
-    expect(s.state).toBe("active_non_profile");
+    expect(s.state).toBe("active_live_pass");
   });
 });
 
@@ -500,9 +501,14 @@ describe("unknown data never produces confident wrong copy", () => {
     const inputs: MembershipSituationInput[] = [
       { userId: null, membershipRows: [] },
       { userId: "u", membershipRows: [row({ membership_status: "pending", updated_at: ago(1) })] },
-      { userId: "u", membershipRows: [row({ source: FOUNDING_COMP_SOURCE })] },
+      { userId: "u", membershipRows: [row({ source: FOUNDING_COMP_SOURCE, renewal_date: null })] },
+      {
+        userId: "u",
+        membershipRows: [row({ source: FOUNDING_COMP_SOURCE, renewal_date: ago(1) })],
+      },
       { userId: "u", membershipRows: [row({ tier: "professional" })] },
       { userId: "u", membershipRows: [row({ tier: "live_pass" })] },
+      { userId: "u", membershipRows: [row({ tier: "studio_connect" })] },
       { userId: "u", membershipRows: [row({ membership_status: "lapsed" })] },
       { userId: "u", membershipRows: [], applicationState: "approved" },
       { userId: "u", membershipRows: [], applicationState: "submitted" },
@@ -514,8 +520,180 @@ describe("unknown data never produces confident wrong copy", () => {
       const s = resolveMembershipSituation({ ...input, now: NOW });
       seen.add(s.state);
       expect(Array.isArray(offeredTiers(s)), s.state).toBe(true);
+      expect(typeof professionalPathway(s), s.state).toBe("string");
     }
-    // Every one of the ten states is exercised above.
-    expect(seen.size).toBe(10);
+    // Every one of the twelve states is exercised above.
+    expect(seen.size).toBe(12);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Founder rules locked in by email, 2026-08-18.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// "Live Pass is a real paid Relevé membership tier — $99 for a family. It is
+//  not merely a studio-access state or an upgrade lane."
+describe("Live Pass is a real membership, not a waiting room", () => {
+  const livePass = (over = {}) =>
+    resolve({ membershipRows: [row({ tier: "live_pass" })], ...over });
+
+  it("has its own state, distinct from a studio membership", () => {
+    expect(livePass().state).toBe("active_live_pass");
+    expect(resolve({ membershipRows: [row({ tier: "studio_connect" })] }).state).toBe(
+      "active_studio",
+    );
+  });
+
+  // The rule, stated directly: never ask someone to buy what they already have.
+  it("is NEVER offered again to someone who already holds it", () => {
+    expect(offeredTiers(livePass())).not.toContain("live_pass");
+    expect(offeredTiers(livePass({ applicationState: "approved" }))).not.toContain("live_pass");
+    expect(offeredTiers(livePass({ applicationState: "submitted" }))).not.toContain("live_pass");
+    expect(offeredTiers(livePass({ applicationState: "declined" }))).not.toContain("live_pass");
+  });
+
+  it("keeps its holder off every profile CTA", () => {
+    expect(livePass().hasProfile).toBe(false);
+  });
+
+  it("is still sellable to everyone who does not hold it", () => {
+    expect(offeredTiers(resolve({ userId: null }))).toContain("live_pass");
+    expect(offeredTiers(resolve({}))).toContain("live_pass");
+    expect(offeredTiers(resolve({ applicationState: "submitted" }))).toContain("live_pass");
+  });
+});
+
+// "Do not give an unapproved Live Pass member a direct 'upgrade to Professional'
+//  checkout that will 403. … the appropriate optional action is to apply."
+describe("the Professional Roster is a pathway, never a 403", () => {
+  it("offers an unapproved Live Pass holder the APPLICATION, not a checkout", () => {
+    const s = resolve({ membershipRows: [row({ tier: "live_pass" })] });
+    expect(offeredTiers(s)).toEqual([]);
+    expect(professionalPathway(s)).toBe("apply");
+  });
+
+  it("reassures rather than sells while their application is being reviewed", () => {
+    for (const state of ["submitted", "in-review", "more-info", "draft"]) {
+      const s = resolve({
+        applicationState: state,
+        membershipRows: [row({ tier: "live_pass" })],
+      });
+      expect(offeredTiers(s), state).toEqual([]);
+      expect(professionalPathway(s), state).toBe("under_review");
+    }
+  });
+
+  it("only offers the purchase once it will actually succeed", () => {
+    const s = resolve({
+      applicationState: "approved",
+      membershipRows: [row({ tier: "live_pass" })],
+    });
+    expect(offeredTiers(s)).toEqual(["professional", "professional_full"]);
+    expect(professionalPathway(s)).toBe("purchase");
+  });
+
+  it("invites a stranger and an unapplied member to apply", () => {
+    expect(professionalPathway(resolve({ userId: null }))).toBe("apply");
+    expect(professionalPathway(resolve({}))).toBe("apply");
+  });
+
+  it("never solicits someone who already holds a profile tier", () => {
+    expect(professionalPathway(resolve({ membershipRows: [row({ tier: "professional" })] }))).toBe(
+      "none",
+    );
+  });
+
+  it("never solicits a complimentary member", () => {
+    const s = resolve({
+      membershipRows: [row({ source: FOUNDING_COMP_SOURCE, stripe_customer_id: null })],
+    });
+    expect(professionalPathway(s)).toBe("none");
+  });
+
+  it("never blurs the employer side into talent", () => {
+    expect(professionalPathway(resolve({ accountType: "employer" }))).toBe("none");
+    expect(
+      professionalPathway(resolve({ membershipRows: [row({ tier: "studio_growth" })] })),
+    ).toBe("none");
+  });
+
+  it("sends a lapsed member to billing, not to an application", () => {
+    expect(
+      professionalPathway(resolve({ membershipRows: [row({ membership_status: "lapsed" })] })),
+    ).toBe("none");
+  });
+
+  it("does not re-solicit someone who was declined", () => {
+    expect(professionalPathway(resolve({ applicationState: "declined" }))).toBe("none");
+  });
+
+  it("says nothing to someone mid-purchase", () => {
+    const s = resolve({
+      membershipRows: [row({ membership_status: "pending", updated_at: ago(2) })],
+    });
+    expect(professionalPathway(s)).toBe("none");
+  });
+});
+
+// "comp means a currently valid complimentary entitlement. It must support both
+//  lifetime complimentary founders and founding members whose complimentary
+//  period can expire later. Do not hard-code complimentary as free forever."
+describe("complimentary is an entitlement with a clock, not a permanent flag", () => {
+  const comp = (renewal_date: string | null, source = FOUNDING_COMP_SOURCE) =>
+    resolve({
+      membershipRows: [row({ source, renewal_date, stripe_customer_id: null })],
+    });
+
+  it("a LIFETIME founder (no end date) is comp, and stays comp", () => {
+    const s = comp(null, COMP_PERMANENT_SOURCE);
+    expect(s.state).toBe("comp");
+    expect(s.compExpiresAt).toBeNull();
+  });
+
+  it("a founding member inside their term is comp, and the date travels with them", () => {
+    const ends = new Date(NOW.getTime() + 90 * 86_400_000).toISOString();
+    const s = comp(ends);
+    expect(s.state).toBe("comp");
+    expect(s.compExpiresAt).toBe(ends);
+  });
+
+  it("a founding member whose term has ENDED is no longer comp", () => {
+    const s = comp(ago(1));
+    expect(s.state).toBe("comp_expired");
+  });
+
+  it("an ended term is never quietly presented as a paid membership", () => {
+    const s = comp(ago(86_400));
+    expect(s.state).not.toBe("active_profile_tier");
+    expect(s.canManageBilling).toBe(false);
+    // F9 is unratified, so nothing is sold and nothing is decided here.
+    expect(offeredTiers(s)).toEqual([]);
+  });
+
+  it("keeps the profile reachable after a term ends — nothing is confiscated", () => {
+    const s = comp(ago(86_400));
+    expect(s.hasProfile).toBe(true);
+  });
+
+  it("prefers a still-valid comp row over an expired one", () => {
+    const s = resolve({
+      membershipRows: [
+        row({ source: FOUNDING_COMP_SOURCE, renewal_date: ago(10), stripe_customer_id: null }),
+        row({ source: COMP_PERMANENT_SOURCE, renewal_date: null, stripe_customer_id: null }),
+      ],
+    });
+    expect(s.state).toBe("comp");
+  });
+
+  it("never drops a founding member out of comp over a malformed date", () => {
+    const s = comp("not-a-date");
+    expect(s.state).toBe("comp");
+  });
+
+  it("both comp vocabularies obey the same clock", () => {
+    for (const source of [FOUNDING_COMP_SOURCE, COMP_PERMANENT_SOURCE, COMP_TERM_SOURCE]) {
+      expect(comp(ago(1), source).state, source).toBe("comp_expired");
+      expect(comp(null, source).state, source).toBe("comp");
+    }
   });
 });

@@ -55,12 +55,23 @@ export type MembershipState =
   | "signed_out"
   /** Paid moments ago; the webhook has not landed yet. NEVER redirect. */
   | "pending"
-  /** Relevé gave them their membership. Warm copy, no prices, no manage button. */
+  /** A CURRENTLY VALID complimentary entitlement. Warm copy, no prices. */
   | "comp"
+  /** A complimentary TERM that has run out. See the note on F9 below. */
+  | "comp_expired"
   /** Active, paid, profile-bearing (Professional / Creator). */
   | "active_profile_tier"
-  /** Active, paid, NOT profile-bearing (Live Pass, or a studio tier). */
-  | "active_non_profile"
+  /**
+   * Active, paid Live Pass — a REAL membership in its own right (founder
+   * clarification 2026-08-18): $99/year for a family, carrying family
+   * participation, the monthly Zooms, news and resources, community viewing and
+   * engagement, choreography purchase/licensing, the Relevé Passport and the
+   * College Audition Cycle. It is NOT a lesser state on the way to
+   * Professional, and it must never be sold to someone who already holds it.
+   */
+  | "active_live_pass"
+  /** Active, paid studio tier — the employer side, never talent. */
+  | "active_studio"
   /** A payment failed. A way back, never a locked door. */
   | "lapsed"
   /** Application approved, no membership row. The tier chooser. */
@@ -126,6 +137,18 @@ export type MembershipSituation = {
   canManageBilling: boolean;
   /** True only when a $30 fee was really paid, so the credit line is honest. */
   applicationFeeCredited: boolean;
+  /**
+   * When a complimentary entitlement runs out — `null` means LIFETIME.
+   *
+   * Complimentary is deliberately NOT hard-coded as free forever (founder rule,
+   * 2026-08-18). Two populations are real and both must work:
+   *   · lifetime founders            → `renewal_date` NULL  (never expires)
+   *   · founding members on a term   → `renewal_date` set   (12 months, and
+   *                                     `founding_comp` grants always set one)
+   * Carried so copy can be honest about a date without this file deciding what
+   * happens on it — that is F9, and it is Kathleen's to ratify.
+   */
+  compExpiresAt: string | null;
   /** Seconds since the pending row was written. Drives F2's ~90s hard stop. */
   pendingAgeSeconds: number | null;
   /**
@@ -168,6 +191,23 @@ function slugOf(row: MembershipStateRow): TierSlug | null {
 }
 
 /**
+ * Is a complimentary row's entitlement good RIGHT NOW?
+ *
+ *   · `renewal_date` NULL      → lifetime complimentary. Always valid.
+ *   · `renewal_date` in future → a term still running.
+ *   · `renewal_date` in past   → the term has ended.
+ *
+ * An unparseable date is treated as VALID: a founding member must never be
+ * dropped out of their entitlement because of a malformed timestamp.
+ */
+function compIsValid(row: MembershipStateRow, now: Date): boolean {
+  if (!row.renewal_date) return true;
+  const ends = new Date(row.renewal_date).getTime();
+  if (Number.isNaN(ends)) return true;
+  return ends > now.getTime();
+}
+
+/**
  * Resolve the whole situation from rows. Pure: no database, no clock, no I/O.
  *
  * ── Precedence, and why it is this order ──
@@ -202,6 +242,7 @@ export function resolveMembershipSituation(
     isAdmin,
     canManageBilling,
     applicationFeeCredited: false,
+    compExpiresAt: null as string | null,
     pendingAgeSeconds: null as number | null,
     stalePendingTier: null as TierSlug | null,
     applicationState,
@@ -245,15 +286,42 @@ export function resolveMembershipSituation(
   const stale = pendingRows[0] ? slugOf(pendingRows[0]) : null;
   const withStale = { ...base, stalePendingTier: stale };
 
-  // ---- 2. comp --------------------------------------------------------------
-  const comp = active.find((r) => isComplimentarySource(r.source));
-  if (comp) {
-    const slug = slugOf(comp);
+  // ---- 2. comp — but only while the entitlement is CURRENTLY VALID ----------
+  // "comp" means a complimentary entitlement that is good right now. A lifetime
+  // founder (renewal_date NULL) always qualifies; a founding member on a
+  // 12-month term qualifies until their date passes. Nothing in the product
+  // expires these rows today — the row stays `active` forever — so validity is
+  // computed here rather than assumed from `membership_status`.
+  const comps = active.filter((r) => isComplimentarySource(r.source));
+  const validComp = comps.find((r) => compIsValid(r, now));
+  if (validComp) {
+    const slug = slugOf(validComp);
     return {
       ...withStale,
       state: "comp",
       tier: slug,
       hasProfile: slug ? TIERS[slug].hasProfile : false,
+      compExpiresAt: validComp.renewal_date ?? null,
+    };
+  }
+
+  // A complimentary TERM that has run out. Distinct on purpose: falling through
+  // would quietly present a founding member's gift as a paid membership, and
+  // there would be no way to see who is in this position. What SHOULD happen on
+  // that date — grace, conversion, notice — is F9, and it is Kathleen's call, so
+  // this state deliberately decides nothing beyond naming the situation.
+  //
+  // Unreachable in production until ~2027-07: the founding-period grants began
+  // 2026-07-20 on a 12-month term.
+  const expiredComp = comps[0];
+  if (expiredComp) {
+    const slug = slugOf(expiredComp);
+    return {
+      ...withStale,
+      state: "comp_expired",
+      tier: slug,
+      hasProfile: slug ? TIERS[slug].hasProfile : false,
+      compExpiresAt: expiredComp.renewal_date ?? null,
     };
   }
 
@@ -271,18 +339,29 @@ export function resolveMembershipSituation(
     };
   }
 
-  // ---- 4. active, not profile-bearing (Live Pass / studio) ------------------
-  const otherActive = active.find((r) => slugOf(r) != null);
-  if (otherActive) {
+  // ---- 4. active Live Pass — a real membership, not a waiting room ----------
+  const livePass = active.find((r) => slugOf(r) === "live_pass");
+  if (livePass) {
     return {
       ...withStale,
-      state: "active_non_profile",
-      tier: slugOf(otherActive),
+      state: "active_live_pass",
+      tier: "live_pass",
       hasProfile: false,
     };
   }
 
-  // ---- 5. lapsed ------------------------------------------------------------
+  // ---- 5. active studio tier — the employer side ----------------------------
+  const studioRow = active.find((r) => slugOf(r)?.startsWith("studio_") === true);
+  if (studioRow) {
+    return {
+      ...withStale,
+      state: "active_studio",
+      tier: slugOf(studioRow),
+      hasProfile: false,
+    };
+  }
+
+  // ---- 6. lapsed ------------------------------------------------------------
   const lapsed = rows.find(
     (r) => r.membership_status === "lapsed" || r.membership_status === "canceled",
   );
@@ -317,11 +396,13 @@ export function resolveMembershipSituation(
  * what the page may put a price on. The rule the whole sprint is held to —
  * "never shown a price that doesn't apply to them" — lives here.
  *
- * The trap this closes: the vetted tiers 403 at /api/membership/checkout
- * without an APPROVED application. A Live Pass holder who never applied,
- * offered an "Upgrade to Professional" button, would click it and get an
- * error. That is a worse outcome than not offering it, so the upgrade appears
- * only when it will work — otherwise they are pointed at the application.
+ * The trap this closes (founder rule, 2026-08-18): the vetted tiers 403 at
+ * /api/membership/checkout without an APPROVED application. A Live Pass holder
+ * who never applied, offered an "Upgrade to Professional" button, would click
+ * it and get an error. Professional/Creator is a separate professional
+ * PATHWAY, not an upsell — so when someone has not been approved for the
+ * Roster, the right action is to apply (see `professionalPathway` below), never
+ * a checkout button that cannot succeed.
  */
 export function offeredTiers(s: MembershipSituation): TierSlug[] {
   const approved = s.applicationState === "approved";
@@ -336,14 +417,25 @@ export function offeredTiers(s: MembershipSituation): TierSlug[] {
     case "comp":
       return [];
 
+    // What happens when a complimentary term ends is F9, and unratified. Until
+    // it is decided nothing is sold here — a founding member is not handed a
+    // price list by a default that nobody chose.
+    case "comp_expired":
+      return [];
+
     // They already have a profile tier. Creator is the only step up.
     case "active_profile_tier":
       return s.tier === "professional" ? ["professional_full"] : [];
 
-    // F3 — Live Pass and studios. Their own lane only, and only if buyable.
-    case "active_non_profile":
-      if (isStudioSide) return studio.filter((t) => t !== s.tier);
+    // Live Pass is a REAL membership they already hold — never sell it to them
+    // again. The professional tiers are a separate pathway, offered only when
+    // they have genuinely been approved for the Roster.
+    case "active_live_pass":
       return approved ? vetted : [];
+
+    // A studio's own lane, minus what they already hold.
+    case "active_studio":
+      return studio.filter((t) => t !== s.tier);
 
     // A recovery path is the billing portal (F4), not a fresh purchase.
     case "lapsed":
@@ -361,4 +453,43 @@ export function offeredTiers(s: MembershipSituation): TierSlug[] {
     case "declined":
       return isStudioSide ? studio : ["live_pass"];
   }
+}
+
+/**
+ * How does this person reach the Professional Roster from where they stand?
+ *
+ * Separate from `offeredTiers` because the professional tiers are a PATHWAY,
+ * not an upsell (founder rule, 2026-08-18). The honest action for someone who
+ * has not been vetted is to APPLY; putting a price in front of them instead
+ * produces a 403 at checkout, which is exactly the friction this sprint exists
+ * to remove.
+ *
+ *   · `purchase`     — approved; a checkout that will actually succeed.
+ *   · `apply`        — never applied; the application is the door.
+ *   · `under_review` — applied, awaiting a decision. Reassure, sell nothing.
+ *   · `none`         — not applicable: already on a profile tier, complimentary,
+ *                      the studio side, mid-purchase, lapsed, or declined.
+ */
+export type ProfessionalPathway = "purchase" | "apply" | "under_review" | "none";
+
+export function professionalPathway(s: MembershipSituation): ProfessionalPathway {
+  // Already holds — or is moments from holding — a profile-bearing membership.
+  if (s.hasProfile) return "none";
+  if (s.state === "pending") return "none";
+  // Complimentary members are Relevé's guests. Never solicited here.
+  if (s.state === "comp" || s.state === "comp_expired") return "none";
+  // The employer side is not talent, and the two must never be blurred.
+  if (s.accountType === "employer" || s.tier?.startsWith("studio_") === true) return "none";
+  // A failed payment is resolved through the billing portal, not an application.
+  if (s.state === "lapsed") return "none";
+
+  const offered = offeredTiers(s);
+  if (offered.includes("professional") || offered.includes("professional_full")) {
+    return "purchase";
+  }
+
+  const app = s.applicationState;
+  if (app === null) return "apply";
+  if (app === "declined") return "none";
+  return "under_review";
 }

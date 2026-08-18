@@ -732,3 +732,118 @@ approved_no_membership · applied · declined · none`.
 
 **Nothing reads this yet.** The resolver is committed ahead of the `/subscribe` rewrite so the
 question is settled before any UI is built on top of it.
+
+---
+
+## 2026-08-18 — Live Pass is a family membership, not a door-opener (SUPERSEDES the 2026-06-25 tier copy)
+
+**Decided (Kathleen, by email, 2026-08-18).** *"Live Pass is a real paid Relevé membership tier —
+$99 for a family. It is not merely a studio-access state or an upgrade lane."*
+
+**What it includes** (the ratified list, now rendered verbatim on `/subscribe`): family
+participation in Relevé · monthly Zooms · news and resources · community viewing and engagement ·
+access to purchase or license eligible choreography · the Relevé Passport · the College Audition
+Cycle.
+
+**This supersedes the Live Pass row in `docs/Releve_Pricing_RATIFIED_2026-06-25_…`**, which read
+*"The door-opener. The Climb, The Beat (access + pay-to-post), view the Roster, member events."*
+That framing described Live Pass as a lesser rung on a professional ladder. It is not one — it is
+the family's own membership, and it is consistent with the 2026-08-16 clarification already
+recorded in `subscribe/welcome/page.tsx` (Live Pass is the family/minor admission, not a Roster
+membership). **Price, slug and label are unchanged**: `live_pass`, "Live Pass", $99.
+
+**Consequences in code:**
+
+- The old `active_non_profile` state — which lumped Live Pass in with the studio tiers — is
+  **split** into `active_live_pass` and `active_studio`. They are different memberships with
+  different homes, and one shared state could only ever give one of them honest copy.
+- **Live Pass is never offered to someone who already holds it.** A test asserts this across every
+  application state, because the loop it replaces (F3) was exactly this kind of "we forgot they
+  already have it" error.
+- Tier copy lives in a new `src/lib/membership/tier-copy.ts`, **not** in `tiers.ts`. `tiers.ts` is
+  the pricing canon and the sprint brief forbids touching a slug, price or label; marketing copy
+  moves on a different clock. Every line in the new file cites its ratified source, and copy that
+  is not ratified is not invented there.
+
+---
+
+## 2026-08-18 — The Professional Roster is a pathway, never an upsell button that 403s
+
+**Decided (Kathleen, by email, 2026-08-18).** *"Do not give an unapproved Live Pass member a direct
+'upgrade to Professional' checkout that will 403. … If someone has not yet been approved for the
+Professional Roster, the appropriate optional action is to apply for Professional membership, not
+attempt to purchase it directly."*
+
+`/api/membership/checkout` returns **403** on a vetted tier without an approved application. So the
+obvious reading of F3 — "give the Live Pass holder an upgrade button" — would have shipped a button
+that errors for every unvetted member who pressed it.
+
+`professionalPathway()` resolves this in one place, and returns one of four answers:
+
+| Answer | When | What the page shows |
+|---|---|---|
+| `purchase` | approved | Professional / Creator, with a checkout that will succeed |
+| `apply` | never applied | "Apply for Professional membership →" |
+| `under_review` | applied, awaiting a decision | reassurance; **nothing is sold** |
+| `none` | already on a profile tier, complimentary, studio side, mid-purchase, lapsed, declined | nothing |
+
+Deliberately separate from `offeredTiers()`: one answers *what may we put a price on*, the other
+*how does this person reach the Roster from where they stand*. Collapsing them is what produces the
+403 button.
+
+---
+
+## 2026-08-18 — Complimentary is an entitlement with a clock, not a permanent flag
+
+**Decided (Kathleen, by email, 2026-08-18).** *"comp means a currently valid complimentary
+entitlement. It must support both lifetime complimentary founders and founding members whose
+complimentary period can expire later. Do not hard-code complimentary as free forever."*
+
+The database already carries both populations, and the resolver now reads them honestly:
+
+| Population | Row | Resolves to |
+|---|---|---|
+| Lifetime founder | `complimentary_permanent`, `renewal_date` **NULL** | `comp`, forever |
+| Founding member on a term | `founding_comp` / `complimentary_term`, `renewal_date` set (+12 months) | `comp` until the date, then `comp_expired` |
+
+- **`comp` now requires the entitlement to be valid *now*.** Nothing in the product expires these
+  rows — the row stays `membership_status = 'active'` indefinitely — so validity is **computed**
+  rather than assumed. Without this, a founding member whose year had ended would silently be
+  presented as an ordinary paying member.
+- **`comp_expired` is a distinct state that decides nothing.** It sells nothing, shows no price,
+  keeps the profile reachable, and says the complimentary period has ended and we will be in touch.
+  What *should* happen on that date — grace period, conversion, notice, whether access continues —
+  is **F9, and Kathleen's to ratify**. Naming the state without inventing the policy is the whole
+  point: F9 becomes a copy-and-policy decision rather than an architecture one, and the people in
+  that position become queryable.
+- **Unreachable in production until ~2027-07-20.** The founding-period grants began 2026-07-20 on a
+  12-month term, so no live row can reach `comp_expired` for another eleven months. It is built,
+  tested, and waiting.
+- A **malformed** `renewal_date` resolves to `comp`, not `comp_expired`. A founding member must
+  never be dropped out of their entitlement by a bad timestamp.
+
+---
+
+## 2026-08-18 — `/subscribe` is the canonical membership chooser, and it renders signed-out (F1)
+
+**Decided (payment sprint, F1).** `/subscribe` is the single buy path and the billing home. The
+page was rewritten on top of the state resolver, and `SubscribeButtons` — which existed, worked,
+and was imported by nothing — was finally wired in. **All three individual tiers are now
+sellable.**
+
+- **It no longer redirects a signed-out visitor to `/login`.** The brief's own walkthrough requires
+  a stranger to land on `/subscribe` and reach Checkout for Live Pass; the old page bounced them to
+  sign-in before they could see a single price. A stranger now sees the tiers, the prices and what
+  each includes, and their chosen tier travels through sign-in via
+  `?next=/subscribe?tier=<slug>` so they come back to the card they picked.
+- **The page decides nothing.** It reads rows, calls `resolveMembershipSituation` / `offeredTiers` /
+  `professionalPathway`, and renders one branch per state. When a state's copy is wrong, the fix is
+  almost always in `state.ts`. This is what keeps the two populations apart without either one's
+  copy leaking into the other's branch.
+- **Annual auto-renewal is disclosed on the card itself**, at the point of purchase, rather than
+  left to the confirmation email after the card has been taken.
+- **`pending` renders a calm static panel here.** Self-refresh, the status endpoint, and the gated
+  pages rendering the same panel are **F2 and are not built** — this is the minimum correct thing,
+  not the fix.
+- The admin escape hatch renders in **every** state, unchanged, for the reason recorded at
+  `subscribe/page.tsx` and in the 2026-08-18 resolver entry above.
