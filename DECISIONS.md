@@ -639,3 +639,96 @@ of this: no `app_config` row, no checkout, no payouts, no Vercel flag.
   "Relevé — Creator (annual membership)" for future runs, but the existing product must be renamed
   in the Stripe dashboard **in both test and live mode**. Renaming a product does not affect its
   Price id or any active subscription.
+
+---
+
+## 2026-08-18 — `NEXT_PUBLIC_SITE_URL` fails loudly instead of falling back to localhost (F5)
+
+**Decided (payment sprint, F5).** `siteUrl()` in `src/lib/stripe/config.ts` used to return
+`http://localhost:3000` whenever `NEXT_PUBLIC_SITE_URL` was unset. That value builds the
+Checkout **success** URL, the Checkout **cancel** URL, and the billing-portal **return** URL.
+A missing or wrong value in production meant: the card is charged, the webhook grants the
+membership, and the member is redirected to a machine that is not theirs — with nothing in
+any log. The only way we would learn is a confused member.
+
+**What it does now.** A pure `resolveSiteUrl(env)` decides, so the rule is unit-tested
+without a server and without mutating `process.env` (guardrail #6, the pattern
+`lib/membership/access.ts` set):
+
+- **Outside production:** unchanged. No variable → `http://localhost:3000`. A malformed
+  value also falls back rather than throwing, so a bad `.env.local` never blocks `npm run dev`.
+- **In production:** missing, blank, relative, non-http, **or pointing at a loopback address**
+  throws `SiteUrlNotConfiguredError`, naming the variable and how to fix it. The loopback case
+  matters most: a mere presence check would have passed it, and it is precisely the silent
+  wrong answer being guarded against.
+- **During `next build`:** never throws. Next sets `NEXT_PHASE=phase-production-build`, and a
+  broken build is its own kind of outage — the trap named in the brief. Verified: `npm run build`
+  exits 0 with the guard in place.
+
+**Two checks, not one.** Call-time (guaranteed to cover every path) **and** boot-time, via a new
+`src/instrumentation.ts` calling `assertSiteUrlConfigured()` once in the Node server runtime.
+Boot-time is the one that matters for the standard this sprint is held to: a misconfigured deploy
+announces itself in the deploy log at start-up, rather than at the moment a member hands us a card.
+
+**Not changed:** `emailSiteUrl()` in `src/lib/email/send.ts` already falls back to
+`https://releveconnect.com`, never localhost, so emailed links were never exposed to this. The
+localhost fallback was confined to the Stripe redirect helper, which is the whole of F5's blast
+radius.
+
+---
+
+## 2026-08-18 — One membership-state resolver, and how the two populations are told apart
+
+**Decided (payment sprint, before any page work).** `/subscribe` asked "does this person have a
+membership?" — a yes/no question — when the real question has **ten** answers. That single missing
+distinction is what produced both live loops (F2, F3), so rewriting the page first would only have
+relocated the bug. `src/lib/membership/state.ts` answers it once, purely, with no database, no
+Stripe call and no clock (`now` is injected), and 57 unit tests.
+
+**The states:** `signed_out · pending · comp · active_profile_tier · active_non_profile · lapsed ·
+approved_no_membership · applied · declined · none`.
+
+**Judgment calls made, and why:**
+
+1. **`admin` is a flag, not a state.** The brief lists it in the state table, but modelling it as an
+   exclusive state would mean an admin who activates a membership *loses* the door to their own
+   vetting queue — and Kathleen is an admin who may hold one. `isAdmin` is returned alongside every
+   state, so the escape hatch (subscribe/page.tsx:49, the evening lost to it) renders unconditionally.
+
+2. **`comp` outranks the paid states.** A founding member on a comped *Professional* row is both
+   "comp" and "active profile tier". Comp wins, because the copy differs in the direction that
+   matters: warm, no prices, no manage button. `hasProfile` still travels with the comped tier, so
+   their profile stays one click away.
+
+3. **The two comp vocabularies are unified at READ time, not migrated.** `founding_comp`
+   (`lib/membership/founding.ts`) and `complimentary_permanent` / `complimentary_term`
+   (`lib/founding/founding-professional.ts`) both resolve to `comp` via `COMPLIMENTARY_SOURCES`.
+   Migrating would rewrite audit rows recording what was actually granted, and the two grants
+   genuinely differ. **Any future comp source must be added to that list or a founding member will
+   be shown a paywall** — a test asserts the list's exact contents so adding one is a deliberate act.
+
+4. **`canManageBilling` is `stripe_customer_id != null`, independent of state.** This is F11 as a
+   single condition: comp rows carry no Stripe customer by design, so the manage button cannot
+   render for them and `/api/membership/portal`'s 404 can never be aimed at a founding member. It
+   also means a **lapsed** member keeps the portal — which is their recovery path, not a locked door.
+
+5. **`pending` outranks everything, but only for 15 minutes.** The checkout route writes `pending`
+   *before* redirecting to Stripe, so an **abandoned** Checkout leaves a permanent `pending` row.
+   Holding that person on "Confirming your payment…" forever would be the exact dead end this sprint
+   exists to remove. Fresh (≤15 min, comfortably past the 3-minute webhook delay observed) → the
+   confirming panel. Older → the state falls through to what they actually hold, carrying
+   `stalePendingTier` so the page can say calmly "if you completed a checkout it is still
+   confirming, you do not need to buy again." We cannot distinguish an abandoned checkout from a
+   badly delayed webhook from our own database; this serves both without stranding either. A pending
+   row with a missing or unparseable timestamp is treated as **fresh** — erring toward "confirming"
+   is safe, erring toward the chooser risks a second charge.
+
+6. **`offeredTiers()` is separate from the state.** The state says who someone is; this says what the
+   page may put a price on — "never shown a price that doesn't apply to them", in one place. It
+   closes a trap the F1 rewrite would otherwise have walked into: the vetted tiers **403** at
+   `/api/membership/checkout` without an approved application, so an "Upgrade to Professional" button
+   shown to a Live Pass holder who never applied would simply error. The upgrade appears only when it
+   will work; otherwise they are pointed at the application instead.
+
+**Nothing reads this yet.** The resolver is committed ahead of the `/subscribe` rewrite so the
+question is settled before any UI is built on top of it.
