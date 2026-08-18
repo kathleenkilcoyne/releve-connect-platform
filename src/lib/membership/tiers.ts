@@ -126,9 +126,18 @@ export function stripePriceId(slug: TierSlug): string | null {
   return process.env[TIERS[slug].priceEnvVar] || null;
 }
 
-/** Format cents as a plain dollar string, e.g. 14900 -> "$149". */
+/**
+ * Format cents as a dollar string, e.g. 14900 -> "$149", 149900 -> "$1,499".
+ *
+ * DISPLAY ONLY — no price, slug or label is affected by this. The thousands
+ * separator was added 2026-08-18 because Studio Accelerator rendered as "$1499"
+ * on the membership chooser, while the ratified pricing doc writes it "$1,499".
+ * Matches the house formatter in `lib/offerings/offerings.ts` (`formatMoney`).
+ */
 export function dollars(cents: number): string {
-  return cents % 100 === 0
-    ? `$${cents / 100}`
-    : `$${(cents / 100).toFixed(2)}`;
+  const whole = cents % 100 === 0;
+  const amount = cents / 100;
+  return whole
+    ? `$${amount.toLocaleString("en-US")}`
+    : `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

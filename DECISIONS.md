@@ -847,3 +847,156 @@ sellable.**
   not the fix.
 - The admin escape hatch renders in **every** state, unchanged, for the reason recorded at
   `subscribe/page.tsx` and in the 2026-08-18 resolver entry above.
+
+---
+
+## 2026-08-18 — WORKING PRINCIPLE: one fact, one source of truth, many useful places it can appear
+
+**Ratified (Kathleen, 2026-08-18).** *"One fact. One source of truth. Many useful places it can
+appear."* This governs the platform from here on — architecture, data model, and copy alike.
+
+**What it means in practice.** A fact is captured **once**, in the one place that owns it, and every
+surface that needs it **reads** it. A surface never re-asks for something already known, and never
+keeps a second copy that can drift.
+
+**It is already the reason several things in this codebase are shaped the way they are:**
+
+| The fact | Its one source | The many places it appears |
+|---|---|---|
+| Price, slug, entitlement of a tier | `lib/membership/tiers.ts` | `/subscribe`, checkout, webhook emails, welcome page |
+| "What is this person's membership situation?" | `resolveMembershipSituation` | `/subscribe`'s twelve branches, and every gate that will read it |
+| What a pathway says it includes | `lib/membership/tier-copy.ts` | the chooser cards, and the bold-phrase emphasis |
+| What a professional offers | **My Services** (`professional_offerings`) | public profile, and — next — Roster search and This Week |
+| Where/how they can work | Availability (`kind='general'`) | editor, Roster filters, public profile |
+
+**And it is the test the 2026-08-18 IA reconciliation was failing.** "I'm currently accepting
+choreography" was the SAME FACT as a Choreography service, stored twice in two shapes, asked for
+twice, and free to disagree. That is what made it wrong — not that it looked untidy.
+
+**Consequences to hold to:**
+
+- A new surface that needs a fact **reads the existing source**; it does not add a field.
+- If two places can disagree, one of them is not a source of truth — find which, and make the other
+  read it. `tier-copy.test.ts` exists for exactly this: it fails the build if an emphasis phrase
+  stops matching the copy it emphasises.
+- Derived views are welcome and expected — that is the "many useful places." Duplicated *capture*
+  is not.
+- **This Week must derive its service choices from My Services**, never ask for them again. Recorded
+  here so the next slice cannot quietly reinvent them.
+
+---
+
+## 2026-08-18 — `/subscribe` gets the Relevé visual system: cream, near-black, restrained gold
+
+**Decided (Kathleen, 2026-08-18).** The page was correct and looked like a generic SaaS pricing
+table. It now carries the brand.
+
+**Nothing was invented.** The repo already had two scoped token files — `components/home/tokens.css`
+(`.home-scope`) and `components/this-week/tokens.css` (`.this-week-scope`) — carrying the
+BLACK · CREAM · GOLD palette and the serif voice. `app/subscribe/tokens.css` is a third scope built
+from **their exact values**, so the membership page reads as the same brand rather than a fourth
+dialect:
+
+| Token | Value | Source |
+|---|---|---|
+| `--rc-cream` | `#f5eee1` | home-scope — page ground, never stark white |
+| `--rc-ivory` | `#fcf9f1` | this-week-scope — card surface, a half-step up |
+| `--rc-ink` | `#1e1a17` | home-scope |
+| `--rc-ink-soft` | `#3c3630` | home-scope — body copy |
+| `--rc-muted` | `#6d6459` | home-scope — fine print only |
+| `--rc-gold` | `#b6912f` | home-scope, "the working gold: rules, numerals, accents" |
+| `--rc-hairline` | `#e3d9c3` | this-week-scope |
+| serif | Iowan Old Style / Palatino / Georgia | both files |
+
+**Gold is an accent and never a fill.** It appears only at small scale: the 01–04 numerals, the
+hairline under each card header, the bullet dashes, the price, the eyebrow separator, CTA hover, and
+the single rule on the founding-member plate. There is no large gold surface anywhere on the page.
+
+**Hierarchy comes from scale, colour and space — not from weight.** Body copy is regular; the only
+bold is membership names and thirteen founder-specified value phrases.
+
+---
+
+## 2026-08-18 — The membership chooser is four peers, in a fixed order
+
+**Decided (Kathleen, 2026-08-18).** *"01 Professional, 02 Creator, 03 Studio / Arts Organization,
+04 Live Pass … presented as visual peers, with Professional leading the hierarchy."*
+
+**The bug this fixed was structural, not cosmetic.** The chooser rendered `offeredTiers()` directly —
+a list of what a person may BUY RIGHT NOW. Signed out that returns exactly one tier (Live Pass, the
+only one sellable without vetting), so a stranger saw a one-card page, Professional was demoted to a
+grey footnote, and the studio pathway did not render at all. **An eligibility list was masquerading
+as an information architecture.**
+
+The two are now separated, and this is the same principle as above: *what may be purchased* and
+*what pathways exist* are two different facts with two different owners.
+
+- All four pathways **always** render, as peers, in the ratified order.
+- `offeredTiers()` — **untouched** — still decides which carry a real purchase button. It is no
+  longer allowed to decide which APPEAR.
+- Desktop is a 2×2 composition; cards are equal-height with CTAs on a shared baseline.
+- **One CTA treatment for all four.** `SubscribeButtons.tsx` had `bg-neutral-900 text-white`, which
+  made Live Pass the only filled button purely because it is the only one that goes straight to
+  checkout. It now shares `.rc-cta` with the link CTAs. **The verb carries the difference — Apply /
+  Explore / Join — the styling never does.**
+- The Studio lane is ONE peer covering three tiers; three separately priced cards would outnumber and
+  bury the others. No price is shown (onboarding is invite-led, DECISIONS 2026-07-24), but each
+  purchase button carries its own price for an eligible employer, so nobody picks a tier blind.
+
+---
+
+## 2026-08-18 — The founding-member state is a welcome, not a system status
+
+**Decided (Kathleen, 2026-08-18).** *"Technically correct but visually and emotionally wrong."*
+
+The `comp` state announced an account type ("You're a founding member"), led with what the member
+does **not** owe ("nothing to pay, nothing to enter"), and sat beside a full-width black admin slab.
+
+It is now a centred recognition plate — ivory on cream with a single gold rule, the same materials as
+the membership cards so it belongs to the system:
+
+> RELEVÉ · FOUNDING MEMBER — **Welcome to Relevé.** — *You're here at the beginning.*
+> "You are one of Relevé's founding members — here before there was anything to join, and part of
+> what this becomes. Your membership is **complimentary**, with our thanks."
+
+- **"Build your profile" is the one filled button on the page.** A deliberate exception to the
+  equal-CTA rule, and consistent with its reason: that rule exists so no *pathway* outranks another.
+  Here there is a single next step and nothing to be a peer with.
+- **The admin panel became a discreet utility link** — `Admin · View vetting queue →`. The escape
+  hatch (2026-07-22, the evening lost to being locked out of the vetting queue) still renders in
+  **every** state; it simply no longer dominates a page whose job is to make a member feel welcome.
+- **Deliberately silent on when a complimentary term ends.** `compExpiresAt` is resolved and
+  available; naming a date turns a gift into a countdown (founder decision, 2026-07-21).
+
+---
+
+## 2026-08-18 — Membership copy is founder-authored, verbatim, and tested
+
+**Decided (Kathleen, over four rounds, 2026-08-18).** All chooser copy lives in
+`lib/membership/tier-copy.ts`, **not** in `tiers.ts` — the pricing canon may not have a slug, price or
+label touched, and marketing copy moves on a different clock. Every line cites its ratified source.
+
+**It supersedes the tier descriptions in `docs/Releve_Pricing_RATIFIED_2026-06-25_…`**, which framed
+Live Pass as a professional "door-opener" and the rest as feature lists.
+
+**Two corrections worth preserving, because they show the standard:** an earlier pass approximated
+two bullets to make founder-specified bold phrases match. Kathleen rejected it — *"Do not approximate
+approved wording when the exact language carries product meaning."* Both were restored verbatim:
+
+- **"Be discovered** for teaching, performance, Swing, and professional opportunities." — *being
+  findable* is what Professional sells; a list of nouns loses it.
+- "License and monetize **your choreography** and eligible creative work." — *your* is the whole
+  point of Creator: the work stays the artist's, and Relevé takes a marketplace share of a product,
+  never a cut of a wage (guardrail #1).
+
+**Emphasis is data, and it is guarded.** The thirteen bold phrases are stored beside the copy and
+matched case-insensitively, longest-first. `tier-copy.test.ts` (19 checks) **fails the build if a
+copy edit ever orphans a phrase** — bold that silently vanishes is the exact failure this invites,
+and no other test would catch it.
+
+Italics are scoped to five places: "One industry. Four ways to belong.", and the four audience
+statements. Everything else is regular weight.
+
+**One display fix inside the pricing canon:** `dollars()` gained a thousands separator, so Studio
+Accelerator renders `$1,499` and not `$1499` as the ratified doc writes it. Display only — no price,
+slug, or label changed, and it matches the existing house formatter in `lib/offerings/offerings.ts`.

@@ -2,9 +2,10 @@
 // home (founder decision, payment sprint 2026-08-18).
 //
 // ── What this page is ──
-// One page carrying: the tiers, the prices, what each includes, the purchase
-// button, and the manage/cancel button. Every gated page in the app already
-// redirects here, so getting this page right closes several dead ends at once.
+// One page carrying: the four pathways, their prices, what each includes, the
+// purchase button, and the manage/cancel button. Every gated page in the app
+// already redirects here, so getting this page right closes several dead ends
+// at once.
 //
 // ── Why it is thin ──
 // It decides nothing. `resolveMembershipSituation` answers "what is this
@@ -31,7 +32,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dollars, getTier, type TierSlug } from "@/lib/membership/tiers";
-import { tierCopy } from "@/lib/membership/tier-copy";
+import { pathwayCopy, type PathwayKey } from "@/lib/membership/tier-copy";
 import {
   offeredTiers,
   professionalPathway,
@@ -40,100 +41,308 @@ import {
   type MembershipStateRow,
 } from "@/lib/membership/state";
 import SubscribeButtons from "./SubscribeButtons";
+import "./tokens.css";
 
 export const dynamic = "force-dynamic";
 
-/* ───────────────────────────── pieces ───────────────────────────── */
+/* ═══════════════════ the four pathways, in ratified order ═══════════════════ */
 
-function TierCard({
-  slug,
-  signedOut,
-  emphasis,
-  note,
-}: {
-  slug: TierSlug;
-  signedOut: boolean;
-  emphasis: boolean;
-  note?: string | null;
-}) {
-  const tier = getTier(slug)!;
-  const copy = tierCopy(slug);
+// ── Information architecture (founder correction, 2026-08-18) ──
+// "The membership chooser must appear in this exact order: 01 Professional,
+//  02 Creator, 03 Studio / Arts Organization, 04 Live Pass. These are the four
+//  primary membership pathways into Relevé and should be presented as visual
+//  peers, with Professional leading the hierarchy."
+//
+// What the page used to do — and why it was wrong: `offeredTiers` returns only
+// what a person may BUY RIGHT NOW, and the chooser rendered exactly that list.
+// So a stranger saw one card, Live Pass, because it is the only tier sellable
+// without vetting. Professional was demoted to a grey footnote, and the studio
+// pathway did not appear at all. That is an eligibility list masquerading as an
+// information architecture.
+//
+// The two are now separated. All four pathways always render, as peers, in the
+// order below. `offeredTiers` still decides — untouched — which of them carries
+// a real purchase button; the rest carry the honest next step instead. No
+// eligibility, resolver, routing, founder or payment rule changed with this.
+
+const STUDIO_TIERS: TierSlug[] = ["studio_connect", "studio_growth", "studio_accelerator"];
+
+type Pathway = {
+  key: PathwayKey;
+  /** The tier this pathway sells, or null for the studio lane (three tiers). */
+  slug: TierSlug | null;
+  /** Where the non-purchase action goes. */
+  href: string;
+};
+
+const PATHWAYS: Pathway[] = [
+  // /welcome and never /apply — /welcome is the front door that routes someone
+  // into the right onboarding path, and welcome/page.tsx records the exact
+  // funnel ("/profile/edit → /subscribe → /apply") that linking straight to the
+  // raw form rebuilds. Nothing on that path disturbs a membership someone
+  // already holds; state.test.ts asserts it.
+  { key: "professional", slug: "professional", href: "/welcome" },
+  { key: "creator", slug: "professional_full", href: "/welcome" },
+  // Studio onboarding is invite-led, not self-serve (DECISIONS 2026-07-24).
+  { key: "studio", slug: null, href: "/studios/join" },
+  { key: "live_pass", slug: "live_pass", href: "/welcome" },
+];
+
+/** "01" … "04" — the gold numerals. Presentation only. */
+const numeral = (i: number) => String(i + 1).padStart(2, "0");
+
+/* ───────────────────────────── card pieces ───────────────────────────── */
+
+/**
+ * Sets the pathway's key value phrases in semibold, leaving the rest regular
+ * (founder direction, 2026-08-18: "bold only these key value phrases").
+ *
+ * Matching is case-insensitive and longest-phrase-first, so a phrase that
+ * contains another cannot be split in half by the shorter one. The phrases
+ * themselves live in `tier-copy.ts` beside the copy, and `tier-copy.test.ts`
+ * fails if a copy edit ever orphans one.
+ */
+function Emphasize({ text, phrases }: { text: string; phrases: readonly string[] }) {
+  if (phrases.length === 0) return <>{text}</>;
+
+  const ordered = [...phrases].sort((a, b) => b.length - a.length);
+  const pattern = ordered
+    .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const parts = text.split(new RegExp(`(${pattern})`, "gi"));
+  const wanted = new Set(phrases.map((p) => p.toLowerCase()));
 
   return (
-    <div
-      className={`rounded-2xl border p-6 ${
-        emphasis ? "border-neutral-900 bg-white shadow-sm" : "border-neutral-200 bg-white"
-      }`}
-    >
-      <div className="flex items-baseline justify-between gap-4">
-        <h3 className="text-lg font-semibold text-neutral-900">{tier.label}</h3>
-        <p className="whitespace-nowrap text-lg font-semibold text-neutral-900">
-          {dollars(tier.priceCents)}
-          <span className="text-sm font-normal text-neutral-500">/year</span>
-        </p>
-      </div>
-      <p className="mt-1 text-sm text-neutral-600">{copy.tagline}</p>
-
-      <ul className="mt-4 space-y-1.5">
-        {copy.includes.map((line) => (
-          <li key={line} className="flex gap-2 text-sm text-neutral-700">
-            <span aria-hidden className="text-neutral-400">
-              ·
-            </span>
-            <span>{line}</span>
-          </li>
-        ))}
-      </ul>
-
-      {note && <p className="mt-4 text-sm font-medium text-neutral-900">{note}</p>}
-
-      <div className="mt-5">
-        {signedOut ? (
-          <Link
-            href={`/login?next=${encodeURIComponent(`/subscribe?tier=${slug}`)}`}
-            className="inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
-          >
-            Join with {tier.label} →
-          </Link>
+    <>
+      {parts.map((part, i) =>
+        wanted.has(part.toLowerCase()) ? (
+          <strong key={i} className="font-semibold text-[var(--rc-ink)]">
+            {part}
+          </strong>
         ) : (
-          <SubscribeButtons mode="subscribe" tier={slug} label={`Join with ${tier.label}`} />
-        )}
-      </div>
-
-      {/* Annual auto-renewal is disclosed at the point of purchase, not buried
-          in a confirmation email after the card has been taken. */}
-      <p className="mt-3 text-xs text-neutral-500">
-        Billed annually. Renews each year, and you can cancel anytime in one click.
-      </p>
-    </div>
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
   );
 }
 
-function TierList({
-  slugs,
+function CtaLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} className="rc-cta">
+      {label} →
+    </Link>
+  );
+}
+
+/**
+ * All four primary CTAs share one treatment. The BUTTON never signals which
+ * membership matters more — only the verb changes (Apply / Explore / Join).
+ * Live Pass is deliberately NOT the sole filled button just because it happens
+ * to go straight to checkout (founder direction, 2026-08-18).
+ */
+function PathwayCard({
+  pathway,
+  index,
+  situation,
+  tiers,
   signedOut,
   wanted,
   creditNote,
 }: {
-  slugs: TierSlug[];
+  pathway: Pathway;
+  index: number;
+  situation: MembershipSituation;
+  tiers: TierSlug[];
   signedOut: boolean;
   wanted?: string | null;
   creditNote?: string | null;
 }) {
-  if (slugs.length === 0) return null;
+  const copy = pathwayCopy(pathway.key);
+  const isStudio = pathway.key === "studio";
+
+  // ---- What may this card actually DO? (eligibility, unchanged) ------------
+  const buyableStudio = isStudio ? STUDIO_TIERS.filter((t) => tiers.includes(t)) : [];
+  const purchasable = pathway.slug ? tiers.includes(pathway.slug) : buyableStudio.length > 0;
+  const isHeld = isStudio
+    ? situation.state === "active_studio"
+    : pathway.slug === "live_pass"
+      ? situation.state === "active_live_pass"
+      : situation.tier === pathway.slug && situation.hasProfile;
+  const underReview =
+    !isStudio && pathway.slug !== "live_pass" && professionalPathway(situation) === "under_review";
+
+  // ---- Price. The studio lane shows none: the tier is chosen with Relevé. ---
+  const price = isStudio
+    ? null
+    : pathway.slug === "live_pass"
+      ? `${dollars(getTier("live_pass")!.priceCents)}/year per family`
+      : `${dollars(getTier(pathway.slug!)!.priceCents)}/year`;
+
+  const emphasis = wanted != null && wanted === pathway.slug;
+
   return (
-    <div className="mt-8 grid gap-4">
-      {slugs.map((slug) => (
-        <TierCard
-          key={slug}
-          slug={slug}
-          signedOut={signedOut}
-          // Someone who chose a tier before signing in comes back to it framed.
-          emphasis={slugs.length === 1 || wanted === slug}
-          note={slug === "professional" || slug === "professional_full" ? creditNote : null}
-        />
-      ))}
+    <div
+      className={`rc-card rounded-sm p-7 ${emphasis ? "ring-1 ring-[var(--rc-gold)]" : ""}`}
+    >
+      {/* Eyebrow: gold numeral, then the membership name. Letter-spaced, small. */}
+      <p className="text-[0.68rem] uppercase">
+        <span className="rc-numeral">{numeral(index)}</span>
+        <span className="mx-2 text-[var(--rc-hairline)]">·</span>
+        <span className="font-semibold tracking-[0.16em] text-[var(--rc-ink)]">{copy.name}</span>
+      </p>
+
+      {/* Price sits under the name, not shouting beside it. Gold, not bold. */}
+      {price && (
+        <p className="mt-3 text-[1.35rem] leading-none text-[var(--rc-gold)]">{price}</p>
+      )}
+
+      {/* A gold hairline is the only rule on the card. */}
+      <hr className="mt-5 border-0 border-t border-[var(--rc-gold)] opacity-40" />
+
+      {/* The audience statement — italic, and the only italic inside a card. */}
+      <p className="mt-5 text-[1.06rem] italic leading-[1.6] text-[var(--rc-ink)]">
+        {copy.tagline}
+      </p>
+
+      {/* Body copy: regular weight, ink-soft rather than muted for contrast,
+          and a generous measure. Readability over daintiness. */}
+      <p className="mt-3.5 text-[1rem] leading-[1.65] text-[var(--rc-ink-soft)]">
+        {copy.description}
+      </p>
+
+      <ul className="mt-6 space-y-2.5">
+        {copy.includes.map((line) => (
+          <li
+            key={line}
+            className="flex gap-3 text-[0.97rem] leading-[1.55] text-[var(--rc-ink-soft)]"
+          >
+            <span aria-hidden className="mt-[0.62em] h-px w-3 shrink-0 bg-[var(--rc-gold)]" />
+            <span>
+              <Emphasize text={line} phrases={copy.emphasis} />
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {purchasable && creditNote && !isStudio && (
+        <p className="mt-5 text-[0.85rem] text-[var(--rc-ink)]">{creditNote}</p>
+      )}
+
+      <div className="rc-card-actions pt-7">
+        {/* Auto-renewal is disclosed where the card is entered — the brief calls
+            undisclosed annual auto-renew a consumer-protection exposure. It sits
+            ABOVE the button so that terms come before the action, and so all
+            four CTAs land on one baseline across the 2×2 composition. */}
+        {purchasable && !isHeld && (
+          <p className="mb-4 text-[0.75rem] leading-relaxed text-[var(--rc-muted)]">
+            Billed annually. Renews each year, and you can cancel anytime in one click.
+          </p>
+        )}
+
+        {isHeld ? (
+          <p className="text-[0.85rem] uppercase tracking-[0.12em] text-[var(--rc-gold)]">
+            ✓ Your current membership
+          </p>
+        ) : underReview ? (
+          <p className="text-[0.88rem] leading-relaxed text-[var(--rc-muted)]">
+            Your application is with us — we&apos;ll email you the moment there&apos;s a decision.
+          </p>
+        ) : purchasable && isStudio ? (
+          <div className="grid gap-2.5">
+            {/* No price ladder in the bullets, so each button carries its own. */}
+            {buyableStudio.map((t) =>
+              signedOut ? (
+                <CtaLink
+                  key={t}
+                  href={`/login?next=${encodeURIComponent(`/subscribe?tier=${t}`)}`}
+                  label={`${getTier(t)!.label} — ${dollars(getTier(t)!.priceCents)}/year`}
+                />
+              ) : (
+                <SubscribeButtons
+                  key={t}
+                  mode="subscribe"
+                  tier={t}
+                  label={`${getTier(t)!.label} — ${dollars(getTier(t)!.priceCents)}/year`}
+                />
+              ),
+            )}
+          </div>
+        ) : purchasable ? (
+          signedOut ? (
+            <CtaLink
+              href={`/login?next=${encodeURIComponent(`/subscribe?tier=${pathway.slug}`)}`}
+              label={pathway.key === "live_pass" ? copy.cta : `Join as ${copy.name}`}
+            />
+          ) : (
+            <SubscribeButtons
+              mode="subscribe"
+              tier={pathway.slug!}
+              label={pathway.key === "live_pass" ? copy.cta : `Join as ${copy.name}`}
+            />
+          )
+        ) : (
+          <CtaLink href={pathway.href} label={copy.cta} />
+        )}
+      </div>
     </div>
+  );
+}
+
+/**
+ * The chooser: all four pathways, always, as peers, in the ratified order.
+ * `tiers` (from `offeredTiers`) decides which carry a purchase button — it is
+ * not allowed to decide which APPEAR.
+ *
+ * 2×2 on desktop, a single column on phones. Equal-height cards (see
+ * `.rc-card` in tokens.css) so the four CTAs land on a shared baseline.
+ */
+function Chooser({
+  situation,
+  tiers,
+  signedOut,
+  wanted,
+  creditNote,
+}: {
+  situation: MembershipSituation;
+  tiers: TierSlug[];
+  signedOut: boolean;
+  wanted?: string | null;
+  creditNote?: string | null;
+}) {
+  return (
+    <>
+      <div className="mt-12 grid gap-5 md:grid-cols-2">
+        {PATHWAYS.map((p, i) => (
+          <PathwayCard
+            key={p.key}
+            pathway={p}
+            index={i}
+            situation={situation}
+            tiers={tiers}
+            signedOut={signedOut}
+            wanted={wanted}
+            creditNote={creditNote}
+          />
+        ))}
+      </div>
+
+      {/* The way out for anyone who does not recognise themselves in a card.
+          /welcome is the front door that asks how they are joining. */}
+      <div className="mt-12 border-t border-[var(--rc-hairline)] pt-8 text-center">
+        {/* Regular, not italic: italics are reserved for the headline line and
+            the four audience statements (founder direction, 2026-08-18). */}
+        <p className="text-[1.06rem] leading-[1.7] text-[var(--rc-ink-soft)]">
+          Not sure which membership is right for you?
+        </p>
+        <Link
+          href="/welcome"
+          className="mt-3 inline-block text-[0.8rem] uppercase tracking-[0.14em] text-[var(--rc-gold)] underline underline-offset-4"
+        >
+          Find your place in Relevé →
+        </Link>
+      </div>
+    </>
   );
 }
 
@@ -141,73 +350,17 @@ function TierList({
 function ManageBilling({ situation }: { situation: MembershipSituation }) {
   if (!situation.canManageBilling) return null;
   return (
-    <div className="mt-8 border-t border-neutral-200 pt-6">
+    <div className="mt-12 border-t border-[var(--rc-hairline)] pt-7">
       <SubscribeButtons mode="manage" />
-      <p className="mt-2 text-xs text-neutral-500">
+      <p className="mt-2 text-[0.75rem] text-[var(--rc-muted)]">
         Update your card, see past invoices, or cancel — all in one place.
       </p>
     </div>
   );
 }
 
-/**
- * The Professional Roster is a PATHWAY, not an upsell (founder rule
- * 2026-08-18). Someone who has not been vetted is invited to apply; they are
- * never handed a checkout button that would 403.
- *
- * ── Why this points at /welcome and NOT /apply (founder rule 2026-08-18) ──
- * `/welcome` is the intended front door: it asks how someone is joining and
- * routes them into the right onboarding path. `/apply` is the raw Roster
- * application that sits behind it. `welcome/page.tsx` records the exact funnel
- * it was built to prevent — "/profile/edit → /subscribe → /apply" — which
- * pushed studios, teams and partners into the Roster application because
- * nothing asked them first. Linking straight to /apply from here would rebuild
- * that funnel from this page.
- *
- * Nothing on that path touches an existing membership: /welcome writes only
- * `users.onboarding_intent`, and an application is its own row. A Live Pass
- * member keeps their Live Pass throughout — the resolver still returns
- * `active_live_pass` while their application is submitted and under review,
- * which is asserted in state.test.ts.
- */
-function ProfessionalPath({ situation }: { situation: MembershipSituation }) {
-  const path = professionalPathway(situation);
-  if (path === "none" || path === "purchase") return null;
-
-  return (
-    <div className="mt-8 rounded-xl border border-neutral-200 bg-neutral-50 p-5">
-      <p className="text-sm font-medium text-neutral-900">
-        Are you a dance professional?
-      </p>
-      {path === "apply" ? (
-        <>
-          <p className="mt-1 text-sm text-neutral-600">
-            The Professional Roster is a separate, vetted membership — a built profile that
-            studios search. We&apos;ll walk you through it, and anything you already have with
-            Relevé stays exactly as it is.
-          </p>
-          <Link
-            href="/welcome"
-            className="mt-4 inline-block rounded-lg border border-neutral-900 px-5 py-2.5 text-sm font-medium text-neutral-900"
-          >
-            Apply for Professional membership →
-          </Link>
-        </>
-      ) : (
-        <p className="mt-1 text-sm text-neutral-600">
-          Your Professional application is with us — we&apos;ll email you the moment there&apos;s
-          a decision.
-        </p>
-      )}
-    </div>
-  );
-}
-
 const buildProfile = (
-  <Link
-    href="/profile/edit"
-    className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
-  >
+  <Link href="/profile/edit" className="rc-cta mt-8">
     Build your profile →
   </Link>
 );
@@ -261,7 +414,7 @@ export default async function SubscribePage({
     // The $30 line is claimed only where a fee was genuinely PAID — never for a
     // Founding 25 waiver, never for a comp. Mirrors the checkout route's
     // `credit_fee_id`, which is what actually attaches the coupon.
-    if (app && (applicationState === "approved")) {
+    if (app && applicationState === "approved") {
       const { data: feeRow } = await db
         .from("application_fee_payments")
         .select("id")
@@ -286,74 +439,117 @@ export default async function SubscribePage({
     ? "Your $30 application fee is credited in full toward your first year."
     : null;
 
-  /* ---- the frame every state shares ---- */
-  const shell = (children: React.ReactNode) => (
-    <main className="mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-        Relevé · Membership
-      </p>
+  /* ---- the frame every state shares ----
+     `wide` opens the page up for the 2×2 chooser; the prose states stay narrow,
+     because a paragraph set across a wide measure is harder to read. */
+  const shell = (
+    children: React.ReactNode,
+    opts: { wide?: boolean; eyebrow?: string; centered?: boolean } = {},
+  ) => (
+    <div
+      className={`subscribe-scope min-h-screen ${
+        opts.centered ? "flex flex-col justify-center" : ""
+      }`}
+    >
+      <main
+        className={`mx-auto w-full px-6 py-20 ${
+          opts.wide ? "max-w-5xl" : opts.centered ? "max-w-xl" : "max-w-2xl"
+        }`}
+      >
+        <p
+          className={`text-[0.68rem] uppercase tracking-[0.32em] text-[var(--rc-muted)] ${
+            opts.centered ? "text-center" : ""
+          }`}
+        >
+          Relevé <span className="text-[var(--rc-gold)]">·</span>{" "}
+          {opts.eyebrow ?? "Membership"}
+        </p>
 
-      {canceled && (
-        <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-          <p className="text-sm text-neutral-700">
-            No problem — nothing was charged. Your membership is here whenever you&apos;re ready.
+        {canceled && (
+          <div className="mt-6 border-l-2 border-[var(--rc-gold)] bg-[var(--rc-ivory)] px-5 py-4">
+            <p className="text-[0.9rem] text-[var(--rc-ink-soft)]">
+              No problem — nothing was charged. Your membership is here whenever you&apos;re
+              ready.
+            </p>
+          </div>
+        )}
+
+        {/* An abandoned checkout leaves a `pending` row behind forever. Say so
+            plainly, so nobody pays twice for something already in flight. */}
+        {situation.stalePendingTier && (
+          <div className="mt-6 border-l-2 border-[var(--rc-gold)] bg-[var(--rc-ivory)] px-5 py-4">
+            <p className="text-[0.9rem] text-[var(--rc-ink-soft)]">
+              You started a {getTier(situation.stalePendingTier)?.label} checkout a while ago. If
+              you completed it, it&apos;s still confirming and we&apos;ll email you — you
+              don&apos;t need to buy again.
+            </p>
+          </div>
+        )}
+
+        {children}
+
+        {/* ── The escape hatch (2026-07-22) ──
+            Signing in lands on /profile/edit, which requires an active membership
+            and otherwise redirects here. An admin who has no membership — the
+            founder's own situation, since nobody has approved her — was therefore
+            dumped on this page on EVERY sign-in with no route onward, and no link
+            to the admin console anywhere on the site. Kathleen spent an evening
+            locked out of her own vetting queue that way.
+            It renders in EVERY state, which is why `isAdmin` is a flag alongside
+            the membership state rather than a state of its own.
+
+            A DISCREET UTILITY LINK, not a panel (founder direction, 2026-08-18):
+            it was a full-width black block, which dominated a page whose whole
+            job is to make a member feel welcome. The escape hatch has to exist —
+            it does not have to shout. */}
+        {situation.isAdmin && (
+          <p className={`mt-12 ${opts.centered ? "text-center" : ""}`}>
+            <Link
+              href="/admin/applications"
+              className="text-[0.78rem] tracking-[0.04em] text-[var(--rc-muted)] underline underline-offset-4 transition-colors hover:text-[var(--rc-gold)]"
+            >
+              Admin · View vetting queue →
+            </Link>
           </p>
-        </div>
-      )}
+        )}
 
-      {/* An abandoned checkout leaves a `pending` row behind forever. Say so
-          plainly, so nobody pays twice for something already in flight. */}
-      {situation.stalePendingTier && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm text-amber-900">
-            You started a {getTier(situation.stalePendingTier)?.label} checkout a while ago. If
-            you completed it, it&apos;s still confirming and we&apos;ll email you — you don&apos;t
-            need to buy again.
-          </p>
-        </div>
-      )}
-
-      {children}
-
-      {/* ── The escape hatch (2026-07-22) ──
-          Signing in lands on /profile/edit, which requires an active membership
-          and otherwise redirects here. An admin who has no membership — the
-          founder's own situation, since nobody has approved her — was therefore
-          dumped on this page on EVERY sign-in with no route onward, and no link
-          to the admin console anywhere on the site. Kathleen spent an evening
-          locked out of her own vetting queue that way.
-          It renders in EVERY state, which is why `isAdmin` is a flag alongside
-          the membership state rather than a state of its own. */}
-      {situation.isAdmin && (
-        <div className="mt-8 rounded-xl border border-neutral-900 bg-neutral-900 p-5">
-          <p className="text-sm font-medium text-white">You&apos;re signed in as an admin.</p>
-          <p className="mt-1 text-sm text-neutral-300">
-            This page is about membership — it isn&apos;t where you review applications.
-          </p>
-          <Link
-            href="/admin/applications"
-            className="mt-4 inline-block rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-neutral-900"
+        {/* Who am I? Nothing else in the app answers this, and being signed in as
+            the wrong account (across a phone, a laptop and a spouse's phone) is
+            indistinguishable from the site being broken. */}
+        {user && (
+          <p
+            className={`mt-12 text-[0.72rem] text-[var(--rc-muted)] ${
+              opts.centered ? "text-center" : ""
+            }`}
           >
-            Go to the vetting queue →
+            Signed in as {user.email}
+          </p>
+        )}
+
+        <div className={opts.centered ? "text-center" : ""}>
+          <Link
+            href="/"
+            className="mt-4 inline-block text-[0.8rem] text-[var(--rc-muted)] underline underline-offset-4"
+          >
+            ← Back to Relevé
           </Link>
         </div>
-      )}
-
-      {/* Who am I? Nothing else in the app answers this, and being signed in as
-          the wrong account (across a phone, a laptop and a spouse's phone) is
-          indistinguishable from the site being broken. */}
-      {user && <p className="mt-8 text-xs text-neutral-400">Signed in as {user.email}</p>}
-
-      <Link href="/" className="mt-4 inline-block text-sm text-neutral-500 underline">
-        ← Back to Relevé
-      </Link>
-    </main>
+      </main>
+    </div>
   );
 
+  // Slightly more weight and scale than before, still restrained — the H1 is
+  // the anchor of the page, not a banner (founder direction, 2026-08-18).
   const h1 = (text: string) => (
-    <h1 className="mt-2 text-3xl font-semibold text-neutral-900">{text}</h1>
+    <h1 className="mt-4 text-[clamp(2.25rem,5vw,3.35rem)] font-semibold leading-[1.06] tracking-[-0.2px] text-[var(--rc-ink)]">
+      {text}
+    </h1>
   );
-  const p = (text: string) => <p className="mt-3 text-neutral-600">{text}</p>;
+  const p = (text: string) => (
+    <p className="mt-4 max-w-[62ch] text-[1.06rem] leading-[1.7] text-[var(--rc-ink-soft)]">
+      {text}
+    </p>
+  );
 
   /* ---- one branch per state ---- */
   switch (situation.state) {
@@ -371,15 +567,48 @@ export default async function SubscribePage({
       );
 
     // ── Relevé gave them this. No prices, no manage button, no paywall. ──
+    //
+    // This state is a WELCOME, not a system status (founder direction,
+    // 2026-08-18). It was technically correct and emotionally wrong: a headline
+    // announcing an account type, a sentence leading with what the member does
+    // not owe, and a black admin slab dominating the page. A founding member
+    // arriving here should feel recognised.
+    //
+    // Deliberately silent on when a complimentary term ends: naming a date turns
+    // a gift into a countdown (founder decision, 2026-07-21). `compExpiresAt` is
+    // resolved and available — it is simply not spent here.
     case "comp":
       return shell(
-        <>
-          {h1("You're a founding member 🎉")}
-          {p(
-            "Your membership is complimentary — nothing to pay, nothing to enter. Thank you for being here at the start.",
+        <div className="rc-plate px-8 py-14 sm:px-12">
+          <h1 className="text-[clamp(2.25rem,5vw,3.35rem)] font-semibold leading-[1.06] tracking-[-0.2px] text-[var(--rc-ink)]">
+            Welcome to Relevé.
+          </h1>
+
+          <p className="mt-4 text-[1.3rem] italic leading-[1.5] text-[var(--rc-ink)]">
+            You&apos;re here at the beginning.
+          </p>
+
+          <hr className="rc-plate-rule" />
+
+          <p className="mx-auto max-w-[46ch] text-[1.06rem] leading-[1.7] text-[var(--rc-ink-soft)]">
+            You are one of Relevé&apos;s founding members — here before there was anything to
+            join, and part of what this becomes. Your membership is{" "}
+            <strong className="font-semibold text-[var(--rc-ink)]">complimentary</strong>, with
+            our thanks.
+          </p>
+
+          {situation.hasProfile && (
+            <>
+              <p className="mx-auto mt-4 max-w-[46ch] text-[1.06rem] leading-[1.7] text-[var(--rc-ink-soft)]">
+                What comes next is yours to build.
+              </p>
+              <Link href="/profile/edit" className="rc-cta rc-cta-primary mt-9">
+                Build your profile →
+              </Link>
+            </>
           )}
-          {situation.hasProfile && buildProfile}
-        </>,
+        </div>,
+        { eyebrow: "Founding Member", centered: true },
       );
 
     // ── A complimentary term has run out. What happens next is F9, and it is
@@ -403,9 +632,10 @@ export default async function SubscribePage({
             `You're on ${getTier(situation.tier!)?.label}. Your Roster profile is yours to build and change whenever you like.`,
           )}
           {buildProfile}
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} />
+          <Chooser situation={situation} tiers={tiers} signedOut={false} wanted={wanted} />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     // ── F3. Live Pass is a real membership, and its holder is home. ──
@@ -413,21 +643,19 @@ export default async function SubscribePage({
       return shell(
         <>
           {h1("Your Live Pass is active")}
-          {p("Here's what your family membership includes.")}
-          <ul className="mt-5 space-y-1.5">
-            {tierCopy("live_pass").includes.map((line) => (
-              <li key={line} className="flex gap-2 text-sm text-neutral-700">
-                <span aria-hidden className="text-neutral-400">
-                  ·
-                </span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-          <ProfessionalPath situation={situation} />
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} creditNote={creditNote} />
+          {p(
+            "Your family membership is live — everything it includes is below, marked as yours. The other pathways are here too, if you ever want one.",
+          )}
+          <Chooser
+            situation={situation}
+            tiers={tiers}
+            signedOut={false}
+            wanted={wanted}
+            creditNote={creditNote}
+          />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     case "active_studio":
@@ -435,15 +663,13 @@ export default async function SubscribePage({
         <>
           {h1("Your studio membership is active")}
           {p(`You're on ${getTier(situation.tier!)?.label}.`)}
-          <Link
-            href="/studio"
-            className="mt-6 inline-block rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
-          >
+          <Link href="/studio" className="rc-cta mt-8">
             Go to your studio →
           </Link>
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} />
+          <Chooser situation={situation} tiers={tiers} signedOut={false} wanted={wanted} />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     // ── A way back, never a locked door. The full fix is F7. ──
@@ -461,13 +687,20 @@ export default async function SubscribePage({
     case "approved_no_membership":
       return shell(
         <>
-          {h1("You're in — welcome 🎉")}
+          {h1("You're in — welcome")}
           {p(
             "Your application was accepted. Choose the membership that fits, and your profile opens the moment it's active.",
           )}
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} creditNote={creditNote} />
+          <Chooser
+            situation={situation}
+            tiers={tiers}
+            signedOut={false}
+            wanted={wanted}
+            creditNote={creditNote}
+          />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     case "applied":
@@ -475,11 +708,12 @@ export default async function SubscribePage({
         <>
           {h1("Your application is under review")}
           {p(
-            "Thanks for applying — we'll email you the moment there's a decision. In the meantime, a Live Pass brings your whole family into Relevé.",
+            "Thanks for applying — we'll email you the moment there's a decision. In the meantime, there are other ways to be part of Relevé.",
           )}
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} />
+          <Chooser situation={situation} tiers={tiers} signedOut={false} wanted={wanted} />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     case "declined":
@@ -489,9 +723,10 @@ export default async function SubscribePage({
           {p(
             "Your application wasn't accepted this round. This is a not-right-now, not a judgment of your work — you're welcome to apply again.",
           )}
-          <TierList slugs={tiers} signedOut={false} wanted={wanted} />
+          <Chooser situation={situation} tiers={tiers} signedOut={false} wanted={wanted} />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
 
     // ── A stranger, or a signed-in member with nothing yet. ──
@@ -500,13 +735,23 @@ export default async function SubscribePage({
       return shell(
         <>
           {h1("Join Relevé")}
+          {/* Stays italic, by direction. The one editorial line above the grid. */}
+          <p className="mt-5 text-[1.3rem] italic leading-[1.5] text-[var(--rc-ink)]">
+            One industry. Four ways to belong.
+          </p>
           {p(
-            "One membership, one year. Choose the one that fits — and if you're a dance professional, the Roster is an application away.",
+            "Choose the Relevé membership built for the way you work, create, lead, or grow in dance.",
           )}
-          <TierList slugs={tiers} signedOut={signedOut} wanted={wanted} />
-          <ProfessionalPath situation={situation} />
+          <Chooser
+            situation={situation}
+            tiers={tiers}
+            signedOut={signedOut}
+            wanted={wanted}
+            creditNote={creditNote}
+          />
           <ManageBilling situation={situation} />
         </>,
+        { wide: true },
       );
   }
 }

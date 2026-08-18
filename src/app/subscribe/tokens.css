@@ -1,0 +1,124 @@
+/*
+ * Membership page design tokens — BLACK · CREAM · GOLD.
+ *
+ * Relevé's palette is always these three (founder, 2026-07-20). Nothing here is
+ * invented: every value is lifted from the two token files already in the repo
+ * (components/home/tokens.css and components/this-week/tokens.css) so the
+ * membership page reads as the same brand rather than a third dialect.
+ *
+ * Scoped to `.subscribe-scope`, exactly like the homepage and This Week, so
+ * carrying the full brand treatment here touches no other page.
+ *
+ * ── The rules this encodes (founder direction, 2026-08-18) ──
+ * · Warm cream ground, never stark white. Cards sit on ivory, a half-step up
+ *   from the ground — not #fff.
+ * · Gold is an ACCENT, never a fill: the 01/02/03/04 numerals, hairline rules,
+ *   the eyebrow, hover states. There is no large gold surface on this page.
+ * · Hierarchy comes from scale, letter-spacing and colour — not from bolding
+ *   everything. Body copy stays regular weight.
+ */
+
+.subscribe-scope {
+  --rc-cream: #f5eee1; /* page ground */
+  --rc-ivory: #fcf9f1; /* card / surface — the light note, in place of white */
+  --rc-ink: #1e1a17; /* primary text */
+  --rc-ink-soft: #3c3630; /* body copy, one step down from primary */
+  --rc-muted: #6d6459; /* secondary detail */
+  --rc-gold: #b6912f; /* the working gold: rules, numerals, accents */
+  --rc-hairline: #e3d9c3; /* dividers, card borders */
+
+  /* Serif is the brand voice — same stack as the homepage and This Week. */
+  --font-rc-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+
+  background: var(--rc-cream);
+  color: var(--rc-ink);
+  font-family: var(--font-rc-serif);
+}
+
+/* The four membership cards. Equal-height peers in the 2×2 composition, so the
+ * call to action sits on the same baseline whatever the copy length. */
+.subscribe-scope .rc-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--rc-ivory);
+  border: 1px solid var(--rc-hairline);
+}
+
+.subscribe-scope .rc-card-actions {
+  margin-top: auto; /* pins the CTA to the foot of every card */
+}
+
+/* One treatment for all four primary CTAs. The BUTTON never signals which
+ * membership matters more — only the verb changes (Apply / Explore / Join).
+ * Explicitly not a filled black button on Live Pass just because that one goes
+ * straight to checkout (founder direction, 2026-08-18). */
+.subscribe-scope .rc-cta {
+  display: inline-block;
+  border: 1px solid var(--rc-ink);
+  color: var(--rc-ink);
+  background: transparent;
+  padding: 0.7rem 1.25rem;
+  font-family: var(--font-rc-serif);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.subscribe-scope .rc-cta:hover {
+  border-color: var(--rc-gold);
+  color: var(--rc-gold);
+}
+
+.subscribe-scope .rc-cta:disabled {
+  opacity: 0.45;
+}
+
+/* The single PRIMARY action on a member-facing state — "Build your profile".
+ * Filled, because here there is one clear next step and nothing to be a peer
+ * with. This is NOT the membership-chooser CTA: those four stay identical
+ * outlines so no pathway outranks another (founder direction, 2026-08-18). */
+.subscribe-scope .rc-cta-primary {
+  background: var(--rc-ink);
+  border-color: var(--rc-ink);
+  color: var(--rc-cream);
+}
+
+.subscribe-scope .rc-cta-primary:hover {
+  background: var(--rc-gold);
+  border-color: var(--rc-gold);
+  color: var(--rc-cream);
+}
+
+/* The recognition plate — a founding member's welcome. Centred and framed so
+ * the page reads as an occasion rather than as text in the corner of an empty
+ * canvas. Ivory on cream, one gold rule, nothing else. */
+.subscribe-scope .rc-plate {
+  background: var(--rc-ivory);
+  border: 1px solid var(--rc-hairline);
+  text-align: center;
+}
+
+.subscribe-scope .rc-plate-rule {
+  width: 3.5rem;
+  margin: 1.75rem auto;
+  border: 0;
+  border-top: 1px solid var(--rc-gold);
+}
+
+/* The gold numeral that opens each card. Small, and the only gold of any size. */
+.subscribe-scope .rc-numeral {
+  color: var(--rc-gold);
+  letter-spacing: 0.18em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subscribe-scope * {
+    transition: none !important;
+  }
+}

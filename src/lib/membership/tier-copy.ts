@@ -1,4 +1,4 @@
-// What each membership tier actually GIVES you, in the member's own language.
+// What each membership pathway GIVES you, in the member's own language.
 //
 // ── Why this is not in tiers.ts ──
 // `tiers.ts` is the pricing canon — slug, price, label, entitlement flags — and
@@ -6,106 +6,146 @@
 // Marketing copy changes on a different clock than pricing does, so it lives
 // here and imports the slugs rather than editing them.
 //
-// ── Every line below is ratified. Nothing here is invented. ──
-// Sources:
-//   · Live Pass — founder clarification, 2026-08-18 (Kathleen, by email). This
-//     SUPERSEDES the Live Pass row in the 2026-06-25 pricing Single Source of
-//     Truth ("The Climb, The Beat, view the Roster, member events"), which
-//     described Live Pass as a professional door-opener. It is a FAMILY
-//     membership: $99/year for a household. See DECISIONS.md 2026-08-18.
-//   · Professional / Creator / the studio tiers — the 2026-06-25 pricing SSOT,
-//     with the $199 tier under its ratified customer-facing name "Creator"
-//     (DECISIONS.md 2026-08-16).
-//
-// If a tier's copy is not ratified, it does not get invented here. Add it to
-// the ratified pricing doc first.
+// ── Everything below is founder copy, verbatim (2026-08-18). Do not reword. ──
+// It SUPERSEDES the tier descriptions in
+// `docs/Releve_Pricing_RATIFIED_2026-06-25_…`, which described Live Pass as a
+// professional "door-opener" and the others as feature lists. See DECISIONS.md.
+// If a pathway's copy is not ratified, it does not get invented here.
 
-import type { TierSlug } from "./tiers";
+/** The four primary membership pathways, in the ratified presentation order. */
+export type PathwayKey = "professional" | "creator" | "studio" | "live_pass";
 
-export type TierCopy = {
-  /** One line under the price: what this membership IS. */
+export type PathwayCopy = {
+  /** The eyebrow name, rendered after the gold numeral: "01 · PROFESSIONAL". */
+  name: string;
+  /** The editorial one-liner. The one place italics are used on this page. */
   tagline: string;
-  /** What it includes. Rendered as a list; keep each item short and concrete. */
+  /** The paragraph beneath the tagline. Regular weight — never bolded whole. */
+  description: string;
+  /** What it includes. */
   includes: string[];
+  /**
+   * The default call to action. The VERB carries the difference between
+   * pathways (Apply / Explore / Join); the button styling never does.
+   */
+  cta: string;
+  /**
+   * The key value phrases to set in semibold inside `includes` (founder
+   * direction, 2026-08-18: "bold only these key value phrases"). Everything
+   * else stays regular weight — hierarchy comes from scale, colour and space,
+   * not from bolding half the page.
+   *
+   * Matched case-insensitively, longest first. Each entry MUST occur in this
+   * pathway’s `includes`; `tier-copy.test.ts` fails the build if one is
+   * orphaned by a copy edit.
+   */
+  emphasis: string[];
 };
 
-export const TIER_COPY: Record<TierSlug, TierCopy> = {
-  // ── Founder clarification 2026-08-18 ──
-  // "Live Pass is a real paid Relevé membership tier — $99 for a family. It is
-  //  not merely a studio-access state or an upgrade lane."
-  live_pass: {
-    tagline: "A family membership in Relevé — for a whole household, for a year.",
-    includes: [
-      "Family participation in Relevé",
-      "Monthly Zooms",
-      "News and resources",
-      "Community viewing and engagement",
-      "Access to purchase or license eligible choreography",
-      "The Relevé Passport",
-      "The College Audition Cycle",
-    ],
-  },
-
-  // Pricing SSOT 2026-06-25: "+ your vetted Roster profile (Teacher or
-  // Performer), credentials in your own words, set your own rate at/above the
-  // $50/hr floor. The 'build a profile' gate opens here."
+export const PATHWAY_COPY: Record<PathwayKey, PathwayCopy> = {
   professional: {
-    tagline: "The vetted Roster membership for working professionals.",
+    name: "Professional",
+    tagline: "For working dance professionals ready to be seen, connected and hired.",
+    description:
+      "Build your vetted Professional Roster profile and bring your experience, credentials, media, availability and professional services into one Relevé home.",
     includes: [
-      "Your vetted Roster profile — Teacher or Performer",
-      "Your credentials, in your own words",
-      "Set your own rate, at or above the $50/hr floor",
-      "Professional Services on your profile",
+      "Vetted Professional Roster profile",
+      // Restored verbatim (founder correction, 2026-08-18). "Be discovered" is
+      // the value the tier sells — being findable by studios — and a summary of
+      // the same bullet as "Teaching, performance, Swing and professional
+      // opportunities" lost it. Exact language over approximation where the
+      // language carries product meaning.
+      "Be discovered for teaching, performance, Swing, and professional opportunities.",
+      "Professional Services through your profile",
+    ],
+    cta: "Apply to the Professional Roster",
+    emphasis: ["Vetted Professional Roster", "Be discovered", "Professional Services"],
+  },
+
+  creator: {
+    name: "Creator",
+    tagline: "For choreographers and creators ready to make their work work for them.",
+    description:
+      "Everything in Professional, plus the infrastructure to build a catalogue, license eligible work and create new revenue from what you have already made.",
+    includes: [
+      "Everything included in Professional",
+      // Restored verbatim (founder correction, 2026-08-18). "your choreography"
+      // is the point of the tier — the work is the creator's, and Relevé takes
+      // a marketplace share of a product, never a cut of anyone's wage
+      // (CLAUDE.md guardrail #1). Dropping "your" quietly loses that.
+      "License and monetize your choreography and eligible creative work.",
+      "Build a catalogue of past and present work",
+      "Offer eligible creative services and creator products",
+    ],
+    cta: "Apply as a Creator",
+    // "Relevé catalogue / past and present work" is emphasised as one span,
+    // because the copy carries the idea contiguously ("a catalogue of past and
+    // present work") — confirmed by Kathleen, 2026-08-18.
+    emphasis: [
+      "License and monetize your choreography",
+      "catalogue of past and present work",
     ],
   },
 
-  // Pricing SSOT 2026-06-25: "+ multi-role (Teacher/Choreographer/Performer)
-  // and the Marketplace + Audition Library (upload & license your work)."
-  professional_full: {
-    tagline: "Everything in Professional, plus your work as your own catalogue.",
+  // One peer covering all three studio tiers — three separately priced cards
+  // would outnumber and bury the other pathways. No price is shown: studio
+  // onboarding is invite-led rather than self-serve (DECISIONS 2026-07-24), so
+  // the tier is chosen with Relevé. Per-tier prices still appear on the purchase
+  // buttons for an organization eligible to buy, so nobody picks a tier blind.
+  studio: {
+    name: "Studio / Arts Organization",
+    tagline:
+      "For studios, schools, companies and arts organizations building stronger dance communities.",
+    description:
+      "Connect with vetted professionals, organize your people and programming, and participate in the broader Relevé ecosystem.",
     includes: [
-      "Everything in Professional",
-      "Multi-role — Teacher, Choreographer and Performer",
-      "The Marketplace and the Audition Library",
-      "Upload and license your own work",
+      "Find and connect with vetted dance professionals",
+      "Manage faculty, dancers and organizational activity",
+      "This Week scheduling and communication",
+      "Relevé programming, resources and professional network",
+    ],
+    cta: "Explore Studio / Arts Organization",
+    // Founder list: "vetted dance professionals", "This Week", "manage faculty
+    // and dancers", "Relevé professional network". Mapped to the nearest
+    // existing phrases:
+    //   "manage faculty and dancers"  → copy reads "Manage faculty, dancers and…"
+    //   "Relevé professional network" → copy reads "Relevé programming,
+    //     resources and professional network", so the network half is emphasised
+    emphasis: [
+      "vetted dance professionals",
+      "This Week",
+      "Manage faculty, dancers",
+      "professional network",
     ],
   },
 
-  // Pricing SSOT 2026-06-25, studio ladder.
-  studio_connect: {
-    tagline: "The directory tier — be findable, and reach the community.",
+  // Priced per FAMILY, not per person — the unit is the household.
+  live_pass: {
+    name: "Live Pass",
+    tagline: "For dancers and families who want to be part of Relevé.",
+    description:
+      "A family membership connecting dancers to resources, opportunities, programming and the larger Relevé community.",
     includes: [
-      "Roster listing and community access",
-      "The Climb, monthly",
-      "3 Swing uses included, then $20 per use",
+      "Build your dancer’s Relevé Passport",
+      "Access the College Audition Cycle",
+      "Join Relevé live programming, conversations and special events",
+      "Follow Relevé news, resources and community",
+      "Purchase and license eligible choreography and creative work",
     ],
-  },
-  studio_growth: {
-    tagline: "For studios hiring regularly through Relevé.",
-    includes: [
-      "Everything in Studio Connect",
-      "Full Roster access",
-      "The Swing included",
-      "Flex à la carte, $250 per run",
-      "10 Beat postings a year",
-      "Verified Employer badge",
-      "12 Live Passes",
-    ],
-  },
-  studio_accelerator: {
-    tagline: "For studios who staff their season through Relevé.",
-    includes: [
-      "Everything in Studio Growth",
-      "Unlimited Swing",
-      "4 Flex runs a year included, then $200 per run",
-      "Unlimited Beat postings and unlimited Roster",
-      "Priority placement",
-      "12 Live Passes, plus 2 Financial Live Passes",
-      "Semi-annual “From the Wings” founder 1:1",
+    cta: "Join Live Pass",
+    // Founder list: "Relevé Passport", "College Audition Cycle", "live Relevé
+    // programming", "purchase and license eligible choreography".
+    //   "live Relevé programming" → the copy reads "Relevé live programming"
+    //     (same words, different order); emphasised as written.
+    emphasis: [
+      "Relevé Passport",
+      "College Audition Cycle",
+      "Relevé live programming",
+      "Purchase and license eligible choreography",
     ],
   },
 };
 
-export function tierCopy(slug: TierSlug): TierCopy {
-  return TIER_COPY[slug];
+export function pathwayCopy(key: PathwayKey): PathwayCopy {
+  return PATHWAY_COPY[key];
 }

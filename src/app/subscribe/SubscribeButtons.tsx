@@ -41,20 +41,22 @@ export default function SubscribeButtons({
     }
   }
 
+  // One CTA treatment for every pathway (`.rc-cta`, subscribe/tokens.css). The
+  // button must never signal which membership matters more — only the verb
+  // changes. Deliberately NOT a filled black button on the tiers that go
+  // straight to checkout (founder direction, 2026-08-18).
   return (
     <div>
-      <button
-        onClick={go}
-        disabled={busy}
-        className={`rounded-lg px-5 py-2.5 text-sm font-medium disabled:opacity-40 ${
-          mode === "subscribe"
-            ? "bg-neutral-900 text-white"
-            : "border border-neutral-300 text-neutral-800"
-        }`}
-      >
-        {busy ? "One moment…" : mode === "manage" ? "Manage or cancel membership" : label ?? "Subscribe"}
+      <button onClick={go} disabled={busy} className="rc-cta">
+        {busy
+          ? "One moment…"
+          : mode === "manage"
+            ? "Manage or cancel membership"
+            : `${label ?? "Subscribe"} →`}
       </button>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mt-2 text-[0.85rem] text-[#8f2f2f]">{error}</p>
+      )}
     </div>
   );
 }
