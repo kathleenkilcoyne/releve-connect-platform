@@ -8,7 +8,7 @@
 // query, approximated here as a name substring). The Roster page builds its
 // Supabase query from the same parsed filters.
 
-import { legacyAvailabilityAsServices } from "./services";
+import { canonicalServiceSlugs, legacyAvailabilityAsServices } from "./services";
 
 /** Result page size. */
 export const ROSTER_PAGE_SIZE = 24;
@@ -152,7 +152,9 @@ export function profileMatchesFilters(row: RosterRow, f: RosterFilters): boolean
   if (!overlaps(row.level_slugs, f.levels)) return false;
   if (!overlaps(row.cert_slugs, f.certs)) return false;
   if (!matchesAvailability(row, f.availability)) return false;
-  if (!overlaps(row.service_slugs, f.services)) return false;
+  // Resolved through the alias table, so a retired service slug
+  // (private-audition-coaching) still finds the service that absorbed it.
+  if (!overlaps(row.service_slugs, canonicalServiceSlugs(f.services))) return false;
   if (f.region && row.region_id !== f.region) return false;
   if (f.state && (row.state_province ?? "").toLowerCase() !== f.state.toLowerCase()) return false;
   if (f.q && !row.display_name.toLowerCase().includes(f.q.toLowerCase())) return false;

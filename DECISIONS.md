@@ -1000,3 +1000,55 @@ statements. Everything else is regular weight.
 **One display fix inside the pricing canon:** `dollars()` gained a thousands separator, so Studio
 Accelerator renders `$1,499` and not `$1499` as the ratified doc writes it. Display only — no price,
 slug, or label changed, and it matches the existing house formatter in `lib/offerings/offerings.ts`.
+
+---
+
+## 2026-08-18 — The canonical top-level service set is five, and specializations live inside them
+
+**Decided (Kathleen, 2026-08-18).** *"Merge Private Audition Coaching into Private Coaching as the
+single canonical My Service… Audition Prep should remain a specialization/use case of Private
+Coaching, not a separate top-level service."*
+
+**The five, in order:**
+**Choreography · Master Classes · Private Coaching · Adjudication · Guest Teaching**
+
+**The product rule this establishes.** A top-level service is a *category a studio would search for*.
+A specialization is a *use case within one*. Audition Prep, College Audition Coaching, Technique,
+Solo Coaching and Career Coaching are all specializations of **Private Coaching** — promoting each to
+its own top-level service would turn My Services into twenty near-identical buttons and make the
+Roster's Services facet useless, which is the opposite of what the facet is for.
+
+**No specialties schema was created** (founder instruction: *"Do not create a new schema just for
+specialties in this slice if one does not already exist; simply preserve that product decision for
+later"*). The decision lives here and in `lib/roster/services.ts` until there is something to build.
+
+**Which row survived, and why it matters.** The two rows were not equivalent:
+
+| | `Private Audition Coaching` | `Private Coaching` |
+|---|---|---|
+| origin | **the member's own**, 2026-08-13 | machine placeholder, 2026-08-18 |
+| type | `session` | `service` |
+| pricing | `hourly`, **"$125 / hour"** | `contact`, no price |
+| description | their own words | generic |
+
+So the merge **kept the member's row and renamed it**, and deleted the placeholder. Doing it the
+obvious way round — keeping the row that already had the right title — would have silently destroyed
+a real price, a real description, the row's `id` and its `created_at`. The instruction was "preserve
+all existing data and references", and only this direction does that. Verified first: no foreign key
+anywhere references `professional_offerings.id`.
+
+The surviving description is kept **verbatim** ("Individual coaching for dancers preparing for
+college, professional, or company auditions") rather than rewritten to match the broader title —
+rewriting a member's own copy would be inventing words. It now reads narrower than the title; that is
+a copy edit for the member, not a migration.
+
+**Old searches keep working.** `LEGACY_SERVICE_ALIASES` in `lib/roster/services.ts` resolves
+`private-audition-coaching` → `private-coaching`, applied in both the pure predicate and the live SQL
+query. A bookmarked `/roster?svc=private-audition-coaching` still finds the right professionals —
+including members who only ever had "Private Coaching" and never held the retired slug. Like the
+availability aliases, this is an alias for retired URLs, **not** a second source of truth: nothing is
+stored against it and no member ever sees it.
+
+**Verified against production:** all five canonical slugs resolve; the retired slug resolves; all
+four legacy `?avail=` URLs still return their results; and `private-audition-coaching` no longer
+appears anywhere in the live `service_slugs`.

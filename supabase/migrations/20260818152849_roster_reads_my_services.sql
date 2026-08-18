@@ -1,7 +1,10 @@
 -- ============================================================================
 -- Relevé Connect — Migration: the Roster reads My Services
 -- ----------------------------------------------------------------------------
--- ⏳ PENDING — pre-flighted, awaiting apply.
+-- ✅ APPLIED to production 2026-08-18. Ledger version 20260818152849,
+--    name `roster_reads_my_services`. Pre-flighted (slug expression compared
+--    against the TypeScript on 8 titles); verified after: all five services
+--    discoverable, all four legacy ?avail= URLs still returning results.
 --
 -- ── Why ──
 -- The 2026-08-18 principle: **one fact, one source of truth, many useful places

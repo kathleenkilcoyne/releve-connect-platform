@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  canonicalServiceSlug,
+  canonicalServiceSlugs,
   LEGACY_AVAILABILITY_SLUGS,
   LEGACY_AVAILABILITY_TO_SERVICE,
+  LEGACY_SERVICE_ALIASES,
   legacyAvailabilityAsServices,
   serviceSlug,
   toServiceOptions,
@@ -14,7 +17,7 @@ import {
 // in the SQL that builds `roster_profiles.service_slugs`. If they drift, the
 // facet matches nothing and raises no error.
 
-describe("serviceSlug — must stay identical to the SQL in migration 20260818160000", () => {
+describe("serviceSlug — must stay identical to the SQL in migration 20260818152849", () => {
   // Each of these was run through the live SQL expression
   //   lower(btrim(regexp_replace(btrim(title), '[^a-zA-Z0-9]+', '-', 'g'), '-'))
   // and produced exactly the value on the right.
@@ -140,5 +143,96 @@ describe("toServiceOptions — the filter pick-list is derived, never curated", 
       "master-classes",
       "private-coaching",
     ]);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The Private Audition Coaching → Private Coaching merge (founder, 2026-08-18).
+
+   The canonical top-level set is FIVE. Audition Prep is a specialization of
+   Private Coaching, not a service of its own — promoting every specialization
+   would turn My Services into twenty near-identical buttons.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+describe("retired service slugs still find the right people", () => {
+  it("maps private-audition-coaching to private-coaching", () => {
+    expect(LEGACY_SERVICE_ALIASES).toEqual({
+      "private-audition-coaching": "private-coaching",
+    });
+  });
+
+  it("the alias source and target are both real slugs of their titles", () => {
+    expect(serviceSlug("Private Audition Coaching")).toBe("private-audition-coaching");
+    expect(serviceSlug("Private Coaching")).toBe("private-coaching");
+  });
+
+  it("resolves a retired slug to the canonical one", () => {
+    expect(canonicalServiceSlug("private-audition-coaching")).toBe("private-coaching");
+  });
+
+  it("passes an unknown or already-canonical slug straight through", () => {
+    expect(canonicalServiceSlug("private-coaching")).toBe("private-coaching");
+    expect(canonicalServiceSlug("choreography")).toBe("choreography");
+    expect(canonicalServiceSlug("something-invented")).toBe("something-invented");
+  });
+
+  it("is idempotent — resolving twice changes nothing", () => {
+    const once = canonicalServiceSlug("private-audition-coaching");
+    expect(canonicalServiceSlug(once)).toBe(once);
+  });
+
+  it("resolves a whole filter list, de-duped", () => {
+    expect(
+      canonicalServiceSlugs(["private-audition-coaching", "private-coaching"]),
+    ).toEqual(["private-coaching"]);
+  });
+
+  it("leaves the other four canonical services untouched", () => {
+    expect(
+      canonicalServiceSlugs([
+        "choreography",
+        "master-classes",
+        "adjudication",
+        "guest-teaching",
+      ]),
+    ).toEqual(["choreography", "master-classes", "adjudication", "guest-teaching"]);
+  });
+
+  it("handles an empty filter", () => {
+    expect(canonicalServiceSlugs([])).toEqual([]);
+  });
+});
+
+describe("the canonical top-level service set is five", () => {
+  // A guard on the product decision, not just the code: if a sixth top-level
+  // service is ever added here, that is a deliberate act, not a drift.
+  it("Choreography · Master Classes · Private Coaching · Adjudication · Guest Teaching", () => {
+    const canonical = [
+      "Choreography",
+      "Master Classes",
+      "Private Coaching",
+      "Adjudication",
+      "Guest Teaching",
+    ];
+    expect(canonical).toHaveLength(5);
+    expect(canonical.map(serviceSlug)).toEqual([
+      "choreography",
+      "master-classes",
+      "private-coaching",
+      "adjudication",
+      "guest-teaching",
+    ]);
+  });
+
+  it("no canonical slug is itself a retired alias", () => {
+    for (const title of [
+      "Choreography",
+      "Master Classes",
+      "Private Coaching",
+      "Adjudication",
+      "Guest Teaching",
+    ]) {
+      expect(LEGACY_SERVICE_ALIASES[serviceSlug(title)]).toBeUndefined();
+    }
   });
 });

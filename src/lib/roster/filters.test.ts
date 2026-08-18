@@ -286,3 +286,35 @@ describe("no existing search path loses results", () => {
     expect(profileMatchesFilters(base, parseRosterParams({}))).toBe(true);
   });
 });
+
+// The merge, at the filter level: a bookmarked ?svc=private-audition-coaching
+// must keep finding people — including those who only ever had Private Coaching.
+describe("the Private Coaching merge does not lose searches", () => {
+  const coach: RosterRow = { ...base, service_slugs: ["private-coaching"] };
+
+  it("finds them by the canonical slug", () => {
+    expect(profileMatchesFilters(coach, parseRosterParams({ svc: "private-coaching" }))).toBe(true);
+  });
+
+  it("finds them by the RETIRED slug", () => {
+    expect(
+      profileMatchesFilters(coach, parseRosterParams({ svc: "private-audition-coaching" })),
+    ).toBe(true);
+  });
+
+  it("does not match someone who offers neither", () => {
+    const other = { ...base, service_slugs: ["choreography"] };
+    expect(
+      profileMatchesFilters(other, parseRosterParams({ svc: "private-audition-coaching" })),
+    ).toBe(false);
+  });
+
+  it("both slugs together behave as one filter, not two", () => {
+    expect(
+      profileMatchesFilters(
+        coach,
+        parseRosterParams({ svc: "private-audition-coaching,private-coaching" }),
+      ),
+    ).toBe(true);
+  });
+});

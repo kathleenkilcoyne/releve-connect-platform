@@ -38,7 +38,11 @@ import {
   ROSTER_PAGE_SIZE,
   type RosterFilters,
 } from "@/lib/roster/filters";
-import { legacyAvailabilityAsServices, toServiceOptions } from "@/lib/roster/services";
+import {
+  canonicalServiceSlugs,
+  legacyAvailabilityAsServices,
+  toServiceOptions,
+} from "@/lib/roster/services";
 
 export const dynamic = "force-dynamic";
 
@@ -190,8 +194,11 @@ export default async function RosterPage({
     }
   }
 
-  // My Services — the facet in its own right.
-  if (filters.services.length) query = query.overlaps("service_slugs", filters.services);
+  // My Services — the facet in its own right. Resolved through the alias table,
+  // so a bookmarked ?svc=private-audition-coaching still finds the people who
+  // now offer Private Coaching (the two were merged 2026-08-18).
+  if (filters.services.length)
+    query = query.overlaps("service_slugs", canonicalServiceSlugs(filters.services));
   if (filters.region) query = query.eq("region_id", filters.region);
   if (filters.state) query = query.ilike("state_province", filters.state);
   if (filters.q) query = query.textSearch("search_tsv", filters.q, { type: "websearch" });
