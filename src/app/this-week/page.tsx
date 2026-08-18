@@ -19,7 +19,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildLiveWeek } from "@/lib/this-week/live";
-import { messageForDay } from "@/lib/this-week/daily-message";
+import { messageForDay, timeOfDayGreeting } from "@/lib/this-week/daily-message";
 import { getCurrentTrack } from "@/lib/this-week/music";
 import { ThisWeekScreen } from "@/components/this-week/ThisWeekScreen";
 import "@/components/this-week/tokens.css";
@@ -60,9 +60,13 @@ export default async function ThisWeekPage({
 
   // The greeting is resolved on the SERVER: the daily line must not flicker or
   // change between the server render and hydration, and the track config is a
-  // read the client has no business doing.
+  // read the client has no business doing. `timeOfDay` (2026-08-18) is the same
+  // discipline extended to the warm "Good afternoon, Kathleen" line that
+  // replaced the old role/job-title header — it must agree with the zone the
+  // rest of the page is anchored to, not the browser's local clock.
   const greeting = {
     message: messageForDay(),
+    timeOfDay: timeOfDayGreeting(),
     track: await getCurrentTrack(supabase),
   };
 

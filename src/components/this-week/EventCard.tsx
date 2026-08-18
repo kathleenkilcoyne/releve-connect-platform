@@ -30,7 +30,7 @@ export function EventCard({ event }: { event: CalendarEvent }) {
       className="rc-card-shadow overflow-hidden rounded-xl border border-[var(--rc-hairline)] bg-[var(--rc-ivory)]"
       style={{ borderLeft: `6px solid ${categoryColor(event.category)}` }}
     >
-      <div className="px-4 py-3.5 sm:px-5">
+      <div className="px-5 py-4 sm:px-6 sm:py-5">
         {/* In a merged family week, whose item this is. Whole-family items leave
             this unset and are labeled by their type instead. */}
         {event.who && (

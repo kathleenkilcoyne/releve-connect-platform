@@ -52,8 +52,10 @@ export function WeekNav({
         </button>
       )}
 
-      <span className="ml-auto text-xs text-[var(--rc-muted)]">
-        Times in {timezone.replace("America/", "").replace("_", " ")} (ET)
+      {/* Quieter than the rest of the row on purpose (2026-08-18) — a fact
+          worth having on screen, not one that should compete for attention. */}
+      <span className="ml-auto text-[10px] tracking-wide text-[var(--rc-muted)] opacity-70">
+        {timezone.replace("America/", "").replace("_", " ")} time
       </span>
     </div>
   );

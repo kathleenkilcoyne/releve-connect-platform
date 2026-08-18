@@ -86,11 +86,15 @@ export function AddEntry({
     errors[f] ? <p className="mt-1 text-xs text-[#8f2f2f]">{errors[f]}</p> : null;
 
   if (!open) {
+    // Findable, not dominant (founder direction, 2026-08-18): a quiet text
+    // link rather than a bordered button sitting in its own row of chrome. The
+    // form itself, once opened, keeps its full card treatment below — only
+    // this collapsed trigger changed.
     return (
-      <div className="mt-7">
+      <div className="mt-2">
         <button
           onClick={() => setOpen(true)}
-          className="rounded-lg border border-[var(--rc-ink)] px-4 py-2 text-sm font-medium text-[var(--rc-ink)] transition-colors hover:border-[var(--rc-gold)] hover:text-[var(--rc-gold)]"
+          className="text-sm font-medium text-[var(--rc-ink)] underline underline-offset-2 decoration-[var(--rc-hairline)] transition-colors hover:text-[var(--rc-gold)] hover:decoration-[var(--rc-gold)]"
         >
           + Add to my week
         </button>

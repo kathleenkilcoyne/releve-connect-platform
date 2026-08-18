@@ -78,3 +78,34 @@ export function messageForDay(
   const index = (dayOfYearInZone(timeZone, now) - 1) % DAILY_MESSAGES.length;
   return DAILY_MESSAGES[index];
 }
+
+/**
+ * "Good morning" / "Good afternoon" / "Good evening" — the warm greeting that
+ * replaces role/job-title language at the top of This Week (founder direction,
+ * 2026-08-18: "no role, no job category... use the person's name only, or a
+ * warm time of day greeting with their name").
+ *
+ * Resolved server-side, in the SAME zone-anchored way as `messageForDay` —
+ * never from the browser's local clock. A member's device clock or timezone
+ * can be wrong or mid-travel; the rest of This Week (the daily line, the week
+ * range, "Times in New York") is all anchored to one zone, and this must agree
+ * with it rather than silently drifting to whatever the browser thinks it is.
+ *
+ * Boundaries: 5–11:59 morning, 12–16:59 afternoon, 17:00–4:59 evening (the late
+ * night hours read as evening, not "morning" — nobody wants "Good morning" at
+ * 2am).
+ */
+export function timeOfDayGreeting(
+  timeZone = "America/New_York",
+  now: Date = new Date(),
+): "Good morning" | "Good afternoon" | "Good evening" {
+  const raw = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false }).format(now),
+  );
+  // Intl can emit hour "24" at midnight (mirrors the same normalisation
+  // week.ts's zonedDateParts applies for the same reason).
+  const hour = raw % 24;
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  return "Good evening";
+}

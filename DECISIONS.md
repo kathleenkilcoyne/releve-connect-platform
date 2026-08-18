@@ -1201,3 +1201,69 @@ anonymous visitor to `/login?next=/kathleen-mcaree`.
 700 tests (was 696). Typecheck clean, build green. Lint shows 7 new warnings — the now-unread
 `loadProfile` return fields plus the dormant `TagRow` helper — which is the correct, expected shape
 of "fetch preserved, render removed," not a defect.
+
+---
+
+## 2026-08-18 — This Week stops looking like a scheduling dashboard
+
+**Direction (Kathleen, 2026-08-18).** *"This Week should be something a Relevé member wants to open
+every day. It should feel warm, beautiful, confident and alive — not like a scheduling dashboard or
+job application."* Built on branch `feature/this-week-ui-redesign`, cut from the exact clean
+checkpoint (`c41d26d`) before any code changed, per instruction — walked the current screen together
+first, architecture approved, then built.
+
+**The rule that shaped every decision:** keep the write/publish path exactly as verified two sessions
+ago — untouched. This is a presentation pass on top of working, tested behavior, not a rebuild of it.
+`entry.ts`, `actions.ts`, `live.ts`, `queries.ts`, `types.ts`, `adapters.ts` are unmodified. The
+rollup computation (`buildTeacherRollup`) still runs; only its render call is gone.
+
+**"You Matter Here" needed no redesign — it already did what was asked.** The dark-ink gold-accented
+band, the day-stable rotating line in Kathleen's own words, was already the emotional anchor. The
+audit found this before proposing anything, which is why the plan could focus entirely on what
+actually needed to change.
+
+**The identity line — corrected mid-build by the founder.** The original proposal suggested "Kathleen's
+week" as a label; the direction that shipped instead: *"use the person's name only, or a warm time of
+day greeting with their name. No role, no job category... 'You Matter Here' and the daily rotating
+thought should carry the identity. Let the cards show what the person is doing."* Built as
+`timeOfDayGreeting()` — a new pure function beside `messageForDay`, zone-anchored the same way (never
+the browser's local clock, because the rest of the page is anchored to one zone and this must agree
+with it). "Kathleen — Teacher | one calendar, every role" is gone; "Good evening, Kathleen." is what
+renders now.
+
+**Filters are hidden until there is genuinely something to filter** — not just visually collapsed.
+`canFilter` is true only when the week spans 2+ *filterable* categories (availability/deadline/
+performance are tag-only, never filter lenses — `CATEGORY_META.isFilter`). Verified both states live:
+Kathleen's real week (one Availability card) renders **zero** filter DOM elements; the demo week
+(spans teaching + subbing + more) reveals a quiet "Filter" text link on click. Filtering to Teaching
+was confirmed to narrow to exactly the matching cards; filtering to a category with no matches
+produced a plain "No cards match this filter" line — deliberately **not** given the same poetic
+treatment as a genuinely quiet week, because that would misstate why the view is empty.
+
+**The empty-week state stopped looking like a placeholder.** The old dashed-border box read as
+scaffolding. Rebuilt with **zero border width**, an ivory panel, generous padding, and an italic serif
+line — confirmed in the DOM (not assumed) against Kathleen's own calendar on a week with nothing on
+it. `WeekView` still accepts the family/child views' own `emptyHint` override, so their existing
+copy is untouched; only the shared container lost its placeholder look, and only the professional
+view's default text is new.
+
+**The "Teacher Dashboard" rollup was removed, not just renamed.** It re-listed teaching cards already
+shown above, under a label that was the exact job-category framing this pass exists to undo. Nothing
+in it was unique — every item it held already renders as a card.
+
+**The footer stopped implying a studio owns the calendar.** "Your week, read live from your studio's
+schedule" was traced to a fallback in `orgNoun()` that defaults to "studio" when there is no
+studio/team context at all — which is exactly Kathleen's own situation, so the copy was wrong for the
+person it was describing. Now branches on `activeView`: the professional's own calendar reads "Your
+week — everything you're doing, in one place"; the family/child branch, where the copy is actually
+accurate, keeps the original org-aware wording.
+
+**"Add to my week" and the "Filter" toggle now share one visual language** — a quiet underlined text
+link, not a bordered button sitting in its own row of chrome. Only the collapsed-trigger styling
+changed; the form's fields, validation, and submit logic are byte-for-byte what they were.
+
+Verified live throughout, not just built and assumed: signed in via an admin-generated link (the same
+technique used for the earlier This Week/public-profile verification), confirmed every state — real
+data, demo data, filtered, filter-empty, and genuinely empty — then signed out each time. 706 tests
+(11 new: 6 for `timeOfDayGreeting`, covering zone-crossing and midnight normalization). Typecheck
+clean, build green, zero new lint warnings anywhere in the repo.

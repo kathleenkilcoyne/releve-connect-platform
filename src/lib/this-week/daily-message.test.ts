@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DAILY_MESSAGES, messageForDay } from "./daily-message";
+import { DAILY_MESSAGES, messageForDay, timeOfDayGreeting } from "./daily-message";
 
 const NY = "America/New_York";
 
@@ -66,5 +66,50 @@ describe("messageForDay", () => {
     // 01:00 UTC Jul 21: still Jul 20 in New York, already Jul 21 in London.
     const instant = new Date("2026-07-21T01:00:00Z");
     expect(messageForDay(NY, instant)).not.toBe(messageForDay("Europe/London", instant));
+  });
+});
+
+// The warm greeting that replaces role/job-title language at the top of This
+// Week (2026-08-18). Same zone-anchoring discipline as messageForDay: it must
+// never read from the browser's local clock, because the rest of the page
+// ("Times in New York") is anchored to one zone and this has to agree with it.
+describe("timeOfDayGreeting", () => {
+  it("says good morning from 5am up to (not including) noon", () => {
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T09:00:00-04:00"))).toBe("Good morning");
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T11:59:00-04:00"))).toBe("Good morning");
+  });
+
+  it("says good afternoon from noon up to (not including) 5pm", () => {
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T12:00:00-04:00"))).toBe("Good afternoon");
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T16:59:00-04:00"))).toBe("Good afternoon");
+  });
+
+  it("says good evening from 5pm through the night, including 2am", () => {
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T17:00:00-04:00"))).toBe("Good evening");
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T23:30:00-04:00"))).toBe("Good evening");
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T02:00:00-04:00"))).toBe("Good evening");
+    expect(timeOfDayGreeting(NY, new Date("2026-08-18T04:59:00-04:00"))).toBe("Good evening");
+  });
+
+  it("reads the hour in the GIVEN zone, not the machine's local zone", () => {
+    // 09:00 in Los Angeles is already noon in New York.
+    const nineAmPacific = new Date("2026-08-18T16:00:00Z"); // 09:00 PDT / 12:00 EDT
+    expect(timeOfDayGreeting("America/Los_Angeles", nineAmPacific)).toBe("Good morning");
+    expect(timeOfDayGreeting("America/New_York", nineAmPacific)).toBe("Good afternoon");
+  });
+
+  it("defaults to America/New_York, matching messageForDay's default", () => {
+    const noonEastern = new Date("2026-08-18T16:00:00Z"); // 12:00 EDT
+    expect(timeOfDayGreeting(undefined, noonEastern)).toBe("Good afternoon");
+  });
+
+  it("returns only one of the three exact phrases — no trailing punctuation", () => {
+    const seen = new Set<string>();
+    for (let h = 0; h < 24; h++) {
+      seen.add(timeOfDayGreeting(NY, new Date(Date.UTC(2026, 0, 1, h + 5)))); // UTC-5 in Jan (EST)
+    }
+    for (const s of seen) {
+      expect(["Good morning", "Good afternoon", "Good evening"]).toContain(s);
+    }
   });
 });

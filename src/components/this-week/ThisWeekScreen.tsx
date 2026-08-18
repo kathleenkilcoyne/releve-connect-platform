@@ -16,11 +16,11 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { AVA_VIEWER, KATHLEEN, getThisWeek } from "@/lib/this-week/data";
 import { orgNoun } from "@/lib/studio/branding";
+import { CATEGORY_META } from "@/lib/this-week/categories";
 import type { LiveWeekPayload } from "@/lib/this-week/live";
 import type { ProfessionalViewer, WeekBundle } from "@/lib/this-week/types";
 import { ChildWeek } from "./ChildWeek";
 import { FamilyWeekView } from "./FamilyWeekView";
-import { DashboardRollup } from "./DashboardRollup";
 import { GreetingBand, type GreetingTrack } from "./GreetingBand";
 import { FilterBar, type FilterValue } from "./FilterBar";
 import { ViewSwitch, type ViewKey } from "./ViewSwitch";
@@ -40,7 +40,12 @@ export function ThisWeekScreen({
   weekOffset: number;
   payload?: LiveWeekPayload;
   /** "You Matter Here" — resolved on the server so the daily line can't flicker. */
-  greeting?: { message: string; track: GreetingTrack | null };
+  greeting?: {
+    message: string;
+    /** "Good afternoon" — resolved server-side; see daily-message.ts. */
+    timeOfDay?: string;
+    track: GreetingTrack | null;
+  };
   /** Force the opening surface (set by the family-join redirect). */
   initialView?: ViewKey;
   /**
@@ -75,6 +80,11 @@ export function ThisWeekScreen({
     initialView ?? (proBundle ? "professional" : "student"),
   );
   const [filter, setFilter] = useState<FilterValue>("all");
+  // Filters are HIDDEN by default (founder direction, 2026-08-18: "Do not lead
+  // with 8 filter chips. Hide filters unless they're actually needed."). Once
+  // revealed for this page view they stay revealed — the FilterBar's own "All"
+  // chip is the way back, so there is no need for a second collapse control.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const goToWeek = (next: number) => {
     router.push(next === 0 ? pathname : `${pathname}?week=${next}`);
@@ -86,6 +96,19 @@ export function ThisWeekScreen({
     proBundle && filter !== "all"
       ? proBundle.events.filter((e) => e.category === filter)
       : (proBundle?.events ?? []);
+
+  // "Needed" means the week actually spans 2+ FILTERABLE categories —
+  // availability/deadline/performance are tag-only and never filter lenses
+  // (see CATEGORY_META.isFilter). A week with one kind of event, or none, has
+  // nothing for a filter to do, so no filter UI renders at all.
+  const filterableCategoriesPresent = useMemo(() => {
+    const present = new Set<string>();
+    for (const e of proBundle?.events ?? []) {
+      if (CATEGORY_META[e.category]?.isFilter) present.add(e.category);
+    }
+    return present;
+  }, [proBundle]);
+  const canFilter = filterableCategoriesPresent.size >= 2;
 
   const showSwitch = Boolean(proBundle && hasStudentView);
   const activeView: ViewKey = view === "student" && !hasStudentView ? "professional" : view;
@@ -140,13 +163,17 @@ export function ThisWeekScreen({
       )}
 
       {activeView === "professional" && proBundle && pro ? (
-        <div className="mt-8 space-y-7">
+        <div className="mt-8 space-y-6">
+          {/* No role, no job category — "You Matter Here" and the daily line
+              above already carry identity (founder direction, 2026-08-18).
+              This is a quiet section anchor plus a warm, name-only greeting,
+              not a second identity statement. */}
           <header>
-            <h1 className="rc-serif text-4xl font-semibold text-[var(--rc-ink)]">
+            <h1 className="rc-serif text-2xl font-semibold text-[var(--rc-ink)]">
               This Week
             </h1>
-            <p className="rc-serif mt-1 text-lg italic text-[var(--rc-muted)]">
-              {pro.displayName} — {pro.roles.join(" · ")} | {pro.tagline}
+            <p className="rc-serif mt-1 text-base text-[var(--rc-muted)]">
+              {greeting?.timeOfDay ? `${greeting.timeOfDay}, ${pro.displayName}.` : `${pro.displayName}.`}
             </p>
           </header>
 
@@ -159,31 +186,36 @@ export function ThisWeekScreen({
             onToday={() => goToWeek(0)}
           />
 
-          <FilterBar value={filter} onChange={setFilter} />
+          {/* Hidden unless there is genuinely something to filter (see
+              canFilter above). A single quiet text link, not a row of chips. */}
+          {canFilter &&
+            (filtersOpen ? (
+              <FilterBar value={filter} onChange={setFilter} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(true)}
+                className="text-xs font-medium text-[var(--rc-muted)] underline underline-offset-2 transition-colors hover:text-[var(--rc-gold)]"
+              >
+                Filter
+              </button>
+            ))}
 
           {/* The write path. Only in LIVE mode — the demo week is sample data
-              and must never accept a real entry. */}
+              and must never accept a real entry. Findable, not dominant — see
+              AddEntry's own collapsed-state styling. */}
           {mode === "live" && (
             <AddEntry myServices={myServices} timezone={proBundle.week.timezone} />
           )}
 
-          <WeekView
-            week={proBundle.week}
-            events={proEvents}
-            emptyHint={
-              proBundle.events.length === 0
-                ? "Nothing scheduled this week."
-                : "No cards match this filter — try All."
-            }
-          />
-
-          {filter === "all" && proBundle.rollups.length > 0 && (
-            <div className="space-y-4 pt-1">
-              {proBundle.rollups.map((r) => (
-                <DashboardRollup key={r.id} rollup={r} />
-              ))}
-            </div>
-          )}
+          {/* The cards are the visual focus now that the chrome above them is
+              gone (founder direction, 2026-08-18). The old "Teacher Dashboard"
+              rollup below this was removed — it only ever re-listed teaching
+              cards already shown above, under a label that was exactly the
+              job-category framing this pass is undoing. Nothing is lost: every
+              item it held still renders as a card. The underlying rollup data
+              (`proBundle.rollups`) is untouched — only this render is gone. */}
+          <WeekView week={proBundle.week} events={proEvents} isFiltered={filter !== "all"} />
         </div>
       ) : mode === "live" && liveFamily ? (
         <div className="mt-8">
@@ -197,11 +229,19 @@ export function ThisWeekScreen({
 
       <footer className="mt-12 border-t border-[var(--rc-hairline)] pt-4 text-xs text-[var(--rc-muted)]">
         {mode === "live"
-          ? `Your week, read live from your ${orgNoun(
-              liveFamily?.brand?.orgType,
-              liveFamily?.selfManaged ?? false,
-              true,
-            )} schedule.`
+          ? activeView === "professional"
+            ? // The professional's OWN calendar — theirs, not a studio feed
+              // (founder direction, 2026-08-18: "This Week belongs to the
+              // individual professional and may contain much more than a
+              // studio schedule.") The org-aware wording below is still
+              // correct for the family/child branch, where the week genuinely
+              // IS read from a studio's schedule — so it's kept there.
+              "Your week — everything you're doing, in one place."
+            : `Your week, read live from your ${orgNoun(
+                liveFamily?.brand?.orgType,
+                liveFamily?.selfManaged ?? false,
+                true,
+              )} schedule.`
           : "Sample data · getThisWeek · getCommunications · hasFamilyAccess."}
       </footer>
     </main>
