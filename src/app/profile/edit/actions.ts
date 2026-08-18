@@ -339,12 +339,20 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");
 
+  // Report what ACTUALLY happened, not what the checkbox asked for. These differ
+  // when the member chose "Unpublish and save as draft": the box was still
+  // ticked, but the profile is now a draft. Telling someone they are live on the
+  // Roster in the same breath as taking them off it is exactly the kind of small
+  // contradiction that makes a tool feel untrustworthy.
+  const nowPublished = row.profile_status === "published";
   return {
     ok: true,
     slug: handle,
-    published: publish,
-    message: publish
+    published: nowPublished,
+    message: nowPublished
       ? "Saved — you're on the Relevé Roster. Your public page is live."
-      : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",
+      : unpublishAndSave
+        ? "Saved as a draft and taken off the Roster. Your changes are kept — publish again whenever you're ready."
+        : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",
   };
 }

@@ -149,6 +149,18 @@ describe("the member is never trapped", () => {
     expect(updates[0].bio).toBeNull();
   });
 
+  it("reports what ACTUALLY happened, not what the checkbox asked for", async () => {
+    // Caught in the browser test: the publish box is still ticked when the member
+    // presses "Unpublish and save as draft", and the confirmation used to read
+    // "you're on the Relevé Roster. Your public page is live." — in the same
+    // breath as taking them off it.
+    const res = await saveProfile(state, form({ bio: "" }, { intent: "unpublish_and_save" }));
+    expect(res.published).toBe(false);
+    expect(res.message).not.toMatch(/on the Relevé Roster|page is live/);
+    expect(res.message).toMatch(/draft/i);
+    expect(res.message).toMatch(/changes are kept/i);
+  });
+
   it("saving as a draft is always allowed, however incomplete", async () => {
     const res = await saveProfile(
       state,
