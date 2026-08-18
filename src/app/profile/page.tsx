@@ -29,6 +29,14 @@ export default async function ProfileHomePage() {
   const actor = await resolveProfessionalActor(createAdminClient(), user.id);
   if (!actor.isProfessional) redirect("/");
 
+  // Is their profile still the draft activation created?
+  const { data: statusRow } = await createAdminClient()
+    .from("talent_profiles")
+    .select("profile_status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isDraft = (statusRow as { profile_status?: string } | null)?.profile_status !== "published";
+
   // Marketplace seller doorway — only computed when the flag is ON, so with the
   // flag OFF (production) this page issues no extra reads and is byte-for-byte
   // unchanged. Shown to seller-enabled members, plus admins for preview.
@@ -54,6 +62,23 @@ export default async function ProfileHomePage() {
         This is your professional home. The full view — your verified status, public profile, and
         activity — arrives in the next update. For now, everything you need is one tap away:
       </p>
+
+      {/* A draft profile is the newly-activated state: Relevé created it and
+          seeded it, and the member has not published yet. Point them at the
+          review screen rather than leaving them to find it. */}
+      {isDraft && (
+        <Link
+          href="/profile/review"
+          className="mt-8 block rounded-xl border border-[#e3d9c3] bg-[#f6f1e7] px-5 py-4 hover:border-[#c9b990]"
+        >
+          <span className="block font-medium text-neutral-900">
+            Review and publish your profile →
+          </span>
+          <span className="mt-0.5 block text-sm text-[#6f6656]">
+            Your profile is a private draft. Nobody can see it until you publish it.
+          </span>
+        </Link>
+      )}
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {actor.publicSlug && (

@@ -94,9 +94,17 @@ export async function resolveSignedInDestination(
     // and can still open This Week directly.
     const { data: profileRow } = await admin
       .from("talent_profiles")
-      .select("profile_id")
+      .select("profile_id, profile_status")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    // PROFILE V2: a DRAFT means Relevé just created and seeded this profile and
+    // the member has not published it yet. Send them to the review screen —
+    // which explains what was carried across and what publishing means — rather
+    // than dropping them straight into the form.
+    if ((profileRow as { profile_status?: string } | null)?.profile_status === "draft") {
+      return "/profile/review";
+    }
 
     if (!profileRow) {
       // No professional profile — are they a family guardian? (owns a family
