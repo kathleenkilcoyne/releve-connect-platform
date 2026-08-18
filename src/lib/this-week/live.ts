@@ -28,6 +28,7 @@ import {
   fetchFamilySubscription,
   fetchGuardedStudents,
   fetchPersonalEvents,
+  fetchPublishedEventIds,
   fetchSelfMembers,
   fetchStudentWeek,
   fetchSwingRadius,
@@ -145,7 +146,7 @@ export async function buildLiveWeek(
   // The professional week has TWO sources — the studio's schedule (what they are
   // booked to teach) and their own entries (what they take, audition for, owe).
   // "One calendar, every role" is the merge of the two.
-  const [teaching, personal, swingRadius, guarded] = await Promise.all([
+  const [teaching, personal, swingRadius, guarded, publishedEventIds] = await Promise.all([
     profileId
       ? fetchTeachingWeek(supabase, admin, profileId, week)
       : Promise.resolve<SessionWithClass[]>([]),
@@ -154,6 +155,9 @@ export async function buildLiveWeek(
       : Promise.resolve<PersonalEventRow[]>([]),
     profileId ? fetchSwingRadius(supabase, profileId) : Promise.resolve(null),
     fetchGuardedStudents(supabase),
+    // "PUBLIC" badge source — must run on `admin`; see the note on
+    // fetchPublishedEventIds for why the caller's own client cannot read this.
+    profileId ? fetchPublishedEventIds(admin, profileId) : Promise.resolve(new Set<string>()),
   ]);
 
   /* ── The professional week ───────────────────────────────────────────── */
@@ -182,6 +186,7 @@ export async function buildLiveWeek(
       personal,
       swingRadius,
       payBySession,
+      publishedEventIds,
     );
     professional = {
       viewer: {

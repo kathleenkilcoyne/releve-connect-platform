@@ -91,6 +91,14 @@ export interface CalendarEvent {
    *  (green ✓). See lib/this-week/acknowledgements + the event_acknowledgements
    *  table. */
   ack?: EventAck;
+  /**
+   * True when this `availability` card currently has a live public window in
+   * `service_availability` — the member's own "PUBLIC" badge (2026-08-18).
+   * Only ever set on the professional's OWN calendar; never present on a
+   * family/student card, and never true for any category but `availability`
+   * (only that category may ever be published — lib/this-week/entry.ts).
+   */
+  published?: boolean;
 }
 
 /** The identity a "Got it" tap records, resolved from existing relationships. */

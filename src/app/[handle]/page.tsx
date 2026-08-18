@@ -34,6 +34,11 @@ import {
 import ConnectActions from "./ConnectActions";
 import OfferingsSection, { type PublicOffering } from "./OfferingsSection";
 import ServicesSection, { type PublicService } from "./ServicesSection";
+import AvailabilityWindowsSection from "./AvailabilityWindowsSection";
+import {
+  isUpcoming,
+  type PublicAvailabilityWindow,
+} from "@/lib/profile/public-availability";
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +202,70 @@ async function loadPublicServices(profileId: string): Promise<PublicService[]> {
     .map(toPublicService);
 }
 
+// The professional's PUBLIC availability — "Available This Week". Reads
+// `service_availability`, joined to My Services (`professional_offerings`).
+//
+// ── The column list below IS the privacy firewall ──
+// The admin client bypasses RLS and column grants entirely, so what keeps this
+// safe is that the query below NEVER SELECTS `source_personal_event_id` or
+// `internal_note` — the two columns REVOKEd from anon/authenticated at the
+// database level (migration 20260815173203). This function simply never asks
+// for them, the same discipline `toPublicWindow` in lib/this-week/entry.ts
+// applies on the write side. If a future edit adds `select("*")` here, that
+// discipline is what breaks — so don't.
+//
+// Filters:
+//   status = 'open'                       — only an explicitly published window
+//   offering_id is not null                — only My Services windows (not the
+//                                             separate Professional Services /
+//                                             other-businesses booking path)
+//   professional_offerings.status = active — a since-deactivated service's old
+//                                             windows do not linger publicly
+//   ends_at >= now (isUpcoming)            — nothing already in the past
+async function loadPublicAvailability(profileId: string): Promise<PublicAvailabilityWindow[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("service_availability")
+    .select("id, starts_at, ends_at, timezone, professional_offerings!inner(id, title, status)")
+    .eq("profile_id", profileId)
+    .eq("status", "open")
+    .not("offering_id", "is", null)
+    .eq("professional_offerings.status", "active")
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    console.error("[public profile] availability read failed:", error.message);
+    return [];
+  }
+
+  type OfferingJoin = { id: string; title: string; status: string };
+  type Row = {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    timezone: string;
+    professional_offerings: OfferingJoin | OfferingJoin[] | null;
+  };
+
+  return ((data ?? []) as unknown as Row[])
+    .map((r) => {
+      const offering = Array.isArray(r.professional_offerings)
+        ? r.professional_offerings[0]
+        : r.professional_offerings;
+      if (!offering) return null;
+      const window: PublicAvailabilityWindow = {
+        id: r.id,
+        offeringId: offering.id,
+        offeringTitle: offering.title,
+        startsAt: r.starts_at,
+        endsAt: r.ends_at,
+        timezone: r.timezone,
+      };
+      return window;
+    })
+    .filter((w): w is PublicAvailabilityWindow => w !== null && isUpcoming(w));
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -266,6 +335,12 @@ export default async function PublicProfilePage({
   const services = isProfessionalServicesEnabled()
     ? await loadPublicServices(profile.profile_id)
     : [];
+
+  // "Available This Week" — no feature flag; this is the completion of the
+  // 2026-08-18 write path, not a new gated feature. Guarded instead by
+  // windows.length inside the section, so a profile with none renders exactly
+  // as before.
+  const availabilityWindows = await loadPublicAvailability(profile.profile_id);
 
   // ---- Viewer state: can this visitor save / request an intro? ------------
   // Any signed-in active member (not the owner) may connect (§5 + founder
@@ -465,6 +540,12 @@ export default async function PublicProfilePage({
       <TagRow title="Focus" items={focus} />
       <TagRow title="Availability" items={availGeneral} />
       <TagRow title="Currently accepting" items={availCurrently} />
+
+      {/* "Available This Week" (2026-08-18) — placed directly beside
+          Availability, per founder direction. This is service_availability,
+          joined to My Services; it answers WHEN, for WHAT — never why someone
+          is otherwise unavailable. */}
+      <AvailabilityWindowsSection windows={availabilityWindows} />
 
       {/* The "Currently" lines — where they are right now. Free text, so they
           render as a sentence rather than tags. */}

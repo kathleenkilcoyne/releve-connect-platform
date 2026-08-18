@@ -1094,3 +1094,51 @@ to the wrong table. Resolving it is a schema change and needs a pre-flight and e
 likely shape is a nullable `offering_id` alongside the existing `service_id`, so the Professional
 Services booking path that column was built for is not broken. **Both tables have 0 rows**, so this
 is still free to change.
+
+---
+
+## 2026-08-18 — The public read path: publishing and discovery are two different things
+
+**Found (Kathleen, 2026-08-18).** After the This Week write path shipped, Kathleen published a
+real window — Guest Teaching, Aug 20, 2–4 PM — and confirmed the private confirmation ("Added, and
+your window is public"). An anonymous visit to `/kathleen-mcaree` showed nothing. The database had
+the row; nothing read it.
+
+**The lesson, in her words:** *"We just found the difference between 'the database can publish
+availability' and 'a studio can actually discover that availability.' Relevé needs both."* The write
+path (`service_availability` insert) and the read path (the public profile query) are two separate
+pieces of work, and shipping the first without the second is a silent gap — the feature LOOKS done
+from the member's side and is invisible from the studio's side.
+
+**What was built:**
+
+- `lib/profile/public-availability.ts` — pure formatting (date, time range, DST-correct timezone
+  abbreviation via `Intl…timeZoneName:"short"`, not a hand-rolled ET/PT table). 11 tests.
+- `[handle]/AvailabilityWindowsSection.tsx` — "Available This Week", placed beside the Availability
+  tag row per founder direction. No feature flag: this is the completion of an existing capability,
+  not a new gated one. Guarded by `windows.length`, same as Offerings/Services.
+- The loader query in `[handle]/page.tsx` selects **exactly five fields** —
+  `id, starts_at, ends_at, timezone, professional_offerings(id, title)` — and never asks for
+  `source_personal_event_id` or `internal_note`. The admin client bypasses RLS and column grants
+  entirely, so the ONLY thing enforcing the firewall on this query is that discipline. Documented
+  inline as the load-bearing property it is.
+- Filters: `status='open'` (explicitly published only) · `offering_id is not null` (My Services
+  windows, not the separate Professional Services booking path) · the joined offering's
+  `status='active'` (a since-deactivated service's old windows don't linger) · `ends_at >= now`
+  (nothing already past).
+
+**The "PUBLIC" badge — a second, sharper firewall finding.** Marking a member's own This Week card as
+published required reading `service_availability.source_personal_event_id` — and column privileges
+confirmed that column has **no SELECT grant for `authenticated`, not just `anon`**. The REVOKE from
+20260815173203 was written to block everyone via the ordinary API, including the owner reading their
+own linkage. So `fetchPublishedEventIds()` is a new, narrowly-scoped ADMIN-client read: it runs only
+after `profileId` is resolved from the caller's own session, touches only that profile's rows, and
+returns nothing but a boolean-per-card. This mirrors the existing precedent of `buildLiveWeek` already
+mixing an RLS-scoped client with an admin client for different needs (e.g. `materialiseSessions`).
+
+**Verified anonymously against Kathleen's real published window**, not synthetic data: the exact
+query, run as the `anon` role, returns exactly her one window, with exactly the five safe fields, and
+`source_personal_event_id`/`internal_note` remain blocked (`42501`) on that same anon connection. A
+cancelled window was inserted and confirmed absent from the anonymous read, then removed. The browser
+check ran with zero cookies — a genuinely anonymous session — and rendered "AVAILABLE THIS WEEK ·
+Guest Teaching · Thu, Aug 20 · 2:00 – 4:00 PM EDT" with no console errors.

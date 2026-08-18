@@ -167,6 +167,7 @@ export function toCalendarEvents(
 export function toPersonalCalendarEvent(
   row: PersonalEventRow,
   swingRadiusMiles: number | null,
+  publishedEventIds: ReadonlySet<string> = new Set(),
 ): CalendarEvent {
   const tz = row.timezone || "America/New_York";
   const startsAt = new Date(row.starts_at);
@@ -195,6 +196,12 @@ export function toPersonalCalendarEvent(
         : {}),
     },
     detail,
+    // Only `availability` can ever be published (lib/this-week/entry.ts), so
+    // this is never true for any other category regardless of what the set
+    // contains — a defensive AND, not just a lookup.
+    ...(row.category === "availability" && publishedEventIds.has(row.event_id)
+      ? { published: true }
+      : {}),
   };
 }
 
@@ -211,6 +218,7 @@ export function mergeWeek(
   personal: PersonalEventRow[],
   swingRadiusMiles: number | null,
   payBySession?: Map<string, PayInfo>,
+  publishedEventIds?: ReadonlySet<string>,
 ): CalendarEvent[] {
   const withInstants: { event: CalendarEvent; at: number }[] = [
     ...sessions.map((s) => ({
@@ -218,7 +226,7 @@ export function mergeWeek(
       at: new Date(s.session.starts_at).getTime(),
     })),
     ...personal.map((p) => ({
-      event: toPersonalCalendarEvent(p, swingRadiusMiles),
+      event: toPersonalCalendarEvent(p, swingRadiusMiles, publishedEventIds),
       at: new Date(p.starts_at).getTime(),
     })),
   ];
