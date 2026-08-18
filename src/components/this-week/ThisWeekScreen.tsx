@@ -26,6 +26,7 @@ import { FilterBar, type FilterValue } from "./FilterBar";
 import { ViewSwitch, type ViewKey } from "./ViewSwitch";
 import { WeekNav } from "./WeekNav";
 import { WeekView } from "./WeekView";
+import { AddEntry, type MyService } from "./AddEntry";
 
 export function ThisWeekScreen({
   mode,
@@ -33,6 +34,7 @@ export function ThisWeekScreen({
   payload,
   greeting,
   initialView,
+  myServices = [],
 }: {
   mode: "live" | "demo";
   weekOffset: number;
@@ -41,6 +43,11 @@ export function ThisWeekScreen({
   greeting?: { message: string; track: GreetingTrack | null };
   /** Force the opening surface (set by the family-join redirect). */
   initialView?: ViewKey;
+  /**
+   * The member's own My Services, for the add-entry form. Empty for a guardian
+   * with no talent profile, which correctly hides the control entirely.
+   */
+  myServices?: MyService[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -153,6 +160,12 @@ export function ThisWeekScreen({
           />
 
           <FilterBar value={filter} onChange={setFilter} />
+
+          {/* The write path. Only in LIVE mode — the demo week is sample data
+              and must never accept a real entry. */}
+          {mode === "live" && (
+            <AddEntry myServices={myServices} timezone={proBundle.week.timezone} />
+          )}
 
           <WeekView
             week={proBundle.week}
