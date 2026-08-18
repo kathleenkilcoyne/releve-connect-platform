@@ -73,3 +73,33 @@ export function formatWindowTimezone(
 export function isUpcoming(w: Pick<PublicAvailabilityWindow, "endsAt">, now: Date = new Date()): boolean {
   return new Date(w.endsAt).getTime() > now.getTime();
 }
+
+/**
+ * "When" as one readable phrase — "Thu, Aug 20 · 2:00 – 4:00 PM EDT". Shared by
+ * the card and the Inquire prefill so the two can never say different things.
+ */
+export function formatWindowWhen(
+  w: Pick<PublicAvailabilityWindow, "timezone" | "startsAt" | "endsAt">,
+): string {
+  return `${formatWindowDate(w)} · ${formatWindowTimeRange(w)} ${formatWindowTimezone(w)}`;
+}
+
+/**
+ * The prefilled note for "Inquire" on a published availability window
+ * (2026-08-18). Mirrors `introPrefillMessage` in lib/offerings/offerings.ts,
+ * with the window's date/time folded in so the professional knows exactly
+ * which opening is being asked about without a back-and-forth.
+ *
+ * ⚠ Built ONLY from `PublicAvailabilityWindow` — the same four-field whitelist
+ * the public read path already enforces (see the type's own doc comment). There
+ * is no way to reach a private title, note, or location from here, because this
+ * function is never given them.
+ */
+export function windowInquiryPrefillMessage(
+  firstName: string,
+  w: Pick<PublicAvailabilityWindow, "offeringTitle" | "timezone" | "startsAt" | "endsAt">,
+): string {
+  const name = firstName.trim() || "there";
+  const title = w.offeringTitle.trim();
+  return `Hi ${name}, I'd like to inquire about your availability for "${title}" on ${formatWindowWhen(w)}. `;
+}

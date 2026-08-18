@@ -3,7 +3,9 @@ import {
   formatWindowDate,
   formatWindowTimeRange,
   formatWindowTimezone,
+  formatWindowWhen,
   isUpcoming,
+  windowInquiryPrefillMessage,
   type PublicAvailabilityWindow,
 } from "./public-availability";
 
@@ -82,5 +84,42 @@ describe("isUpcoming", () => {
   it("is false at the exact end instant (half-open)", () => {
     const w = window();
     expect(isUpcoming(w, new Date(w.endsAt))).toBe(false);
+  });
+});
+
+describe("formatWindowWhen", () => {
+  it("joins date, time range and zone as one phrase", () => {
+    expect(formatWindowWhen(window())).toBe("Thu, Aug 20 · 2:00 – 4:00 PM EDT");
+  });
+});
+
+describe("windowInquiryPrefillMessage", () => {
+  it("names the professional, the service, and the exact window", () => {
+    const msg = windowInquiryPrefillMessage("Kathleen", window());
+    expect(msg).toBe(
+      'Hi Kathleen, I\'d like to inquire about your availability for "Guest Teaching" on Thu, Aug 20 · 2:00 – 4:00 PM EDT. ',
+    );
+  });
+
+  it("falls back to a neutral greeting for a blank first name", () => {
+    expect(windowInquiryPrefillMessage("   ", window())).toMatch(/^Hi there, /);
+  });
+
+  it("uses ONLY the public fields — never leaks anything a private event could carry", () => {
+    // If this function ever grows a parameter for title/note/location, this
+    // call site would need one too — TypeScript enforces the whitelist at the
+    // call boundary, not just at runtime. Documented here as the property that
+    // must hold: only offeringTitle/timezone/startsAt/endsAt reach the message.
+    const w = window({ offeringTitle: 'Guest Teaching" — real name redacted' });
+    const msg = windowInquiryPrefillMessage("Kathleen", w);
+    expect(msg).toContain("Guest Teaching");
+    expect(Object.keys(w).sort()).toEqual([
+      "endsAt",
+      "id",
+      "offeringId",
+      "offeringTitle",
+      "startsAt",
+      "timezone",
+    ]);
   });
 });

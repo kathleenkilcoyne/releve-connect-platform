@@ -1142,3 +1142,62 @@ query, run as the `anon` role, returns exactly her one window, with exactly the 
 cancelled window was inserted and confirmed absent from the anonymous read, then removed. The browser
 check ran with zero cookies — a genuinely anonymous session — and rendered "AVAILABLE THIS WEEK ·
 Guest Teaching · Thu, Aug 20 · 2:00 – 4:00 PM EDT" with no console errors.
+
+---
+
+## 2026-08-18 — The public profile stops looking like an application
+
+**Found (Kathleen, 2026-08-18, walking the real profile).** *"The public professional profile
+currently feels too much like a job application or database record."* Styles, Teaching Levels,
+Focus, and general Availability were rendered as standalone tag rows — useful as structured intake
+data, wrong as the first thing a studio sees.
+
+**The principle she set:** two different concepts had been living in one page. **Intake / structured
+data** — used internally for search, matching, filtering, admin — and the **public profile**, a
+curated storefront answering: who is this, what do they do, can I hire them, are they available, can
+I see their work, what establishes credibility. The fix is presentation-only: nothing stored,
+nothing searchable, nothing editable was touched.
+
+**What was removed from the public render (data, editor, admin, and Roster search left untouched):**
+Styles, Teaching Levels, Focus, general Availability, and the already-dead "Currently accepting" tag
+row. `loadProfile` still fetches every one of them, byte-for-byte — confirmed before touching
+anything that the Roster's search reads a wholly separate SQL view (`roster_profiles`), independent
+of this page's code, so hiding these tags here could not have touched search even if the fetch had
+been removed too. It wasn't: **"leave the existing loadProfile data fetching intact... do not
+combine this presentation cleanup with query optimization"** was the explicit instruction, honored
+by commenting out five render calls and touching nothing else. "Teaching at / Touring with" and
+Professional Services (the other-businesses section — a different concept from My Services) were
+hidden the same way: fetch preserved, render commented out, restorable in one line.
+
+**The new hierarchy:** Professional Header (photo, name, standing marks, title, location, years) →
+Bio, set larger and unlabelled so it reads as an introduction, not a form field → **My Services**,
+moved up to directly follow the story → **Available This Week**, immediately after → **Selected
+Work** (Featured Reel + gallery, combined) → Credentials → Links. This must work for a choreographer,
+adjudicator, or performer as well as a teacher — which is what forced the next decision.
+
+**The Featured Reel stopped being a hero concept.** It was hardcoded "Teaching Reel," permanently
+above the fold — correct framing for a teacher, wrong for a choreographer, adjudicator, or performer,
+for whom the reel is a résumé tape or a performance clip, not a lesson. *"Make this a generic Featured
+Work / Featured Reel media position... the component must not be teacher-specific."* It moved out of
+the hero into Selected Work, generically labelled. The underlying column
+(`talent_profiles.teaching_reel_url`) is unchanged — no schema touched in this pass; only the label
+and position are generic now.
+
+**Available This Week got the Inquire action it was missing**, and the fix was to *extract*, not
+duplicate. The exact same interaction My Services already used — open a note, prefill it, send via
+the existing connections flow, show sent/error/pending — was pulled out of `OfferingCta.tsx` into a
+shared `InquireButton.tsx`, used by both surfaces now. The window's prefill names the service **and**
+the exact date/time (`windowInquiryPrefillMessage`), built from nothing but the same four-field public
+whitelist the read path already enforced — no new privacy surface, because the function is never
+given anything else to leak.
+
+**Verified anonymously after the pass, not assumed:** the firewall check re-run against Kathleen's
+real published window — `source_personal_event_id` and `internal_note` still blocked (`42501`) for
+`anon`, `personal_events` still 0 rows, exactly one window still returned. Confirmed in the DOM,
+signed out, zero session cookies: `h2` order reads Services → Available This Week → Selected Work →
+Credentials, no Styles/Levels/Focus/Availability tag rows anywhere, all 6 Inquire buttons route an
+anonymous visitor to `/login?next=/kathleen-mcaree`.
+
+700 tests (was 696). Typecheck clean, build green. Lint shows 7 new warnings — the now-unread
+`loadProfile` return fields plus the dormant `TagRow` helper — which is the correct, expected shape
+of "fetch preserved, render removed," not a defect.

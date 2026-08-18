@@ -33,8 +33,13 @@ import {
 } from "@/lib/services";
 import ConnectActions from "./ConnectActions";
 import OfferingsSection, { type PublicOffering } from "./OfferingsSection";
-import ServicesSection, { type PublicService } from "./ServicesSection";
+// `ServicesSection` (the component) is intentionally NOT imported here — it is
+// hidden from the public profile for this pass (founder, 2026-08-18). The type
+// stays, because `loadPublicServices` below still returns it: the fetch is
+// preserved untouched, only the render is off.
+import { type PublicService } from "./ServicesSection";
 import AvailabilityWindowsSection from "./AvailabilityWindowsSection";
+import SelectedWorkSection from "./SelectedWorkSection";
 import {
   isUpcoming,
   type PublicAvailabilityWindow,
@@ -423,25 +428,14 @@ export default async function PublicProfilePage({
         </div>
       )}
 
-      {/* ===== HERO (above the fold) ========================================= */}
-      <section className="flex flex-col gap-8 sm:flex-row sm:items-center">
-        {/* Teaching Reel — vertical, autoplay-muted. Falls back to nothing. */}
-        {reel && (
-          <div className="mx-auto w-full max-w-[300px] shrink-0 sm:mx-0">
-            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-neutral-900 ring-1 ring-neutral-200">
-              <iframe
-                src={reel.src}
-                title={`${profile.display_name} — featured video`}
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 h-full w-full"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Identity block */}
-        <div className="flex-1">
+      {/* ===== PROFESSIONAL HEADER (above the fold) =========================
+          The Featured Reel used to live here as a fixed hero concept, hardcoded
+          "Teaching Reel" — wrong for a choreographer or adjudicator. It now
+          renders generically, further down, in Selected Work (founder
+          direction, 2026-08-18). The header is identity only: photo, name,
+          standing marks, title, location, experience. */}
+      <section>
+        <div>
           <div className="flex items-center gap-4">
             <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200">
               {profile.headshot_url ? (
@@ -525,68 +519,23 @@ export default async function PublicProfilePage({
         </div>
       </section>
 
-      {/* ===== BELOW THE HERO: text credentials ============================= */}
-
-      {/* Bio */}
+      {/* ===== YOUR STORY / BIO =============================================
+          No section label on purpose — this introduces the person, not another
+          form field. Set larger and more open than body copy elsewhere on the
+          page (founder direction, 2026-08-18: "strong, readable, visually
+          important"). */}
       {profile.bio && (
-        <section className="mt-12">
-          <p className="whitespace-pre-line leading-relaxed text-neutral-700">{profile.bio}</p>
+        <section className="mt-10 max-w-2xl">
+          <p className="whitespace-pre-line text-lg leading-relaxed text-neutral-800">
+            {profile.bio}
+          </p>
         </section>
       )}
 
-      {/* Tag rows */}
-      <TagRow title="Styles" items={styles} />
-      <TagRow title="Teaching levels" items={levels} />
-      <TagRow title="Focus" items={focus} />
-      <TagRow title="Availability" items={availGeneral} />
-      <TagRow title="Currently accepting" items={availCurrently} />
-
-      {/* "Available This Week" (2026-08-18) — placed directly beside
-          Availability, per founder direction. This is service_availability,
-          joined to My Services; it answers WHEN, for WHAT — never why someone
-          is otherwise unavailable. */}
-      <AvailabilityWindowsSection windows={availabilityWindows} />
-
-      {/* The "Currently" lines — where they are right now. Free text, so they
-          render as a sentence rather than tags. */}
-      {(profile.teaching_at || profile.touring_with) && (
-        <section className="mt-8 space-y-1 text-sm text-neutral-600">
-          {profile.teaching_at && (
-            <p>
-              <span className="font-medium text-neutral-800">Teaching at</span> ·{" "}
-              {profile.teaching_at}
-            </p>
-          )}
-          {profile.touring_with && (
-            <p>
-              <span className="font-medium text-neutral-800">Touring with</span> ·{" "}
-              {profile.touring_with}
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* Photo gallery grid */}
-      {gallery.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-neutral-500">Gallery</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {gallery.map((url) => (
-              <div
-                key={url}
-                className="aspect-square overflow-hidden rounded-lg bg-neutral-100 ring-1 ring-neutral-200"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="h-full w-full object-cover" />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ===== WHAT I OFFER (Professional Offerings — Slice 3) =============
-          Flag-gated AND guarded by offerings.length (the section returns null
-          when empty). CTA behavior is Slice 4 — these cards are read-only. */}
+      {/* ===== MY SERVICES ===================================================
+          Moved up to directly follow the story (founder direction,
+          2026-08-18) — "immediately obvious what someone can hire this
+          professional to do." Flag-gated AND guarded by offerings.length. */}
       {isProfessionalOfferingsEnabled() && (
         <OfferingsSection
           offerings={offerings}
@@ -598,6 +547,47 @@ export default async function PublicProfilePage({
         />
       )}
 
+      {/* ===== AVAILABLE THIS WEEK ===========================================
+          Follows My Services directly, per founder direction. Renders only
+          when a genuinely valid published window exists — see
+          loadPublicAvailability's filters (status='open', a real My Service,
+          not yet ended); the component adds no filtering of its own. */}
+      <AvailabilityWindowsSection
+        windows={availabilityWindows}
+        profileId={profile.profile_id}
+        handle={handle}
+        firstName={firstName}
+        canAct={canAct}
+        isOwner={isOwner}
+      />
+
+      {/* ===== SELECTED WORK =================================================
+          Featured Reel (generic — whatever best represents this professional's
+          work, not assumed to be teaching) + the photo gallery, together, as
+          proof of the work rather than an attachment dump. Renders null when
+          there is neither. */}
+      <SelectedWorkSection
+        reel={reel}
+        reelTitle={`${profile.display_name} — featured work`}
+        gallery={gallery}
+      />
+
+      {/* ===== INTAKE / STRUCTURED DATA — kept off the public presentation ===
+          Styles, Teaching Levels, Focus, general Availability, and the
+          already-retired "Currently accepting" made the page read like an
+          application (founder direction, 2026-08-18). NONE of the underlying
+          data, editor behavior, admin behavior, or Roster search/filter
+          capability is touched by this — `loadProfile` still fetches all of
+          it, byte-for-byte, for exactly that future use. Only the render
+          calls below are commented out. See DECISIONS.md.
+
+          <TagRow title="Styles" items={styles} />
+          <TagRow title="Teaching levels" items={levels} />
+          <TagRow title="Focus" items={focus} />
+          <TagRow title="Availability" items={availGeneral} />
+          <TagRow title="Currently accepting" items={availCurrently} />
+      */}
+
       {/* Credentials */}
       {profile.credentials && (
         <section className="mt-10">
@@ -608,12 +598,16 @@ export default async function PublicProfilePage({
         </section>
       )}
 
-      {/* ===== PROFESSIONAL SERVICES ======================================
-          Other businesses this member runs. Deliberately placed AFTER the dance
-          identity and Relevé offerings and BEFORE contact/social (spec §3) — it
-          complements the dance profile, it never leads it. Flag-gated AND
-          guarded by services.length (the section returns null when empty). */}
-      {isProfessionalServicesEnabled() && <ServicesSection services={services} />}
+      {/* ===== PROFESSIONAL SERVICES — HIDDEN FOR THIS PASS (2026-08-18) =====
+          "Other businesses" (massage, Pilates, photography…) is a DIFFERENT
+          concept from My Services, and the founder wants one clear public
+          service area for now: My Services only. The fetch above (`services`)
+          and the flag are both left exactly as they were — nothing here is
+          deleted, only the render call is commented out — so restoring this
+          is a one-line change whenever it's wanted back.
+
+          {isProfessionalServicesEnabled() && <ServicesSection services={services} />}
+      */}
 
       {/* Résumé / CV + Links */}
       {(profile.resume_url || Object.keys(social).length > 0) && (
