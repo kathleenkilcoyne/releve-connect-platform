@@ -1052,3 +1052,45 @@ stored against it and no member ever sees it.
 **Verified against production:** all five canonical slugs resolve; the retired slug resolves; all
 four legacy `?avail=` URLs still return their results; and `private-audition-coaching` no longer
 appears anywhere in the live `service_slugs`.
+
+---
+
+## 2026-08-18 — Availability publishes ONLY when the member explicitly marks a window public
+
+**Decided (Kathleen, 2026-08-18).** *"Only publish when the member explicitly marks a window
+public."* This is the rule the whole This Week ↔ public-availability boundary is built on.
+
+**What it means:**
+
+- A `personal_events` row is **always private**. Creating one publishes nothing, ever. There is no
+  automatic derivation, no "availability category means public", no background sync.
+- A member publishes by taking an action, and that action **writes a row in
+  `service_availability`** — the separate, public table. Publishing IS the existence of that row.
+- Unpublishing **deletes that row**. It never edits the private event.
+- Only the *shape* of the window crosses over — `starts_at`, `ends_at`, `timezone`, and the service
+  being offered. **Never** the title, category, note, or `detail` of the private event. A studio
+  learns *when* someone is free, and never *why* they are not.
+
+**Why explicit, and not automatic.** Automatic publication is one bad `UPDATE`, one misread enum, or
+one well-meant "sync my calendar" feature away from putting an audition, a medical appointment or a
+funeral on a public page. The founder's rule: *"A person's private calendar may inform public
+availability, but Relevé must never expose why they're unavailable."* An explicit act is auditable,
+reversible, and impossible to trigger by accident.
+
+**This preserves an existing firewall rather than inventing one.** `service_availability` was already
+built this way — publication as a separate row, `source_personal_event_id` and `internal_note`
+REVOKEd from `anon`/`authenticated` at column level, and RLS confirming `personal_events` has exactly
+ONE policy (owner-only, no anon read, no studio/guardian/teacher path). This decision ratifies that
+design and forbids the shortcuts that would erode it.
+
+### ⚠ One schema mismatch this exposes, to resolve before building
+
+`service_availability.service_id` currently references **`professional_services`** — the *other
+businesses* table (massage, Pilates, photography) — **not `professional_offerings`**, which is My
+Services and the ratified source of truth for what a professional offers.
+
+So a published window cannot currently point at "Guest Teaching". The bridge exists, but it is wired
+to the wrong table. Resolving it is a schema change and needs a pre-flight and explicit approval; the
+likely shape is a nullable `offering_id` alongside the existing `service_id`, so the Professional
+Services booking path that column was built for is not broken. **Both tables have 0 rows**, so this
+is still free to change.
