@@ -124,7 +124,12 @@ export async function activateProfessionalProfile(
     if (!basis) return { created: false, reason: "not_eligible" };
 
     // ── 4. The one-time seed ──
-    const displayName = user.display_name?.trim() || email || "Relevé Professional";
+    // NEVER fall back to email. An address is not a name, and showing one on a
+    // public profile page (even a draft) would expose contact info that the
+    // rest of the platform deliberately keeps private by default (Open Decision
+    // 2). Absent a real name, start in an explicit, safe onboarding state and
+    // let the member supply their own name on /profile/review or /profile/edit.
+    const displayName = user.display_name?.trim() || "New Relevé Professional";
     const seed: ProfileSeed =
       basis.kind === "approved_application"
         ? buildProfileSeed(application?.answers ?? null, { displayName })

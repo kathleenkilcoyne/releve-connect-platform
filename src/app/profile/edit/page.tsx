@@ -182,7 +182,13 @@ export default async function ProfileEditPage() {
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        {profile ? "Edit your profile" : "Welcome to the Relevé Roster"}
+        {/* `profile` truthy is guaranteed by the `if (!p) redirect(...)` guard
+            above — this can never be "no profile", so it must ask what actually
+            varies: has this draft ever been reviewed/published? A brand-new
+            activation normally lands on /profile/review first (destination.ts);
+            this only fires for someone who reached the editor directly (a
+            bookmark, or a link from /profile/review) while still unpublished. */}
+        {p?.profile_status === "draft" ? "Welcome to the Relevé Roster" : "Edit your profile"}
       </h1>
       <p className="mt-3 text-neutral-600">
         This is your public page — what studios and fellow artists see. Fill in what you like now;

@@ -232,6 +232,50 @@ describe("activateProfessionalProfile — the founding path", () => {
   });
 });
 
+describe("activateProfessionalProfile — display name never falls back to an email address", () => {
+  it("an approved applicant with no display_name and no name in their application starts in a safe placeholder state, never their email", async () => {
+    const db = makeDb({
+      ...baseTables(),
+      users: [{ ...userRow, display_name: null }],
+      applications: [
+        { ...approvedApplication, answers: { story: { bio: "Twenty years." } } }, // no identity.first_name/last_name
+      ],
+    });
+    await activateProfessionalProfile(db, USER);
+    const row = created(db);
+    expect(row.display_name).toBe("New Relevé Professional");
+    expect(row.display_name).not.toContain("@");
+    expect(row.display_name).not.toContain(userRow.email);
+  });
+
+  it("an invited Founding Professional with no display_name starts in the same safe placeholder state, never their email", async () => {
+    const db = makeDb({
+      ...baseTables(),
+      users: [{ ...userRow, display_name: null }],
+      applications: [],
+      founding_professional_grants: [{ id: "g1", email: "ada@example.com", revoked_at: null }],
+    });
+    const res = await activateProfessionalProfile(db, USER);
+    expect(res).toMatchObject({ created: true });
+    const row = created(db);
+    expect(row.display_name).toBe("New Relevé Professional");
+    expect(row.display_name).not.toContain("@");
+  });
+
+  it("a real display_name is always preferred over the placeholder", async () => {
+    const db = makeDb(baseTables()); // userRow has display_name: "Ada Lovelace"
+    await activateProfessionalProfile(db, USER);
+    expect(created(db).display_name).toBe("Ada Lovelace");
+  });
+
+  it("the application's own name still wins over the placeholder when display_name is null", async () => {
+    const db = makeDb({ ...baseTables(), users: [{ ...userRow, display_name: null }] });
+    await activateProfessionalProfile(db, USER);
+    // approvedApplication's answers.identity has first_name/last_name "Ada Lovelace"
+    expect(created(db).display_name).toBe("Ada Lovelace");
+  });
+});
+
 describe("activateProfessionalProfile — safety", () => {
   it("treats a unique violation as success, not failure (the race is expected)", async () => {
     const db = makeDb(baseTables(), { insertError: { code: "23505", message: "duplicate key" } });

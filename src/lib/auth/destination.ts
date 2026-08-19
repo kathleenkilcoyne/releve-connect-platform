@@ -56,7 +56,45 @@ export async function resolveSignedInDestination(
     }
   }
 
-  if (requestedNext && requestedNext.startsWith("/")) return requestedNext;
+  // ── PROFILE V2 — catch-up activation before an explicit `next` is honored ──
+  // An invite link's `?next=/profile/edit` used to return on the very next line
+  // below, before the draft-check/catch-up further down this function ever ran
+  // — so a first-time activation could be bypassed straight past the review
+  // screen. Worse: claimFoundingProfessionalOnSignIn (above) only ever
+  // activates a grant ONCE — it returns early forever once `claimed_at` is set
+  // (this is already true for grants.id 87d0feaa, dgmrx@yahoo.com, claimed
+  // 2026-08-18 23:24 UTC). Someone in that state, whose invite link always
+  // carries the SAME `next=/profile/edit`, would return from the very next
+  // line on every single sign-in and never reach a catch-up at all.
+  //
+  // Gated on an internal `requestedNext` being present — i.e. exactly the
+  // condition that is about to short-circuit below — so a sign-in with NO
+  // explicit destination keeps its EXISTING routing untouched. That matters:
+  // a family guardian who also happens to hold an eligible but not-yet-active
+  // professional application must NOT be auto-activated just for opening This
+  // Week (see "existing precedence is unchanged" in destination.test.ts) — that
+  // case has no `next` at all, so it is unaffected by this block and still
+  // resolved entirely by the draft-check/catch-up later in this function, in
+  // their original position after the family/org checks.
+  const nextIsInternal = Boolean(requestedNext && requestedNext.startsWith("/"));
+  if (nextIsInternal && user && admin) {
+    try {
+      await activateProfessionalProfile(admin, user.id);
+    } catch (err) {
+      console.error("[profile-activation] catch-up before `next` failed (ignored):", err);
+    }
+
+    const { data: draftCheck } = await admin
+      .from("talent_profiles")
+      .select("profile_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if ((draftCheck as { profile_status?: string } | null)?.profile_status === "draft") {
+      return "/profile/review";
+    }
+  }
+
+  if (nextIsInternal) return requestedNext as string;
 
   // ── Family-join intent (V1 three-paths) ──
   // A FIRST-TIME parent has no family rows yet at sign-in — those are created

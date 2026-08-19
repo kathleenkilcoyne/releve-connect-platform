@@ -189,6 +189,74 @@ describe("post-sign-in routing — the /welcome misrouting and its fix", () => {
   });
 });
 
+describe("an explicit `next` no longer bypasses first-time activation", () => {
+  // The incident this fixes: an invite link is /login?next=/profile/edit. The
+  // OLD code returned `next` immediately after the founding claim, before the
+  // draft-check/catch-up further down ever ran — so a brand-new professional,
+  // or someone whose claim succeeded but whose profile activation had not
+  // (Geoffrey Doig-Marx, grants.id 87d0feaa, claimed 2026-08-18), landed on
+  // /profile/edit with no profile row and was bounced to /subscribe.
+
+  it("a claimed grant with an active membership but no profile is caught up, even though `next` points at /profile/edit — Geoffrey's exact case", async () => {
+    // claimFoundingProfessionalOnSignIn is mocked to a no-op in this file (it
+    // returns early forever once claimed_at is set — that is precisely why
+    // this fix cannot rely on it), so the membership/grant already being in
+    // place models "the claim already happened on an earlier sign-in."
+    tables.memberships = [activeMembership];
+    tables.founding_professional_grants = [
+      { id: "g1", email: "zz@example.com", claimed_at: "2026-08-18T23:24:25Z", revoked_at: null },
+    ];
+
+    const dest = await resolveSignedInDestination(supabaseStub, "/profile/edit");
+
+    expect(dest).toBe("/profile/review");
+    expect(inserts.talent_profiles).toHaveLength(1);
+    expect(inserts.talent_profiles[0].profile_status).toBe("draft");
+    expect(inserts.talent_profiles[0].founder_distinction).toBe("founding_professional");
+  });
+
+  it("a fresh founding claim via an invite link also lands on review, not the raw editor", async () => {
+    tables.memberships = [activeMembership];
+    tables.founding_professional_grants = [
+      { id: "g1", email: "zz@example.com", claimed_at: null, revoked_at: null },
+    ];
+
+    expect(await resolveSignedInDestination(supabaseStub, "/profile/edit")).toBe("/profile/review");
+  });
+
+  it("an approved, active professional with no profile is caught up before an unrelated `next` is honored", async () => {
+    tables.applications = [approvedApp];
+    tables.memberships = [activeMembership];
+
+    expect(await resolveSignedInDestination(supabaseStub, "/roster")).toBe("/profile/review");
+  });
+
+  it("someone genuinely not eligible still gets their explicit `next` honored", async () => {
+    expect(await resolveSignedInDestination(supabaseStub, "/roster")).toBe("/roster");
+    expect(inserts.talent_profiles).toBeUndefined();
+  });
+
+  it("a family guardian's routing is untouched by this fix — it only fires when `next` is set", async () => {
+    // Same case as "existing precedence is unchanged" below, but making
+    // explicit that the new early block is inert here: no `next` means the
+    // guardian's this-week routing (and the deliberate non-activation on the
+    // way there) is exactly what it was before this fix.
+    tables.guardianships = [{ guardian_user_id: USER, student_id: "s1" }];
+    tables.applications = [approvedApp];
+    tables.memberships = [activeMembership];
+
+    expect(await go()).toBe("/this-week");
+    expect(inserts.talent_profiles).toBeUndefined();
+  });
+
+  it("an existing published profile is never re-activated just because `next` is set", async () => {
+    tables.talent_profiles = [{ user_id: USER, profile_id: "p1", profile_status: "published" }];
+
+    expect(await resolveSignedInDestination(supabaseStub, "/profile/edit")).toBe("/profile/edit");
+    expect(inserts.talent_profiles).toBeUndefined();
+  });
+});
+
 describe("existing precedence is unchanged", () => {
   it("an admin still goes to the vetting queue", async () => {
     tables.users = [{ user_id: USER, email: "zz@example.com", account_type: "admin" }];

@@ -1201,3 +1201,87 @@ anonymous visitor to `/login?next=/kathleen-mcaree`.
 700 tests (was 696). Typecheck clean, build green. Lint shows 7 new warnings — the now-unread
 `loadProfile` return fields plus the dormant `TagRow` helper — which is the correct, expected shape
 of "fetch preserved, render removed," not a defect.
+
+---
+
+## 2026-08-18 — A Founding Professional signed in and landed on the paywall, not the Roster
+
+**Reported (Kathleen, urgent, production incident).** Geoffrey Doig-Marx — an invited Founding
+Professional — followed his invite link, entered his sign-in code, and was sent to `/subscribe`. Her
+production trace (confirmed via the Supabase edge logs) showed his grant matched, his `users` row was
+created, his Professional membership was materialized as `active` / `complimentary_permanent`, and his
+founder identity was stamped — but `activateProfessionalProfile` never ran. No `talent_profiles` row
+was ever attempted for him. Seven other Founding Professionals had already been invited and were at
+risk of the same landing.
+
+**Root cause, confirmed by diffing this branch against `main` (production's source), not inferred:**
+production is running a build that predates the Profile V2 activation module entirely. `main` has no
+`src/lib/profile/activate.ts`, no `activation.ts`, no `/profile/review` route — its
+`claimFoundingProfessionalOnSignIn` creates the membership and stamps identity, exactly as Kathleen's
+trace showed, but has no call to any profile-activation service at all, because that service doesn't
+exist yet on `main`. `/profile/edit` on `main` only checks the membership gate and renders whatever
+profile row happens to exist (or doesn't) — it never creates one. This branch's Profile V2 work
+(slices 1–4, already built and tested) is correct; it simply was never deployed.
+
+**The trap Kathleen flagged, and why it mattered for the fix's shape:** Geoffrey's grant already has
+`claimed_at` set. `claimFoundingProfessionalOnSignIn` returns early forever once `claimed_at` is
+non-null — so once this branch IS deployed, his claim path still cannot recover him. His only route
+back is a catch-up that does not depend on the claim function at all.
+
+**Three bugs found and fixed in this branch's own Profile V2 code — all three would have surfaced the
+moment it deployed, even with the claim path working correctly:**
+
+1. **`src/lib/auth/destination.ts` — an explicit `?next=` bypassed catch-up activation entirely.**
+   Every Founding Professional invite link is `/login?next=/profile/edit&email=...`
+   (`FoundingProfessionalsConsole.tsx`). The old code honored `requestedNext` immediately after the
+   founding-claim attempt, before the draft-check/catch-up further down the function ever ran — so
+   even a WORKING claim+activation would have sent someone straight to the raw editor, or (for
+   Geoffrey's already-claimed case) straight back to `/subscribe`, forever, on every sign-in. Fixed by
+   adding a catch-up activation gated on `requestedNext` being present — i.e., exactly the condition
+   about to short-circuit — that calls `activateProfessionalProfile` directly (never through the claim
+   function, so `claimed_at` is irrelevant to it) and redirects to `/profile/review` when the result is
+   a draft. Deliberately did NOT make this run unconditionally: `destination.test.ts` encodes on
+   purpose that a family guardian who also holds an eligible professional application must not be
+   auto-activated just for opening This Week. Gating on `requestedNext` preserves that precedence
+   exactly (the family-join flow never carries a `next`) while closing the invite-link bypass.
+
+2. **`src/lib/profile/activate.ts` — the display-name fallback chain could expose an email address.**
+   `user.display_name?.trim() || email || "Relevé Professional"` — an invited founder never fills in a
+   name (there is no application to seed one from), so `display_name` is null and this fell through to
+   their raw email as the PUBLIC-FACING name on a draft profile. Fixed: the email step is removed
+   entirely. The fallback is now `"New Relevé Professional"`, an explicit onboarding placeholder, never
+   contact information.
+
+3. **`src/app/profile/edit/page.tsx` — "Welcome to the Relevé Roster" was unreachable dead code.** The
+   heading ternary read `{profile ? "Edit your profile" : "Welcome to the Relevé Roster"}`, but
+   `profile` is the same query result that an earlier `if (!p) redirect(...)` guard already requires to
+   be truthy — the false branch could never render. Changed the condition to
+   `p?.profile_status === "draft"`, which is both reachable and actually means something: a first-time
+   activation now lands on `/profile/review` first (fix #1), so this only fires if someone reaches the
+   raw editor directly while still unpublished — and in that case the welcome framing is still correct.
+
+**Confirmed `/profile/review` itself needed no fix.** `src/lib/profile/review.ts`'s `resolveAudience`
+already returns `"invited_founder"` for a draft with no `prefilled_from_application_id`, and
+`WELCOME_COPY.invited_founder` is "Welcome — your Relevé profile is ready to build" — a real, correct,
+already-built first-run screen. The bug was entirely about reaching it, not what it says.
+
+**Tested twice.** First, 10 new Vitest cases added to the existing `destination.test.ts` and
+`activate.test.ts` suites (mocked DB, same pattern as the rest of the file), modeling Geoffrey's exact
+grant state (`claimed_at` set, active membership, no profile, `next=/profile/edit`) plus a fresh
+unclaimed founder, an approved non-founding professional with a missing profile, an existing published
+profile (no duplicate/reset), someone with no qualifying membership, and the family-guardian
+precedence case explicitly. Second, a temporary, self-cleaning integration test ran the REAL
+`resolveSignedInDestination` and `activateProfessionalProfile` against the REAL database — disposable
+`zz-verify-*@releve-test.invalid` rows only, a synthetic `user_id` with no Supabase Auth user ever
+created (`public.users.user_id` carries no FK to `auth.users`), full cleanup in `afterEach`, and an
+independent SQL sweep across every touched table afterward confirmed zero trace. That live run caught
+three schema mistakes in the TEST HARNESS itself (a NOT NULL `granted_by`, a NOT NULL `applications.email`,
+a nonexistent `family_accounts.family_name` column) — none were bugs in the app code — and, once
+corrected, confirmed all 6 required scenarios pass against the real schema, not just a mock. The test
+file was deleted after use; nothing from it is committed. 710 tests in the permanent suite (was 700),
+typecheck clean, lint clean on every changed file.
+
+**Explicitly not done, per Kathleen's stop condition:** no backfill for Geoffrey or any of the other
+six invited Founding Professionals (queried their live rows before and after this work — byte-for-byte
+unchanged), no commit, no push, no merge, no deploy. `feature/this-week-ui-redesign` untouched
+(confirmed still at `622631e`).
