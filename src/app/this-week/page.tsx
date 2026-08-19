@@ -5,13 +5,19 @@
 // their real week through RLS.
 //
 // ── Two modes, one screen ──
-//   LIVE — a signed-in member with a calendar. Their own classes (as a teacher)
-//          and their children's (as a guardian), served by two different RLS
-//          policies from one login.
-//   DEMO — nobody signed in, or a member whose calendar is still empty. Falls
-//          back to the pass-one sample week, clearly labelled as a sample, so
-//          the feature stays showable to a studio without pretending the data
-//          is theirs.
+//   LIVE — EVERY signed-in visitor, no exceptions (founder direction,
+//          2026-08-18: "Demo mode should only be explicit for a genuinely
+//          signed-out visitor"). A professional with an empty week, or a
+//          member with no profile and no family relationship yet, still gets
+//          mode="live" — ThisWeekScreen renders its own quiet-week /
+//          no-calendar-yet state for them. It must never fall through to
+//          sample data pretending to be theirs.
+//   DEMO — ONLY a visitor with no session at all. This used to also catch a
+//          real signed-in member whose week/profile/family were all empty,
+//          which is exactly the "hybrid" state the founder flagged after
+//          seeing "Good evening, Kathleen" next to fake Jan 12–18 sample
+//          events, "PREVIEW · WHOSE WEEK", and "Ava · Student". That
+//          second fallback is gone — see below.
 //
 // Week navigation is a URL searchParam (`?week=-1`) rather than client state,
 // because moving weeks now means a real query — the server has to refetch.
@@ -56,7 +62,18 @@ export default async function ThisWeekPage({
   const supabase = await createClient();
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
+
+  // Log distinctly from a genuine sign-out (2026-08-18). Session refresh is
+  // already handled correctly on every request by src/proxy.ts +
+  // lib/supabase/middleware.ts, so this should be rare — but if it ever
+  // fires, it must be diagnosable (this codebase's own [this-week] console
+  // convention, not a raw unlabeled SDK dump) rather than silently falling
+  // through to demo mode with no trace of what happened.
+  if (userError) {
+    console.error("[this-week] getUser failed — treating as signed out:", userError.message);
+  }
 
   // The greeting is resolved on the SERVER: the daily line must not flicker or
   // change between the server render and hydration, and the track config is a
@@ -101,13 +118,14 @@ export default async function ThisWeekPage({
     myServices = (data ?? []) as Array<{ id: string; title: string }>;
   }
 
-  // Signed in but nothing scheduled and no children: show the sample rather than
-  // an empty page, per the demo-mode decision. `isEmpty` is scoped to the week
-  // being viewed, so paging into a quiet week correctly falls back too.
-  if (payload.isEmpty && !payload.professional && !payload.family) {
-    return <ThisWeekScreen mode="demo" weekOffset={weekOffset} greeting={greeting} />;
-  }
-
+  // EVERY signed-in visitor gets mode="live" — never demo, regardless of an
+  // empty week, no professional profile, or no family relationship (founder
+  // direction, 2026-08-18: "never demo/sample data" for a real member).
+  // ThisWeekScreen handles the two real-member "nothing here" cases itself:
+  //   · a professional/family bundle with zero events this week → the
+  //     "A quiet week." state already built into WeekView.
+  //   · neither a professional profile nor a family relationship at all →
+  //     the new no-calendar-yet state in ThisWeekScreen's render chain.
   return (
     <ThisWeekScreen
       mode="live"

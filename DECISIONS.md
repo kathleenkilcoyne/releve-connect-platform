@@ -1267,3 +1267,50 @@ technique used for the earlier This Week/public-profile verification), confirmed
 data, demo data, filtered, filter-empty, and genuinely empty — then signed out each time. 706 tests
 (11 new: 6 for `timeOfDayGreeting`, covering zone-crossing and midnight normalization). Typecheck
 clean, build green, zero new lint warnings anywhere in the repo.
+
+---
+
+## 2026-08-18 — Demo mode stops being a silent trapdoor for a real member
+
+**Found (Kathleen, 2026-08-18).** Walking the redesigned This Week signed in, she saw *"Good evening,
+Kathleen"* beside Jan 12–18 sample dates, fake events, "PREVIEW · WHOSE WEEK," "Ava · Student," and
+the developer footer — a genuinely authenticated session rendering demo content. Her rule: *"That
+hybrid state must never happen for a real member... Demo mode should only be explicit for a genuinely
+signed-out visitor."*
+
+**A correction on the record, made mid-diagnosis.** The first pass concluded no middleware existed to
+keep the session cookie fresh — wrong. `src/proxy.ts` (Next.js 16 renamed `middleware.ts` to `proxy`)
+and `src/lib/supabase/middleware.ts`'s `updateSession()` already implement the standard, correct
+Supabase refresh pattern; the production build confirms `ƒ Proxy (Middleware)` is active. The specific
+`AuthApiError: Invalid Refresh Token` seen in the log was most likely produced by the verification
+method itself — five separate admin-generated sign-in links for the same account within about an
+hour, a pattern no real member would ever hit — not a gap in the app. No new middleware was written;
+one already existed and needed no fix. The record is corrected here rather than left standing.
+
+**What was real, and what the fix actually closes:** `page.tsx` had TWO paths into `mode="demo"`. The
+first — no session at all — is correct and stays. The second — `payload.isEmpty && !professional &&
+!family` — routed a genuinely signed-in member with an empty week, no profile, or no family relation
+into the exact same sample-data experience as a stranger. That second path is gone. Every signed-in
+visitor now gets `mode="live"`, unconditionally; only the total absence of a session reaches demo.
+
+**The render tree had a real gap this exposed.** A signed-in member with neither a professional
+profile nor a family relationship — previously routed to demo by the fallback above — had NO live-mode
+branch to fall into at all: `ThisWeekScreen`'s ternary chain fell through to `null`, a blank content
+area. Closed with a new state, same ivory/borderless/editorial treatment as "A quiet week.": *"Your
+week will start here. Once your Relevé profile is active, this is where your calendar will live."*
+
+**Defense in depth, not just the specific trigger.** `getUser()`'s error is now captured and logged
+under this codebase's own `[this-week]` convention rather than left as a raw, unlabeled SDK dump — so
+if a genuine auth hiccup recurs for a real member, it's diagnosable on sight rather than indistinguishable
+from an ordinary stranger's visit.
+
+**Verified against the exact repro path, not assumed fixed:** signed in as the real account, confirmed
+live data on This Week, navigated to the public profile, navigated back — held, real data both times,
+zero `AuthApiError` in the server log, `proxy.ts` timing present on every request. Separately verified
+the no-profile/no-family case directly: created a disposable `zz-` test account with zero rows anywhere
+(confirmed by query before use), signed in as it, got the new quiet state with no demo indicators of
+any kind, deleted the account immediately after and confirmed zero trace remained.
+
+706 tests, typecheck clean, lint clean, build green. No new pure-logic surface (the mode selection
+lives in a Server Component, not a testable pure function) — this pass leans on the live, evidence-based
+verification above instead.

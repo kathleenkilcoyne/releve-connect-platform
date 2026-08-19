@@ -221,6 +221,20 @@ export function ThisWeekScreen({
         <div className="mt-8">
           <FamilyWeekView data={liveFamily} weekOffset={weekOffset} onWeekChange={goToWeek} />
         </div>
+      ) : mode === "live" ? (
+        // A genuinely signed-in visitor with NEITHER a professional profile
+        // NOR a family relationship yet — the one gap the render tree used to
+        // leave open (it fell through to `null`, a blank content area, for
+        // this exact case; page.tsx used to paper over it by routing these
+        // visitors to demo mode instead — the bug the founder flagged,
+        // 2026-08-18). Real, quiet, on-brand — never sample data standing in
+        // for a real account.
+        <div className="mt-16 rounded-2xl bg-[var(--rc-ivory)] px-8 py-16 text-center">
+          <p className="rc-serif text-xl italic text-[var(--rc-ink)]">Your week will start here.</p>
+          <p className="mt-2 text-sm text-[var(--rc-muted)]">
+            Once your Relevé profile is active, this is where your calendar will live.
+          </p>
+        </div>
       ) : demoStudentBundle ? (
         <div className="mt-8">
           <ChildWeek bundle={demoStudentBundle} weekOffset={weekOffset} onWeekChange={goToWeek} />
