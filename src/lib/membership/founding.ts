@@ -37,7 +37,7 @@ export const FOUNDING_FREE_MONTHS = 12;
  *
  * Studio owners are the employer side and get the entry studio tier; everyone
  * else gets Professional, the tier that opens the profile builder. Deliberately
- * conservative — Professional·Full and the higher studio tiers are upsells, not
+ * conservative — Creator and the higher studio tiers are upsells, not
  * something to hand out by default.
  */
 export function foundingTierFor(roles: string[] | null): TierSlug {

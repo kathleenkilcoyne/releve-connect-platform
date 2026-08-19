@@ -1,7 +1,14 @@
 // Turns a pasted Vimeo/YouTube link into an embeddable player URL for the
-// Teaching Reel hero (build spec §6: autoplay-muted). Pure + dependency-free so
-// it can be unit-tested. Returns null for anything we can't confidently embed
-// (the profile then just falls back to the headshot hero).
+// public profile's Featured Reel (build spec §6: autoplay-muted). Pure +
+// dependency-free so it can be unit-tested. Returns null for anything we can't
+// confidently embed (the profile then just renders without one).
+//
+// GENERIC on purpose (2026-08-18): this is whatever media best represents a
+// professional's work — choreography, a performance clip, a résumé tape, a
+// teaching reel — never assumed to be teaching specifically. Rendered in
+// [handle]/SelectedWorkSection.tsx. The source column is still named
+// `teaching_reel_url` (no schema change in this pass); only the label and
+// framing are generic now.
 
 export type ReelEmbed = { provider: "vimeo" | "youtube"; src: string };
 

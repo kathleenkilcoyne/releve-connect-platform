@@ -21,10 +21,29 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { toReelEmbed } from "@/lib/profile/reel";
 import { hasAnyActiveMembership } from "@/lib/membership/access";
+import { canViewByDirectLink, shouldIndex } from "@/lib/profile/visibility";
 import { canConnect } from "@/lib/connections/messages";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import {
+  isProfessionalServicesEnabled,
+  isPubliclyVisible,
+  toPublicService,
+  SERVICE_SELECT,
+  type ServiceRow,
+} from "@/lib/services";
 import ConnectActions from "./ConnectActions";
 import OfferingsSection, { type PublicOffering } from "./OfferingsSection";
+// `ServicesSection` (the component) is intentionally NOT imported here — it is
+// hidden from the public profile for this pass (founder, 2026-08-18). The type
+// stays, because `loadPublicServices` below still returns it: the fetch is
+// preserved untouched, only the render is off.
+import { type PublicService } from "./ServicesSection";
+import AvailabilityWindowsSection from "./AvailabilityWindowsSection";
+import SelectedWorkSection from "./SelectedWorkSection";
+import {
+  isUpcoming,
+  type PublicAvailabilityWindow,
+} from "@/lib/profile/public-availability";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +91,16 @@ async function loadProfile(handle: string) {
   const profile = data as ProfileRow | null;
   if (!profile) return null;
 
-  const isLive = profile.profile_status === "published" && profile.visibility === "public";
+  // PROFILE V2 (founder decision §7). This used to require visibility === 'public',
+  // which meant an `unlisted` profile 404'd for everyone — the value was honoured
+  // on read but achieved nothing. Link-only now means what it says: published is
+  // what makes a page reachable; visibility decides only whether it is DISCOVERABLE
+  // (Roster inclusion + search indexing), not whether it loads for someone holding
+  // the URL.
+  const isLive = canViewByDirectLink({
+    profileStatus: profile.profile_status,
+    visibility: profile.visibility,
+  });
   let isDraftPreview = false;
   if (!isLive) {
     // Not public yet — only the owner (if signed in) may preview it.
@@ -96,10 +124,18 @@ async function loadProfile(handle: string) {
     db.from("profile_styles").select("styles(label)").eq("profile_id", pid),
     db.from("profile_levels").select("levels(label)").eq("profile_id", pid),
     db.from("profile_focus_areas").select("focus_areas(label)").eq("profile_id", pid),
+    // `is_active` is filtered here to match the editor and the Roster filter,
+    // which both already read only active tags. Without it, a RETIRED tag would
+    // keep rendering publicly forever — which is exactly what would have
+    // happened to the four "I'm currently accepting" tags after they became My
+    // Services on 2026-08-18: the member could no longer see or change them,
+    // and studios would still see them. The rows are deliberately preserved in
+    // the database (nothing is deleted); they simply stop being published.
     db
       .from("profile_availability")
-      .select("availability_tags(label, kind, sort_order)")
-      .eq("profile_id", pid),
+      .select("availability_tags!inner(label, kind, sort_order, is_active)")
+      .eq("profile_id", pid)
+      .eq("availability_tags.is_active", true),
   ]);
   const labelsOf = (rows: unknown, key: string): string[] =>
     ((rows as Array<Record<string, { label: string } | { label: string }[]>>) ?? [])
@@ -115,7 +151,7 @@ async function loadProfile(handle: string) {
   // The embedded row comes back as either an object or a one-element array
   // depending on how the client infers the relationship — same reason `labelsOf`
   // above handles both. Cast through `unknown` and normalize.
-  type AvailTag = { label: string; kind: string; sort_order: number };
+  type AvailTag = { label: string; kind: string; sort_order: number; is_active?: boolean };
   const availRows = ((avail.data ?? []) as unknown as Array<{
     availability_tags: AvailTag | AvailTag[] | null;
   }>)
@@ -152,6 +188,89 @@ async function loadPublicOfferings(profileId: string): Promise<PublicOffering[]>
   return (data as PublicOffering[] | null) ?? [];
 }
 
+// The professional's PUBLIC services (other businesses they run). The admin
+// client bypasses RLS, so the two guards are applied EXPLICITLY here:
+//   1. isPubliclyVisible — hidden services and moderated-away rows never render.
+//   2. toPublicService  — contact details the member did not choose to display
+//      are stripped on the SERVER, so they are never sent to the browser at all.
+// Ordered by the member's own sort_order. Only called when the flag is on.
+async function loadPublicServices(profileId: string): Promise<PublicService[]> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("professional_services")
+    .select(SERVICE_SELECT)
+    .eq("profile_id", profileId)
+    .eq("status", "active")
+    .order("sort_order", { ascending: true });
+  return ((data as unknown as ServiceRow[] | null) ?? [])
+    .filter(isPubliclyVisible)
+    .map(toPublicService);
+}
+
+// The professional's PUBLIC availability — "Available This Week". Reads
+// `service_availability`, joined to My Services (`professional_offerings`).
+//
+// ── The column list below IS the privacy firewall ──
+// The admin client bypasses RLS and column grants entirely, so what keeps this
+// safe is that the query below NEVER SELECTS `source_personal_event_id` or
+// `internal_note` — the two columns REVOKEd from anon/authenticated at the
+// database level (migration 20260815173203). This function simply never asks
+// for them, the same discipline `toPublicWindow` in lib/this-week/entry.ts
+// applies on the write side. If a future edit adds `select("*")` here, that
+// discipline is what breaks — so don't.
+//
+// Filters:
+//   status = 'open'                       — only an explicitly published window
+//   offering_id is not null                — only My Services windows (not the
+//                                             separate Professional Services /
+//                                             other-businesses booking path)
+//   professional_offerings.status = active — a since-deactivated service's old
+//                                             windows do not linger publicly
+//   ends_at >= now (isUpcoming)            — nothing already in the past
+async function loadPublicAvailability(profileId: string): Promise<PublicAvailabilityWindow[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("service_availability")
+    .select("id, starts_at, ends_at, timezone, professional_offerings!inner(id, title, status)")
+    .eq("profile_id", profileId)
+    .eq("status", "open")
+    .not("offering_id", "is", null)
+    .eq("professional_offerings.status", "active")
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    console.error("[public profile] availability read failed:", error.message);
+    return [];
+  }
+
+  type OfferingJoin = { id: string; title: string; status: string };
+  type Row = {
+    id: string;
+    starts_at: string;
+    ends_at: string;
+    timezone: string;
+    professional_offerings: OfferingJoin | OfferingJoin[] | null;
+  };
+
+  return ((data ?? []) as unknown as Row[])
+    .map((r) => {
+      const offering = Array.isArray(r.professional_offerings)
+        ? r.professional_offerings[0]
+        : r.professional_offerings;
+      if (!offering) return null;
+      const window: PublicAvailabilityWindow = {
+        id: r.id,
+        offeringId: offering.id,
+        offeringTitle: offering.title,
+        startsAt: r.starts_at,
+        endsAt: r.ends_at,
+        timezone: r.timezone,
+      };
+      return window;
+    })
+    .filter((w): w is PublicAvailabilityWindow => w !== null && isUpcoming(w));
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -160,9 +279,19 @@ export async function generateMetadata({
   const { handle } = await params;
   const loaded = await loadProfile(handle);
   if (!loaded) return { title: "Profile · Relevé Connect" };
+
+  // An unlisted profile asks search engines not to index it — without this,
+  // "link-only" survives exactly until the first crawl of a shared link. A draft
+  // being previewed by its owner is likewise never indexable.
+  const indexable = shouldIndex({
+    profileStatus: loaded.profile.profile_status,
+    visibility: loaded.profile.visibility,
+  });
+
   return {
     title: `${loaded.profile.display_name} · Relevé Connect`,
     description: loaded.profile.bio?.slice(0, 160) ?? undefined,
+    robots: indexable ? undefined : { index: false, follow: false },
   };
 }
 
@@ -205,6 +334,18 @@ export default async function PublicProfilePage({
   const offerings = isProfessionalOfferingsEnabled()
     ? await loadPublicOfferings(profile.profile_id)
     : [];
+
+  // Professional Services — same shape: only queried when the flag is on, so
+  // with it OFF this page issues no extra query and renders exactly as before.
+  const services = isProfessionalServicesEnabled()
+    ? await loadPublicServices(profile.profile_id)
+    : [];
+
+  // "Available This Week" — no feature flag; this is the completion of the
+  // 2026-08-18 write path, not a new gated feature. Guarded instead by
+  // windows.length inside the section, so a profile with none renders exactly
+  // as before.
+  const availabilityWindows = await loadPublicAvailability(profile.profile_id);
 
   // ---- Viewer state: can this visitor save / request an intro? ------------
   // Any signed-in active member (not the owner) may connect (§5 + founder
@@ -287,25 +428,14 @@ export default async function PublicProfilePage({
         </div>
       )}
 
-      {/* ===== HERO (above the fold) ========================================= */}
-      <section className="flex flex-col gap-8 sm:flex-row sm:items-center">
-        {/* Teaching Reel — vertical, autoplay-muted. Falls back to nothing. */}
-        {reel && (
-          <div className="mx-auto w-full max-w-[300px] shrink-0 sm:mx-0">
-            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-neutral-900 ring-1 ring-neutral-200">
-              <iframe
-                src={reel.src}
-                title={`${profile.display_name} — featured video`}
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 h-full w-full"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Identity block */}
-        <div className="flex-1">
+      {/* ===== PROFESSIONAL HEADER (above the fold) =========================
+          The Featured Reel used to live here as a fixed hero concept, hardcoded
+          "Teaching Reel" — wrong for a choreographer or adjudicator. It now
+          renders generically, further down, in Selected Work (founder
+          direction, 2026-08-18). The header is identity only: photo, name,
+          standing marks, title, location, experience. */}
+      <section>
+        <div>
           <div className="flex items-center gap-4">
             <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200">
               {profile.headshot_url ? (
@@ -389,62 +519,23 @@ export default async function PublicProfilePage({
         </div>
       </section>
 
-      {/* ===== BELOW THE HERO: text credentials ============================= */}
-
-      {/* Bio */}
+      {/* ===== YOUR STORY / BIO =============================================
+          No section label on purpose — this introduces the person, not another
+          form field. Set larger and more open than body copy elsewhere on the
+          page (founder direction, 2026-08-18: "strong, readable, visually
+          important"). */}
       {profile.bio && (
-        <section className="mt-12">
-          <p className="whitespace-pre-line leading-relaxed text-neutral-700">{profile.bio}</p>
+        <section className="mt-10 max-w-2xl">
+          <p className="whitespace-pre-line text-lg leading-relaxed text-neutral-800">
+            {profile.bio}
+          </p>
         </section>
       )}
 
-      {/* Tag rows */}
-      <TagRow title="Styles" items={styles} />
-      <TagRow title="Teaching levels" items={levels} />
-      <TagRow title="Focus" items={focus} />
-      <TagRow title="Availability" items={availGeneral} />
-      <TagRow title="Currently accepting" items={availCurrently} />
-
-      {/* The "Currently" lines — where they are right now. Free text, so they
-          render as a sentence rather than tags. */}
-      {(profile.teaching_at || profile.touring_with) && (
-        <section className="mt-8 space-y-1 text-sm text-neutral-600">
-          {profile.teaching_at && (
-            <p>
-              <span className="font-medium text-neutral-800">Teaching at</span> ·{" "}
-              {profile.teaching_at}
-            </p>
-          )}
-          {profile.touring_with && (
-            <p>
-              <span className="font-medium text-neutral-800">Touring with</span> ·{" "}
-              {profile.touring_with}
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* Photo gallery grid */}
-      {gallery.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-neutral-500">Gallery</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {gallery.map((url) => (
-              <div
-                key={url}
-                className="aspect-square overflow-hidden rounded-lg bg-neutral-100 ring-1 ring-neutral-200"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="h-full w-full object-cover" />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ===== WHAT I OFFER (Professional Offerings — Slice 3) =============
-          Flag-gated AND guarded by offerings.length (the section returns null
-          when empty). CTA behavior is Slice 4 — these cards are read-only. */}
+      {/* ===== MY SERVICES ===================================================
+          Moved up to directly follow the story (founder direction,
+          2026-08-18) — "immediately obvious what someone can hire this
+          professional to do." Flag-gated AND guarded by offerings.length. */}
       {isProfessionalOfferingsEnabled() && (
         <OfferingsSection
           offerings={offerings}
@@ -456,6 +547,47 @@ export default async function PublicProfilePage({
         />
       )}
 
+      {/* ===== AVAILABLE THIS WEEK ===========================================
+          Follows My Services directly, per founder direction. Renders only
+          when a genuinely valid published window exists — see
+          loadPublicAvailability's filters (status='open', a real My Service,
+          not yet ended); the component adds no filtering of its own. */}
+      <AvailabilityWindowsSection
+        windows={availabilityWindows}
+        profileId={profile.profile_id}
+        handle={handle}
+        firstName={firstName}
+        canAct={canAct}
+        isOwner={isOwner}
+      />
+
+      {/* ===== SELECTED WORK =================================================
+          Featured Reel (generic — whatever best represents this professional's
+          work, not assumed to be teaching) + the photo gallery, together, as
+          proof of the work rather than an attachment dump. Renders null when
+          there is neither. */}
+      <SelectedWorkSection
+        reel={reel}
+        reelTitle={`${profile.display_name} — featured work`}
+        gallery={gallery}
+      />
+
+      {/* ===== INTAKE / STRUCTURED DATA — kept off the public presentation ===
+          Styles, Teaching Levels, Focus, general Availability, and the
+          already-retired "Currently accepting" made the page read like an
+          application (founder direction, 2026-08-18). NONE of the underlying
+          data, editor behavior, admin behavior, or Roster search/filter
+          capability is touched by this — `loadProfile` still fetches all of
+          it, byte-for-byte, for exactly that future use. Only the render
+          calls below are commented out. See DECISIONS.md.
+
+          <TagRow title="Styles" items={styles} />
+          <TagRow title="Teaching levels" items={levels} />
+          <TagRow title="Focus" items={focus} />
+          <TagRow title="Availability" items={availGeneral} />
+          <TagRow title="Currently accepting" items={availCurrently} />
+      */}
+
       {/* Credentials */}
       {profile.credentials && (
         <section className="mt-10">
@@ -465,6 +597,17 @@ export default async function PublicProfilePage({
           <p className="mt-2 whitespace-pre-line text-neutral-700">{profile.credentials}</p>
         </section>
       )}
+
+      {/* ===== PROFESSIONAL SERVICES — HIDDEN FOR THIS PASS (2026-08-18) =====
+          "Other businesses" (massage, Pilates, photography…) is a DIFFERENT
+          concept from My Services, and the founder wants one clear public
+          service area for now: My Services only. The fetch above (`services`)
+          and the flag are both left exactly as they were — nothing here is
+          deleted, only the render call is commented out — so restoring this
+          is a one-line change whenever it's wanted back.
+
+          {isProfessionalServicesEnabled() && <ServicesSection services={services} />}
+      */}
 
       {/* Résumé / CV + Links */}
       {(profile.resume_url || Object.keys(social).length > 0) && (

@@ -13,6 +13,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor } from "@/lib/professional/actor";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import { isProfessionalServicesEnabled } from "@/lib/services";
+import { isGeneralMarketplaceEnabled } from "@/lib/marketplace/flags";
+import { hasMarketplaceSellerAccess } from "@/lib/membership/access";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,29 @@ export default async function ProfileHomePage() {
   const actor = await resolveProfessionalActor(createAdminClient(), user.id);
   if (!actor.isProfessional) redirect("/");
 
+  // Is their profile still the draft activation created?
+  const { data: statusRow } = await createAdminClient()
+    .from("talent_profiles")
+    .select("profile_status")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isDraft = (statusRow as { profile_status?: string } | null)?.profile_status !== "published";
+
+  // Marketplace seller doorway — only computed when the flag is ON, so with the
+  // flag OFF (production) this page issues no extra reads and is byte-for-byte
+  // unchanged. Shown to seller-enabled members, plus admins for preview.
+  const marketplaceEnabled = isGeneralMarketplaceEnabled();
+  let canSellMarketplace = false;
+  if (marketplaceEnabled) {
+    const admin = createAdminClient();
+    const [{ data: roleRow }, isSeller] = await Promise.all([
+      admin.from("users").select("account_type").eq("user_id", user.id).maybeSingle(),
+      hasMarketplaceSellerAccess(admin, user.id),
+    ]);
+    const isAdmin = (roleRow as { account_type?: string } | null)?.account_type === "admin";
+    canSellMarketplace = isSeller || isAdmin;
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
@@ -36,6 +62,23 @@ export default async function ProfileHomePage() {
         This is your professional home. The full view — your verified status, public profile, and
         activity — arrives in the next update. For now, everything you need is one tap away:
       </p>
+
+      {/* A draft profile is the newly-activated state: Relevé created it and
+          seeded it, and the member has not published yet. Point them at the
+          review screen rather than leaving them to find it. */}
+      {isDraft && (
+        <Link
+          href="/profile/review"
+          className="mt-8 block rounded-xl border border-[#e3d9c3] bg-[#f6f1e7] px-5 py-4 hover:border-[#c9b990]"
+        >
+          <span className="block font-medium text-neutral-900">
+            Review and publish your profile →
+          </span>
+          <span className="mt-0.5 block text-sm text-[#6f6656]">
+            Your profile is a private draft. Nobody can see it until you publish it.
+          </span>
+        </Link>
+      )}
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         {actor.publicSlug && (
@@ -61,9 +104,36 @@ export default async function ProfileHomePage() {
             href="/profile/offerings"
             className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
           >
-            <span className="block font-medium text-neutral-900">Professional Offerings</span>
+            <span className="block font-medium text-neutral-900">My Services</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
               Showcase the skills, services, creative work, experiences, and products you offer.
+            </span>
+          </Link>
+        )}
+        {/* Professional Services doorway — behind PROFESSIONAL_SERVICES_ENABLED,
+            so it's invisible in production until the feature is turned on. */}
+        {isProfessionalServicesEnabled() && (
+          <Link
+            href="/profile/services"
+            className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
+          >
+            <span className="block font-medium text-neutral-900">Professional Services</span>
+            <span className="mt-0.5 block text-sm text-neutral-500">
+              Another service or business you run — massage, Pilates, photography, accompanists /
+              class musicians.
+            </span>
+          </Link>
+        )}
+        {/* Marketplace Seller Workspace doorway — behind GENERAL_MARKETPLACE_ENABLED
+            AND seller/admin entitlement, so it's invisible in production. */}
+        {marketplaceEnabled && canSellMarketplace && (
+          <Link
+            href="/profile/marketplace"
+            className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
+          >
+            <span className="block font-medium text-neutral-900">Marketplace</span>
+            <span className="mt-0.5 block text-sm text-neutral-500">
+              Your seller workspace — license your original choreography.
             </span>
           </Link>
         )}

@@ -11,24 +11,28 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { slugify, resolveUniqueSlug } from "@/lib/profile/slug";
+import { normalizeVisibility } from "@/lib/profile/visibility";
+import { missingEssentials, incompleteSaveMessage } from "@/lib/profile/review";
 
 export type SaveState = {
   ok: boolean;
   message: string;
   slug?: string;
   published?: boolean;
+  /**
+   * Set when a save was refused because it would have left a LIVE profile
+   * without one of the four essentials. The editor renders these by name and
+   * offers the deliberate way out.
+   */
+  missingEssentials?: Array<{ key: string; label: string; why: string }>;
+  /** True alongside `missingEssentials` — offer "Unpublish and save as draft". */
+  canUnpublishAndSave?: boolean;
 };
 
-function slugify(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40) || "profile"
-  );
-}
+// slugify + the uniqueness loop moved to @/lib/profile/slug when activation
+// started needing them too — one implementation, so two members can never be
+// handed the same URL.
 
 export async function saveProfile(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const supabase = await createClient();
@@ -108,12 +112,25 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     { onConflict: "user_id" },
   );
 
-  // ---- Find any existing profile of mine -----------------------------------
+  // ---- Find my profile -----------------------------------------------------
+  // PROFILE V2: this action is UPDATE-ONLY. Profiles are created exclusively by
+  // the activation service (approved + active membership), never by opening the
+  // builder and saving. If there is no row here, the caller reached this action
+  // without passing the /profile/edit gate, which creates it — so this is a
+  // "something is wrong", not a path to quietly create an unvetted profile.
   const { data: existing } = await supabase
     .from("talent_profiles")
-    .select("profile_id, public_slug, headshot_url, gallery_urls, resume_url")
+    .select("profile_id, public_slug, headshot_url, gallery_urls, resume_url, visibility")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (!existing) {
+    return {
+      ok: false,
+      message:
+        "We couldn't find your profile. Please refresh the page — if this keeps happening, contact us.",
+    };
+  }
 
   // ---- Work out a unique handle (public_slug) ------------------------------
   // The handle is a ROOT-LEVEL URL (releveconnect.com/<handle>), so it must not
@@ -126,21 +143,14 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
       message: `“${slugify(requestedHandle)}” is a reserved word — please choose a different handle.`,
     };
   }
-  let handle = requestedHandle ? slugify(requestedHandle) : existing?.public_slug ?? slugify(displayName);
-  // Ensure global uniqueness (admin can see everyone's slugs; the RLS client can't)
-  // AND that the handle never collides with a reserved app route.
-  let candidate = handle;
-  for (let n = 2; n < 50; n++) {
-    const { data: taken } = await admin
-      .from("talent_profiles")
-      .select("profile_id")
-      .eq("public_slug", candidate)
-      .maybeSingle();
-    const collides = (taken && taken.profile_id !== existing?.profile_id) || isReservedSlug(candidate);
-    if (!collides) break;
-    candidate = `${handle}-${n}`;
-  }
-  handle = candidate;
+  // Keep the current handle unless the member typed a new one. Uniqueness is
+  // resolved against everyone's handles (admin client — an RLS-scoped client
+  // cannot see other members' rows and would call every taken handle free).
+  const handle = await resolveUniqueSlug(
+    admin,
+    requestedHandle || existing.public_slug || displayName,
+    existing.profile_id,
+  );
 
   // ---- Optional photo upload ----------------------------------------------
   // `undefined` = leave the current photo as-is; a string = new photo URL.
@@ -199,6 +209,16 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const galleryUrls = [...keptGallery, ...uploadedGallery].slice(0, 8);
 
   // ---- Build the row and save ---------------------------------------------
+  //
+  // ⚠️ RELEVÉ-CONTROLLED TRUST SIGNALS ARE ABSENT FROM THIS PAYLOAD, ON PURPOSE.
+  // `verification_flag`, `certified_eligible_at`, `honorifics`,
+  // `choreographer_tier` and `founder_distinction` are conferred by Relevé — at
+  // activation, or by an admin — and are NEVER writable from this form. A member
+  // may describe their career; they may not award themselves Verified, a
+  // founding distinction, an honorific, or a marketplace tier.
+  //
+  // Do not add any of those keys here. A test asserts this payload's shape for
+  // exactly that reason (activate.test.ts, "saveProfile payload").
   const row: Record<string, unknown> = {
     user_id: user.id,
     display_name: displayName,
@@ -217,74 +237,71 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     gallery_urls: galleryUrls,
     social_links: social,
     profile_status: publish ? "published" : "draft",
-    visibility: "public",
+    // PROFILE V2 (founder decision §7). This line used to read `visibility:
+    // "public"` unconditionally — every save silently rewrote the member's
+    // choice, which made `unlisted` unreachable no matter what any UI offered.
+    // Now it takes what the member chose, and falls back to what they already
+    // had. A missing or unrecognised value can never widen exposure.
+    visibility: normalizeVisibility(
+      formData.get("visibility"),
+      (existing as { visibility?: string }).visibility,
+    ),
     updated_at: new Date().toISOString(),
   };
   if (headshotUrl !== undefined) row.headshot_url = headshotUrl;
   if (resumeUrl !== undefined) row.resume_url = resumeUrl;
 
-  let profileId = existing?.profile_id as string | undefined;
-  if (existing) {
-    const { error } = await supabase.from("talent_profiles").update(row).eq("user_id", user.id);
-    if (error) return { ok: false, message: `Couldn't save: ${error.message}` };
-  } else {
-    // FIRST CREATION — carry the approval decision onto the profile. Honorifics
-    // and the marketplace tier were conferred by Kathleen on the APPLICATION;
-    // copy them here so they can never be self-edited on the profile form.
-    //
-    // Verified Member is granted IMMEDIATELY once vetting is complete — no
-    // waiting period (founder decision 2026-07-12, supersedes the old §13 ~60-day
-    // rule). "Vetting complete" = the applicant passed the documentation-
-    // authenticity check (their application is `approved`) AND has paid (this
-    // profile builder is already gated behind an active Professional membership,
-    // see page.tsx). Both hold here, so an approved applicant's profile is
-    // Verified the moment it's created.
-    const { data: appRow } = await admin
-      .from("applications")
-      .select("honorifics, approved_tier")
-      .eq("user_id", user.id)
-      .eq("state", "approved")
-      .order("reviewed_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
-    const approved = appRow as { honorifics: string[] | null; approved_tier: string | null } | null;
+  // ---- The four-essential integrity rule ----------------------------------
+  //
+  // A LIVE profile must never be left without a headshot, a story, a role, or a
+  // location. The publish gate stops an incomplete profile going live; without
+  // this, the same profile could be emptied out the moment after.
+  //
+  // Three deliberate choices in how it refuses:
+  //   · It does NOT silently demote to draft. Quietly removing someone from the
+  //     Roster because they cleared a field while editing is the kind of surprise
+  //     that destroys trust in the tool.
+  //   · It does NOT let the incomplete version stay live either.
+  //   · It refuses the SAVE and hands back both ways forward — restore the field,
+  //     or unpublish deliberately and keep the edit.
+  //
+  // Judged on the PROPOSED values, not the stored ones: the headshot may be
+  // arriving in this very request, or may be one the member is keeping.
+  //
+  // Scope: only when the result would be PUBLISHED. Saving as a draft is always
+  // allowed however incomplete — a draft is private, and a member must never be
+  // trapped in a live state.
+  const proposedHeadshot = headshotUrl !== undefined ? headshotUrl : (existing.headshot_url as string | null);
+  const missing = missingEssentials({
+    headshot_url: proposedHeadshot ?? null,
+    bio: bio || null,
+    primary_role: primaryRole,
+    city,
+  });
 
-    row.honorifics = approved?.honorifics ?? [];
-    if (approved?.approved_tier) row.choreographer_tier = approved.approved_tier;
-    if (approved) {
-      // Vetting complete (approved + paid) → grant the Verified Member mark now.
-      row.verification_flag = true;
-      row.certified_eligible_at = new Date().toISOString(); // when it was granted
-    }
+  // The member's explicit "keep my changes but take it offline" choice.
+  const unpublishAndSave = String(formData.get("intent") ?? "") === "unpublish_and_save";
+  if (unpublishAndSave) row.profile_status = "draft";
 
-    // Founding Professionals are INVITED, not vetted through the application queue,
-    // so `approved` is null for them. If this user holds an active (non-revoked)
-    // Founding Professional grant, carry the durable IDENTITY onto the profile at
-    // creation: the Founding Professional distinction + the Verified Member mark.
-    // BILLING lives separately on their complimentary membership and is untouched
-    // here. These fields are set ONLY from the server-side grant — never read from
-    // the form — so no one can self-assign Founding Professional status.
-    const { data: fpGrant } = await admin
-      .from("founding_professional_grants")
-      .select("id")
-      .eq("email", (user.email ?? "").toLowerCase())
-      .is("revoked_at", null)
-      .maybeSingle();
-    if (fpGrant) {
-      row.founder_distinction = "founding_professional";
-      row.verification_flag = true;
-      row.certified_eligible_at =
-        (row.certified_eligible_at as string | undefined) ?? new Date().toISOString();
-    }
-
-    const { data, error } = await supabase
-      .from("talent_profiles")
-      .insert(row)
-      .select("profile_id")
-      .single();
-    if (error) return { ok: false, message: `Couldn't create your profile: ${error.message}` };
-    profileId = (data as { profile_id: string }).profile_id;
+  if (missing.length > 0 && row.profile_status === "published") {
+    return {
+      ok: false,
+      message: incompleteSaveMessage(missing),
+      missingEssentials: missing.map((m) => ({ key: m.key, label: m.label, why: m.why })),
+      canUnpublishAndSave: true,
+    };
   }
+
+  // UPDATE ONLY. Creation belongs to the activation service (@/lib/profile/activate),
+  // which runs when someone is approved AND activated — never when they simply
+  // open the builder and save. The first-creation branch that used to live here,
+  // and the trust-signal stamping inside it, moved there with Profile V2.
+  const profileId = existing.profile_id as string;
+  const { error: saveErr } = await supabase
+    .from("talent_profiles")
+    .update(row)
+    .eq("user_id", user.id);
+  if (saveErr) return { ok: false, message: `Couldn't save: ${saveErr.message}` };
 
   // ---- Replace the tag selections (styles / levels / focus areas) ----------
   async function replaceJoin(
@@ -322,12 +339,20 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");
 
+  // Report what ACTUALLY happened, not what the checkbox asked for. These differ
+  // when the member chose "Unpublish and save as draft": the box was still
+  // ticked, but the profile is now a draft. Telling someone they are live on the
+  // Roster in the same breath as taking them off it is exactly the kind of small
+  // contradiction that makes a tool feel untrustworthy.
+  const nowPublished = row.profile_status === "published";
   return {
     ok: true,
     slug: handle,
-    published: publish,
-    message: publish
+    published: nowPublished,
+    message: nowPublished
       ? "Saved — you're on the Relevé Roster. Your public page is live."
-      : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",
+      : unpublishAndSave
+        ? "Saved as a draft and taken off the Roster. Your changes are kept — publish again whenever you're ready."
+        : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",
   };
 }

@@ -364,3 +364,924 @@ These were settled before the build began. Recorded here so they're not re-litig
 - **Publish → "Ready to Join the Relevé Roster"** (§10), default OFF. Same `profile_status` values.
 - **Heading "Create your profile" → "Welcome to the Relevé Roster"** for a first-time member; a
   returning member still sees "Edit your profile".
+
+## 2026-08-15 — Professional Services (another way I serve the dance community)
+
+*From the founder brief "RELEVÉ PROFESSIONAL PROFILE — ADD 'PROFESSIONAL SERVICES' MODULE".*
+
+- **A Service is NOT an Offering, so it gets its own table.** `professional_offerings` is what you do
+  as a dance professional ("What I Offer"). `professional_services` is a *separate business you run* —
+  massage therapy, physical therapy, Pilates, photography, costume design, music editing,
+  accompanying. Different fields (business identity, business card/logo, category taxonomy, business
+  contact), different section, different meaning. Merging them would have blurred both. Everything
+  else deliberately MIRRORS Offerings — pure lib + flag + owner-scoped workspace + public section —
+  so the two feel like one product and the patterns stay learnable.
+- **It is part of the profile, never advertising.** No "Sponsored", no "Advertisement", no ranking,
+  no boosting, no placement anyone can buy, and Relevé takes **no cut** of anything a member earns
+  from these businesses (guardrail §7.1). It sits BELOW the dance identity and Relevé offerings and
+  ABOVE contact/social, so it complements the dance profile rather than competing with it.
+- **`category` is a controlled vocabulary, indexed now, filtered later.** Fourteen categories as
+  CHECK-constrained text (mirrored by `SERVICE_CATEGORIES` in TS), with a partial index on
+  `(category) where displayed`. The founder asked for search-readiness, not a marketplace page —
+  so the future Roster facet is a query change, not a schema change. **No separate services
+  directory route was built.**
+- **Contact details are private by default and stripped on the SERVER.** `business_email` /
+  `business_phone` are stored so a member keeps them on file; `show_email` / `show_phone` default
+  **false**. `toPublicService()` nulls anything not opted into *before* the row leaves the server, so
+  a private number is never sent to the browser and hidden with CSS. A `show_*` flag with nothing to
+  show is forced back to false (validation), so the profile can never claim to publish a blank.
+- **URL safety:** every external link is normalized and validated http(s)-only. A bare domain
+  ("mcareebodywork.com") is upgraded to https; anything carrying an explicit non-http scheme
+  (`javascript:`, `data:`) is **rejected, never coerced**. All outbound links render with
+  `rel="noopener noreferrer nofollow"` and `target="_blank"`. Member prose is markup-stripped at
+  save time as well as escaped at render.
+- **Button rules (founder spec §2):** Booking link → **Book**; else website → **Visit Website**; else
+  published contact → **Contact**; else no button. A label override changes the WORDS only, never the
+  destination. The business card image is clickable only when a website/booking URL exists.
+- **"Accompanist / Class Musician" is one category today, with real columns — the musicians seam.**
+  `instrument`, `accompanist_for` (text[] + GIN index), `rate_display` / `rate_contact`, `media_url`.
+  Structured, not JSON, precisely so musicians can later become their own full Relevé professional
+  category and The Swing can match "studio needs a vetted ballet pianist Thursday" **without a
+  rebuild or a data migration**. No Musicians Roster was built. Rate is always the musician's own —
+  Relevé never sets it (contrast: the Swing's $50/hr platform constant).
+- **Moderation is a seam, not a workflow.** `moderation_status` (`ok | flagged | removed`) exists and
+  is enforced on the public read from day one, defaulting to `ok`. The founder does not want
+  per-service approval yet; adding it later means writing to a column that already gates the render.
+  The admin console shows every service a member entered — including hidden ones and unpublished
+  contact details — read-only, because reviewing means reading what they actually wrote.
+- **Flag-gated OFF (`PROFESSIONAL_SERVICES_ENABLED`), like Offerings.** With the flag off, no
+  doorway renders, no extra query runs on the public profile or the profile editor or the admin
+  console, and the server actions refuse. A profile with no services is byte-for-byte unchanged.
+- **The editor gets a doorway, not more fields.** Services are repeatable records with their own
+  media and links, so they live at `/profile/services` (same shape as Offerings) and the profile form
+  shows an optional "Professional Services" section linking to it. **Nothing about a Professional
+  Service is required to complete a Relevé profile.**
+
+## 2026-08-15 — Professional Services bookings happen ON Relevé
+
+*Founder decision, mid-build: Professional Services is on-platform commerce, not an outbound directory.*
+
+- **The external Booking Link is GONE as a booking pathway.** Sending a ready-to-buy visitor to
+  someone's Calendly took the booking, the money, AND the record of the work off Relevé at the first
+  click — which made the intended flow impossible. The `booking_url` column was dropped (0 rows, 0
+  dependents) rather than left dormant, because a dead column is an open invitation to re-add the
+  outbound button. **Website and social links stay** — identity and credibility, not a booking path.
+  A stored `cta_label = 'book'` can no longer label an outbound link either (`externalLabel()`).
+- **The public CTA is "Book on Relevé"**, rendered as a DISABLED coming-soon button until the rail
+  ships. A button that lies is worse than no button.
+- **Intended flow:** Professional Profile → Professional Service → Relevé availability → Book on
+  Relevé → Relevé checkout/payment → professional payout + configurable platform fee.
+
+### The privacy architecture (founder-ratified)
+
+> This Week / personal_events (PRIVATE) → professional publishes a chosen window → service_availability (PUBLIC) → Book on Relevé
+
+- **The booking system NEVER reads a professional's private calendar.** Not "respects a policy" —
+  there is no code path to `personal_events` at all. `personal_events` is unchanged: no new column,
+  no policy change, still owner-only.
+- **Publishing is an INSERT into a different table, not a flag.** The founder's constraint was that
+  "a private event should never become public merely because of a flag mistake." A boolean can be
+  flipped by a bad UPDATE, a careless upsert, or a mis-scoped script; a separate table cannot be
+  exposed by accident, because *nothing about personal_events changes when a window is published*.
+- **Only start/end/timezone cross the boundary.** Never title, note, location, category, or
+  attachments — an audition or a medical appointment stays invisible even when the hours around it
+  are published. `source_personal_event_id` records provenance for the OWNER's editor only.
+- **Only OPEN windows are public.** A booked or cancelled window is not publicly readable, because
+  publishing "she's busy every Tuesday at 4" is the same leak by another route.
+- **⚠️ REVOKE BEFORE GRANT — found by testing the live result, not by trusting the SQL.** This
+  project carries Supabase's default privileges, which already grant ALL columns on every new
+  public-schema table to `anon`/`authenticated`. A narrower column GRANT is therefore purely
+  ADDITIVE and creates NO boundary. `source_personal_event_id` / `internal_note` are private only
+  because of an explicit `revoke all ... from anon, authenticated` first. **Any future table relying
+  on column-level privacy must do the same** — the grant alone is a false sense of security.
+  INSERT/UPDATE stay table-level so publishing can still record provenance; owner-facing reads of
+  those columns go through the service role.
+
+### No double-booking — guaranteed by Postgres, not by application code
+
+- A GiST **exclusion constraint** (`btree_gist`, newly installed): for one professional, no two
+  non-cancelled windows may overlap. The timeline is anchored on `profile_id`, not `service_id` —
+  a person cannot be in two places at once however many services they offer.
+- The failure mode is a RACE (two buyers hitting Book in the same second). An application check
+  loses that race; a constraint cannot. Verified live: overlap rejected, adjacent `[)` window
+  accepted, cancelled window may overlap so a withdrawn slot can be re-published.
+- Plus `open → held → booked` as a conditional update, one live booking per one-to-one window
+  (partial unique index), and `booked_count <= capacity` for group windows.
+- Conflict-checking against the private calendar happens at PUBLISH time in the owner's own session.
+  The booking system never performs that check, because it never sees that data.
+
+### Money: plumbing only, NO policy
+
+> ⚠️ **SUPERSEDED IN PART — see “The Professional Services platform fee is 8%” (2026-08-15, below).**
+> The *rate* is no longer open: it is **8% of the gross service price, before payment-processing
+> fees**, for Professional Services booked AND paid through Relevé. Read that entry, not this one,
+> for the number. Everything else in this section still stands — in particular the **code and
+> database are unchanged**: `service_platform_fee_bps()` still returns NULL, no `app_config` row is
+> seeded, and checkout must still refuse to charge on NULL. Deciding a rate and configuring it are
+> two separate acts, and only the first has happened.
+
+- `service_bookings` follows the `experience_purchases` split shape (amount / application_fee /
+  professional_transfer, `pending → paid → refunded → failed`), and `pricing_unit` maps back to the
+  existing `rate_unit` enum for the shared earnings ledger.
+- **`platform_fee_bps` is UNSET IN THE DATABASE.** `service_platform_fee_bps()` reads `app_config`
+  and returns NULL; no row is seeded. A future checkout MUST refuse to charge on NULL rather than
+  assume a default. ~~No fee percentage has been approved and nothing here implies one.~~
+  **A rate has since been approved — 8%, see below — but it has deliberately NOT been written to
+  `app_config`, so the NULL guardrail is still the operative state of the system.**
+- No Stripe checkout, payment intent, payout, or transfer is implemented. The Stripe columns exist
+  so the later wiring is an UPDATE, not a migration.
+
+---
+
+## 2026-08-15 — The Professional Services platform fee is 8% · subscriptions hold at $149 / $199
+
+**Decided (Kathleen, 2026-08-15).** The four economic lanes are now named and separated, and the
+one number that was open in the services lane is set.
+
+### The decision
+
+1. **Subscriptions stand firm — annual.** **Professional $149/yr · Creator $199/yr.** No change.
+   These are the membership prices and they are not being revisited as part of this decision.
+2. **Professional Services booked AND paid on Relevé carry an 8% platform fee.**
+   Both conditions. A service that is merely discovered or inquired about on Relevé, and then
+   booked and paid for elsewhere, is not a Relevé transaction and carries no fee.
+3. **The 8% is charged on the GROSS service price, BEFORE payment-processing fees**
+   *(founder decision, 2026-08-15)*. The base is the full amount the client is charged for the
+   booking — not a net-of-processing figure, and not a figure reduced by any discount Relevé did
+   not fund. In the `service_bookings` shape that is `amount_cents`:
+   `application_fee_cents = round(amount_cents × 0.08)`.
+4. **Payment-processing fees are separate from Relevé's platform fee, and are borne by the
+   professional receiving the payout** *(founder decision, 2026-08-15)*. Processing is its own
+   line: it is not bundled into the 8%, the 8% is not expected to absorb it, and it is not charged
+   to the client on top. Worked example on a $100 booking — Relevé's platform fee is $8.00 (8% of
+   $100, not of $100 minus processing); the processor's fee is deducted from the professional's
+   side; the professional nets $92.00 less processing.
+5. **Swing and Flex protected teaching wages are NOT subject to the 8%.** The teacher receives
+   100% of the agreed base rate, at or above the $50/hr floor. Relevé's participation in those
+   engagements remains on the employer side — studio subscription, included uses, per-use overage,
+   Flex match fee. The 8% does not reach into a protected teaching wage.
+6. **Licensing / IP keeps its own economics.** The marketplace and licensing lane is governed
+   separately and is untouched by this decision. The 8% is a Professional Services number only and
+   must not be applied to, confused with, or used to revise a licensing split.
+7. **SCOPE — this entry governs Professional Services / general on-platform service bookings, and
+   nothing else.** Points 3 and 4 (gross basis; professional bears processing) are part of that
+   same scope. Do **not** infer from them any change to the separately defined economics of Swing,
+   Flex, Senior Spotlight, licensing/marketplace, memberships, the $30 application fee, The Beat,
+   or any other existing product. Where another product defines its own fee basis or its own
+   treatment of processing, that definition governs there.
+8. **Professional Services is INCLUDED in the $149 Professional tier. It is NOT gated to $199**
+   *(founder decision, 2026-08-15)*. Listing services, showing them on your profile, and — when
+   booking ships — being bookable are all part of the $149 membership. What the **$199 Creator
+   tier** adds is **licensing / IP / creator-commerce capability**, which is a different lane with
+   its own economics (point 6). The dividing line is *the kind of thing being sold*, not a paywall
+   placed across the same feature.
+   **This ratifies what the code already does** — `/profile/services` gates on
+   `hasActiveProfileTier`, whose `PROFILE_TIER_SLUGS` is `professional` + `professional_full`,
+   while the marketplace seller workspace gates on `professional_full` alone. Both are pinned by
+   tests in `src/lib/membership/access.test.ts`. **No code change was required by this decision**,
+   and none was made.
+9. **One FLAT 8% across every service category at launch** *(founder decision, 2026-08-15)*.
+   Massage, Pilates, photography, accompanying and the rest all carry the same rate. **Do not build
+   category-specific rates** — not a per-category column, not a lookup table, not a config map.
+   A single platform number is simpler to explain, simpler to honour, and avoids Relevé implicitly
+   ranking one kind of work as worth more of a cut than another. If per-category pricing is ever
+   wanted it should arrive as a deliberate, separately-recorded decision.
+
+### Why 8%
+
+It prices the services lane as **infrastructure, not as a cut of the artist's craft.** It is
+deliberately well below the licensing economics, because a service booking is a smaller, more
+frequent transaction against a person's working time, and because the member is already paying an
+annual subscription for presence. Standing firm on $149 / $199 alongside it is part of the same
+decision: the fee is set at a level that does not require the subscription to move.
+
+### The boundary that makes it enforceable
+
+The fee attaches to a transaction Relevé can actually observe — one booked and paid through the
+Relevé rail. This is consistent with the booking architecture already recorded on 2026-08-15
+("Professional Services bookings happen ON Relevé"), which removed the outbound Booking Link
+precisely because an off-platform booking takes the money and the record with it.
+
+### What this does NOT do
+
+- **It does not change any code, and no `app_config` row is seeded by this entry.**
+  `service_platform_fee_bps()` still reads `app_config` and still returns NULL. Setting it to
+  **800 bps** is a separate, explicit action — and the existing guardrail stands until then:
+  **checkout must refuse to charge on NULL rather than assume a default.**
+- It does not set the general marketplace / licensing fee, which remains open.
+- It does not change Senior Spotlight, which carries a written commitment to the Founding
+  choreographers.
+- It does not change any studio tier price, the $30 application fee, or The Beat posting prices.
+- It does not alter the Swing $20/use or Flex $250/run employer-side fees.
+
+### Still open (do not infer answers from this entry)
+
+- ~~**Who bears payment processing on a service booking**~~ — **ANSWERED 2026-08-15 (same day,
+  later): the professional receiving the payout bears it.** See points 3 and 4 above. Left visible
+  rather than deleted so the earlier "separate, not assigned" wording is not mistaken for a rule
+  that is still open.
+- ~~Whether the Professional Services capability is gated to the $199 Creator tier.~~
+  **ANSWERED 2026-08-15: no — it is included in the $149 Professional tier. See point 8.**
+- ~~Whether the 8% varies by service category, or is flat across all of them.~~
+  **ANSWERED 2026-08-15: flat across all categories at launch. See point 9.**
+- **STILL OPEN — refund, cancellation, and no-show treatment of the fee.** Nothing in this entry
+  answers it, and nothing should be inferred: whether the 8% is refunded with the booking, retained,
+  or pro-rated is undecided, as is who absorbs processing on a reversal. This must be settled before
+  checkout is built, because a refund path that quietly keeps or quietly returns the platform fee is
+  a policy decision made by omission.
+
+**Source:** founder directive, 2026-08-15. Supersedes the "rate not set / TBD" state for
+Professional Services recorded in the Revenue Model working decision map of the same date, and the
+"No fee percentage has been approved" line in the *Money: plumbing only* section above — which now
+carries a pointer here so the two cannot both read as current.
+
+**Amended the same day (founder):** points 3 and 4 added — the 8% is charged on the **gross**
+service price **before** payment-processing fees, and **processing is borne by the professional
+receiving the payout**. This closed the "who bears payment processing" question that this entry had
+originally left open.
+
+**Amended again the same day (founder):** points 8 and 9 added — Professional Services is
+**included at $149** (the $199 Creator tier adds licensing / IP / creator commerce, not this), and
+the 8% is **flat across all service categories at launch**. Two of the four open questions are
+therefore closed. **Refund / cancellation / no-show treatment remains open**, as does the
+availability-authoring UI recorded in the booking-architecture entry above. Still unchanged by any
+of this: no `app_config` row, no checkout, no payouts, no Vercel flag.
+
+---
+
+## 2026-08-16 — "Creator" is the public name of the $199 tier · `professional_full` stays internal
+
+**Decided (Kathleen, 2026-08-16).** The $199 individual tier is called **Creator** to members.
+
+**Public tier structure (individual):**
+
+| Name | Price | What it is |
+|---|---|---|
+| **Professional** | $149/year | Vetted Roster profile, Professional Services included |
+| **Creator** | $199/year | Everything in Professional, **plus** licensing / IP / creator-commerce |
+
+- **Display name only.** `TIERS.professional_full.label` in `src/lib/membership/tiers.ts` is the one
+  customer-facing string, and every surface that shows a tier name reads it from there — the
+  membership-active email included. Changing that label is the whole rename.
+- **`professional_full` remains the internal identifier**, deliberately and permanently: the slug,
+  the `TierSlug` union, `memberships.tier` values already in the database, `applications.approved_tier`,
+  the Stripe Price id, `STRIPE_PRICE_PROFESSIONAL_FULL`, `PROFILE_TIER_SLUGS`, and
+  `MARKETPLACE_SELLER_TIER_SLUGS` are all untouched. Renaming a slug that live rows are keyed on
+  buys nothing and risks everything; a customer-facing name is not an identifier.
+- **Supersedes** the 2026-08-14 note on that tier which deferred customer-facing naming to
+  Marketplace activation and floated the placeholder "Professional + Marketplace". That name is
+  retired; it never reached a member.
+- **Nothing else changed.** No price, no access logic, no entitlement, no checkout, no fee. Access
+  reads `marketplaceSeller` / the slug lists — never the label — so the rename cannot move a gate.
+- **One manual step outside the codebase:** the Stripe **product** name (shown on the hosted
+  Checkout page and on receipts) still reads "Relevé — Professional · Full (annual membership)" for
+  the already-created product. `scripts/setup-stripe-tiers.mjs` now produces
+  "Relevé — Creator (annual membership)" for future runs, but the existing product must be renamed
+  in the Stripe dashboard **in both test and live mode**. Renaming a product does not affect its
+  Price id or any active subscription.
+
+---
+
+## 2026-08-18 — `NEXT_PUBLIC_SITE_URL` fails loudly instead of falling back to localhost (F5)
+
+**Decided (payment sprint, F5).** `siteUrl()` in `src/lib/stripe/config.ts` used to return
+`http://localhost:3000` whenever `NEXT_PUBLIC_SITE_URL` was unset. That value builds the
+Checkout **success** URL, the Checkout **cancel** URL, and the billing-portal **return** URL.
+A missing or wrong value in production meant: the card is charged, the webhook grants the
+membership, and the member is redirected to a machine that is not theirs — with nothing in
+any log. The only way we would learn is a confused member.
+
+**What it does now.** A pure `resolveSiteUrl(env)` decides, so the rule is unit-tested
+without a server and without mutating `process.env` (guardrail #6, the pattern
+`lib/membership/access.ts` set):
+
+- **Outside production:** unchanged. No variable → `http://localhost:3000`. A malformed
+  value also falls back rather than throwing, so a bad `.env.local` never blocks `npm run dev`.
+- **In production:** missing, blank, relative, non-http, **or pointing at a loopback address**
+  throws `SiteUrlNotConfiguredError`, naming the variable and how to fix it. The loopback case
+  matters most: a mere presence check would have passed it, and it is precisely the silent
+  wrong answer being guarded against.
+- **During `next build`:** never throws. Next sets `NEXT_PHASE=phase-production-build`, and a
+  broken build is its own kind of outage — the trap named in the brief. Verified: `npm run build`
+  exits 0 with the guard in place.
+
+**Two checks, not one.** Call-time (guaranteed to cover every path) **and** boot-time, via a new
+`src/instrumentation.ts` calling `assertSiteUrlConfigured()` once in the Node server runtime.
+Boot-time is the one that matters for the standard this sprint is held to: a misconfigured deploy
+announces itself in the deploy log at start-up, rather than at the moment a member hands us a card.
+
+**Not changed:** `emailSiteUrl()` in `src/lib/email/send.ts` already falls back to
+`https://releveconnect.com`, never localhost, so emailed links were never exposed to this. The
+localhost fallback was confined to the Stripe redirect helper, which is the whole of F5's blast
+radius.
+
+---
+
+## 2026-08-18 — One membership-state resolver, and how the two populations are told apart
+
+**Decided (payment sprint, before any page work).** `/subscribe` asked "does this person have a
+membership?" — a yes/no question — when the real question has **ten** answers. That single missing
+distinction is what produced both live loops (F2, F3), so rewriting the page first would only have
+relocated the bug. `src/lib/membership/state.ts` answers it once, purely, with no database, no
+Stripe call and no clock (`now` is injected), and 57 unit tests.
+
+**The states:** `signed_out · pending · comp · active_profile_tier · active_non_profile · lapsed ·
+approved_no_membership · applied · declined · none`.
+
+**Judgment calls made, and why:**
+
+1. **`admin` is a flag, not a state.** The brief lists it in the state table, but modelling it as an
+   exclusive state would mean an admin who activates a membership *loses* the door to their own
+   vetting queue — and Kathleen is an admin who may hold one. `isAdmin` is returned alongside every
+   state, so the escape hatch (subscribe/page.tsx:49, the evening lost to it) renders unconditionally.
+
+2. **`comp` outranks the paid states.** A founding member on a comped *Professional* row is both
+   "comp" and "active profile tier". Comp wins, because the copy differs in the direction that
+   matters: warm, no prices, no manage button. `hasProfile` still travels with the comped tier, so
+   their profile stays one click away.
+
+3. **The two comp vocabularies are unified at READ time, not migrated.** `founding_comp`
+   (`lib/membership/founding.ts`) and `complimentary_permanent` / `complimentary_term`
+   (`lib/founding/founding-professional.ts`) both resolve to `comp` via `COMPLIMENTARY_SOURCES`.
+   Migrating would rewrite audit rows recording what was actually granted, and the two grants
+   genuinely differ. **Any future comp source must be added to that list or a founding member will
+   be shown a paywall** — a test asserts the list's exact contents so adding one is a deliberate act.
+
+4. **`canManageBilling` is `stripe_customer_id != null`, independent of state.** This is F11 as a
+   single condition: comp rows carry no Stripe customer by design, so the manage button cannot
+   render for them and `/api/membership/portal`'s 404 can never be aimed at a founding member. It
+   also means a **lapsed** member keeps the portal — which is their recovery path, not a locked door.
+
+5. **`pending` outranks everything, but only for 15 minutes.** The checkout route writes `pending`
+   *before* redirecting to Stripe, so an **abandoned** Checkout leaves a permanent `pending` row.
+   Holding that person on "Confirming your payment…" forever would be the exact dead end this sprint
+   exists to remove. Fresh (≤15 min, comfortably past the 3-minute webhook delay observed) → the
+   confirming panel. Older → the state falls through to what they actually hold, carrying
+   `stalePendingTier` so the page can say calmly "if you completed a checkout it is still
+   confirming, you do not need to buy again." We cannot distinguish an abandoned checkout from a
+   badly delayed webhook from our own database; this serves both without stranding either. A pending
+   row with a missing or unparseable timestamp is treated as **fresh** — erring toward "confirming"
+   is safe, erring toward the chooser risks a second charge.
+
+6. **`offeredTiers()` is separate from the state.** The state says who someone is; this says what the
+   page may put a price on — "never shown a price that doesn't apply to them", in one place. It
+   closes a trap the F1 rewrite would otherwise have walked into: the vetted tiers **403** at
+   `/api/membership/checkout` without an approved application, so an "Upgrade to Professional" button
+   shown to a Live Pass holder who never applied would simply error. The upgrade appears only when it
+   will work; otherwise they are pointed at the application instead.
+
+**Nothing reads this yet.** The resolver is committed ahead of the `/subscribe` rewrite so the
+question is settled before any UI is built on top of it.
+
+---
+
+## 2026-08-18 — Live Pass is a family membership, not a door-opener (SUPERSEDES the 2026-06-25 tier copy)
+
+**Decided (Kathleen, by email, 2026-08-18).** *"Live Pass is a real paid Relevé membership tier —
+$99 for a family. It is not merely a studio-access state or an upgrade lane."*
+
+**What it includes** (the ratified list, now rendered verbatim on `/subscribe`): family
+participation in Relevé · monthly Zooms · news and resources · community viewing and engagement ·
+access to purchase or license eligible choreography · the Relevé Passport · the College Audition
+Cycle.
+
+**This supersedes the Live Pass row in `docs/Releve_Pricing_RATIFIED_2026-06-25_…`**, which read
+*"The door-opener. The Climb, The Beat (access + pay-to-post), view the Roster, member events."*
+That framing described Live Pass as a lesser rung on a professional ladder. It is not one — it is
+the family's own membership, and it is consistent with the 2026-08-16 clarification already
+recorded in `subscribe/welcome/page.tsx` (Live Pass is the family/minor admission, not a Roster
+membership). **Price, slug and label are unchanged**: `live_pass`, "Live Pass", $99.
+
+**Consequences in code:**
+
+- The old `active_non_profile` state — which lumped Live Pass in with the studio tiers — is
+  **split** into `active_live_pass` and `active_studio`. They are different memberships with
+  different homes, and one shared state could only ever give one of them honest copy.
+- **Live Pass is never offered to someone who already holds it.** A test asserts this across every
+  application state, because the loop it replaces (F3) was exactly this kind of "we forgot they
+  already have it" error.
+- Tier copy lives in a new `src/lib/membership/tier-copy.ts`, **not** in `tiers.ts`. `tiers.ts` is
+  the pricing canon and the sprint brief forbids touching a slug, price or label; marketing copy
+  moves on a different clock. Every line in the new file cites its ratified source, and copy that
+  is not ratified is not invented there.
+
+---
+
+## 2026-08-18 — The Professional Roster is a pathway, never an upsell button that 403s
+
+**Decided (Kathleen, by email, 2026-08-18).** *"Do not give an unapproved Live Pass member a direct
+'upgrade to Professional' checkout that will 403. … If someone has not yet been approved for the
+Professional Roster, the appropriate optional action is to apply for Professional membership, not
+attempt to purchase it directly."*
+
+`/api/membership/checkout` returns **403** on a vetted tier without an approved application. So the
+obvious reading of F3 — "give the Live Pass holder an upgrade button" — would have shipped a button
+that errors for every unvetted member who pressed it.
+
+`professionalPathway()` resolves this in one place, and returns one of four answers:
+
+| Answer | When | What the page shows |
+|---|---|---|
+| `purchase` | approved | Professional / Creator, with a checkout that will succeed |
+| `apply` | never applied | "Apply for Professional membership →" |
+| `under_review` | applied, awaiting a decision | reassurance; **nothing is sold** |
+| `none` | already on a profile tier, complimentary, studio side, mid-purchase, lapsed, declined | nothing |
+
+Deliberately separate from `offeredTiers()`: one answers *what may we put a price on*, the other
+*how does this person reach the Roster from where they stand*. Collapsing them is what produces the
+403 button.
+
+---
+
+## 2026-08-18 — Complimentary is an entitlement with a clock, not a permanent flag
+
+**Decided (Kathleen, by email, 2026-08-18).** *"comp means a currently valid complimentary
+entitlement. It must support both lifetime complimentary founders and founding members whose
+complimentary period can expire later. Do not hard-code complimentary as free forever."*
+
+The database already carries both populations, and the resolver now reads them honestly:
+
+| Population | Row | Resolves to |
+|---|---|---|
+| Lifetime founder | `complimentary_permanent`, `renewal_date` **NULL** | `comp`, forever |
+| Founding member on a term | `founding_comp` / `complimentary_term`, `renewal_date` set (+12 months) | `comp` until the date, then `comp_expired` |
+
+- **`comp` now requires the entitlement to be valid *now*.** Nothing in the product expires these
+  rows — the row stays `membership_status = 'active'` indefinitely — so validity is **computed**
+  rather than assumed. Without this, a founding member whose year had ended would silently be
+  presented as an ordinary paying member.
+- **`comp_expired` is a distinct state that decides nothing.** It sells nothing, shows no price,
+  keeps the profile reachable, and says the complimentary period has ended and we will be in touch.
+  What *should* happen on that date — grace period, conversion, notice, whether access continues —
+  is **F9, and Kathleen's to ratify**. Naming the state without inventing the policy is the whole
+  point: F9 becomes a copy-and-policy decision rather than an architecture one, and the people in
+  that position become queryable.
+- **Unreachable in production until ~2027-07-20.** The founding-period grants began 2026-07-20 on a
+  12-month term, so no live row can reach `comp_expired` for another eleven months. It is built,
+  tested, and waiting.
+- A **malformed** `renewal_date` resolves to `comp`, not `comp_expired`. A founding member must
+  never be dropped out of their entitlement by a bad timestamp.
+
+---
+
+## 2026-08-18 — `/subscribe` is the canonical membership chooser, and it renders signed-out (F1)
+
+**Decided (payment sprint, F1).** `/subscribe` is the single buy path and the billing home. The
+page was rewritten on top of the state resolver, and `SubscribeButtons` — which existed, worked,
+and was imported by nothing — was finally wired in. **All three individual tiers are now
+sellable.**
+
+- **It no longer redirects a signed-out visitor to `/login`.** The brief's own walkthrough requires
+  a stranger to land on `/subscribe` and reach Checkout for Live Pass; the old page bounced them to
+  sign-in before they could see a single price. A stranger now sees the tiers, the prices and what
+  each includes, and their chosen tier travels through sign-in via
+  `?next=/subscribe?tier=<slug>` so they come back to the card they picked.
+- **The page decides nothing.** It reads rows, calls `resolveMembershipSituation` / `offeredTiers` /
+  `professionalPathway`, and renders one branch per state. When a state's copy is wrong, the fix is
+  almost always in `state.ts`. This is what keeps the two populations apart without either one's
+  copy leaking into the other's branch.
+- **Annual auto-renewal is disclosed on the card itself**, at the point of purchase, rather than
+  left to the confirmation email after the card has been taken.
+- **`pending` renders a calm static panel here.** Self-refresh, the status endpoint, and the gated
+  pages rendering the same panel are **F2 and are not built** — this is the minimum correct thing,
+  not the fix.
+- The admin escape hatch renders in **every** state, unchanged, for the reason recorded at
+  `subscribe/page.tsx` and in the 2026-08-18 resolver entry above.
+
+---
+
+## 2026-08-18 — WORKING PRINCIPLE: one fact, one source of truth, many useful places it can appear
+
+**Ratified (Kathleen, 2026-08-18).** *"One fact. One source of truth. Many useful places it can
+appear."* This governs the platform from here on — architecture, data model, and copy alike.
+
+**What it means in practice.** A fact is captured **once**, in the one place that owns it, and every
+surface that needs it **reads** it. A surface never re-asks for something already known, and never
+keeps a second copy that can drift.
+
+**It is already the reason several things in this codebase are shaped the way they are:**
+
+| The fact | Its one source | The many places it appears |
+|---|---|---|
+| Price, slug, entitlement of a tier | `lib/membership/tiers.ts` | `/subscribe`, checkout, webhook emails, welcome page |
+| "What is this person's membership situation?" | `resolveMembershipSituation` | `/subscribe`'s twelve branches, and every gate that will read it |
+| What a pathway says it includes | `lib/membership/tier-copy.ts` | the chooser cards, and the bold-phrase emphasis |
+| What a professional offers | **My Services** (`professional_offerings`) | public profile, and — next — Roster search and This Week |
+| Where/how they can work | Availability (`kind='general'`) | editor, Roster filters, public profile |
+
+**And it is the test the 2026-08-18 IA reconciliation was failing.** "I'm currently accepting
+choreography" was the SAME FACT as a Choreography service, stored twice in two shapes, asked for
+twice, and free to disagree. That is what made it wrong — not that it looked untidy.
+
+**Consequences to hold to:**
+
+- A new surface that needs a fact **reads the existing source**; it does not add a field.
+- If two places can disagree, one of them is not a source of truth — find which, and make the other
+  read it. `tier-copy.test.ts` exists for exactly this: it fails the build if an emphasis phrase
+  stops matching the copy it emphasises.
+- Derived views are welcome and expected — that is the "many useful places." Duplicated *capture*
+  is not.
+- **This Week must derive its service choices from My Services**, never ask for them again. Recorded
+  here so the next slice cannot quietly reinvent them.
+
+---
+
+## 2026-08-18 — `/subscribe` gets the Relevé visual system: cream, near-black, restrained gold
+
+**Decided (Kathleen, 2026-08-18).** The page was correct and looked like a generic SaaS pricing
+table. It now carries the brand.
+
+**Nothing was invented.** The repo already had two scoped token files — `components/home/tokens.css`
+(`.home-scope`) and `components/this-week/tokens.css` (`.this-week-scope`) — carrying the
+BLACK · CREAM · GOLD palette and the serif voice. `app/subscribe/tokens.css` is a third scope built
+from **their exact values**, so the membership page reads as the same brand rather than a fourth
+dialect:
+
+| Token | Value | Source |
+|---|---|---|
+| `--rc-cream` | `#f5eee1` | home-scope — page ground, never stark white |
+| `--rc-ivory` | `#fcf9f1` | this-week-scope — card surface, a half-step up |
+| `--rc-ink` | `#1e1a17` | home-scope |
+| `--rc-ink-soft` | `#3c3630` | home-scope — body copy |
+| `--rc-muted` | `#6d6459` | home-scope — fine print only |
+| `--rc-gold` | `#b6912f` | home-scope, "the working gold: rules, numerals, accents" |
+| `--rc-hairline` | `#e3d9c3` | this-week-scope |
+| serif | Iowan Old Style / Palatino / Georgia | both files |
+
+**Gold is an accent and never a fill.** It appears only at small scale: the 01–04 numerals, the
+hairline under each card header, the bullet dashes, the price, the eyebrow separator, CTA hover, and
+the single rule on the founding-member plate. There is no large gold surface anywhere on the page.
+
+**Hierarchy comes from scale, colour and space — not from weight.** Body copy is regular; the only
+bold is membership names and thirteen founder-specified value phrases.
+
+---
+
+## 2026-08-18 — The membership chooser is four peers, in a fixed order
+
+**Decided (Kathleen, 2026-08-18).** *"01 Professional, 02 Creator, 03 Studio / Arts Organization,
+04 Live Pass … presented as visual peers, with Professional leading the hierarchy."*
+
+**The bug this fixed was structural, not cosmetic.** The chooser rendered `offeredTiers()` directly —
+a list of what a person may BUY RIGHT NOW. Signed out that returns exactly one tier (Live Pass, the
+only one sellable without vetting), so a stranger saw a one-card page, Professional was demoted to a
+grey footnote, and the studio pathway did not render at all. **An eligibility list was masquerading
+as an information architecture.**
+
+The two are now separated, and this is the same principle as above: *what may be purchased* and
+*what pathways exist* are two different facts with two different owners.
+
+- All four pathways **always** render, as peers, in the ratified order.
+- `offeredTiers()` — **untouched** — still decides which carry a real purchase button. It is no
+  longer allowed to decide which APPEAR.
+- Desktop is a 2×2 composition; cards are equal-height with CTAs on a shared baseline.
+- **One CTA treatment for all four.** `SubscribeButtons.tsx` had `bg-neutral-900 text-white`, which
+  made Live Pass the only filled button purely because it is the only one that goes straight to
+  checkout. It now shares `.rc-cta` with the link CTAs. **The verb carries the difference — Apply /
+  Explore / Join — the styling never does.**
+- The Studio lane is ONE peer covering three tiers; three separately priced cards would outnumber and
+  bury the others. No price is shown (onboarding is invite-led, DECISIONS 2026-07-24), but each
+  purchase button carries its own price for an eligible employer, so nobody picks a tier blind.
+
+---
+
+## 2026-08-18 — The founding-member state is a welcome, not a system status
+
+**Decided (Kathleen, 2026-08-18).** *"Technically correct but visually and emotionally wrong."*
+
+The `comp` state announced an account type ("You're a founding member"), led with what the member
+does **not** owe ("nothing to pay, nothing to enter"), and sat beside a full-width black admin slab.
+
+It is now a centred recognition plate — ivory on cream with a single gold rule, the same materials as
+the membership cards so it belongs to the system:
+
+> RELEVÉ · FOUNDING MEMBER — **Welcome to Relevé.** — *You're here at the beginning.*
+> "You are one of Relevé's founding members — here before there was anything to join, and part of
+> what this becomes. Your membership is **complimentary**, with our thanks."
+
+- **"Build your profile" is the one filled button on the page.** A deliberate exception to the
+  equal-CTA rule, and consistent with its reason: that rule exists so no *pathway* outranks another.
+  Here there is a single next step and nothing to be a peer with.
+- **The admin panel became a discreet utility link** — `Admin · View vetting queue →`. The escape
+  hatch (2026-07-22, the evening lost to being locked out of the vetting queue) still renders in
+  **every** state; it simply no longer dominates a page whose job is to make a member feel welcome.
+- **Deliberately silent on when a complimentary term ends.** `compExpiresAt` is resolved and
+  available; naming a date turns a gift into a countdown (founder decision, 2026-07-21).
+
+---
+
+## 2026-08-18 — Membership copy is founder-authored, verbatim, and tested
+
+**Decided (Kathleen, over four rounds, 2026-08-18).** All chooser copy lives in
+`lib/membership/tier-copy.ts`, **not** in `tiers.ts` — the pricing canon may not have a slug, price or
+label touched, and marketing copy moves on a different clock. Every line cites its ratified source.
+
+**It supersedes the tier descriptions in `docs/Releve_Pricing_RATIFIED_2026-06-25_…`**, which framed
+Live Pass as a professional "door-opener" and the rest as feature lists.
+
+**Two corrections worth preserving, because they show the standard:** an earlier pass approximated
+two bullets to make founder-specified bold phrases match. Kathleen rejected it — *"Do not approximate
+approved wording when the exact language carries product meaning."* Both were restored verbatim:
+
+- **"Be discovered** for teaching, performance, Swing, and professional opportunities." — *being
+  findable* is what Professional sells; a list of nouns loses it.
+- "License and monetize **your choreography** and eligible creative work." — *your* is the whole
+  point of Creator: the work stays the artist's, and Relevé takes a marketplace share of a product,
+  never a cut of a wage (guardrail #1).
+
+**Emphasis is data, and it is guarded.** The thirteen bold phrases are stored beside the copy and
+matched case-insensitively, longest-first. `tier-copy.test.ts` (19 checks) **fails the build if a
+copy edit ever orphans a phrase** — bold that silently vanishes is the exact failure this invites,
+and no other test would catch it.
+
+Italics are scoped to five places: "One industry. Four ways to belong.", and the four audience
+statements. Everything else is regular weight.
+
+**One display fix inside the pricing canon:** `dollars()` gained a thousands separator, so Studio
+Accelerator renders `$1,499` and not `$1499` as the ratified doc writes it. Display only — no price,
+slug, or label changed, and it matches the existing house formatter in `lib/offerings/offerings.ts`.
+
+---
+
+## 2026-08-18 — The canonical top-level service set is five, and specializations live inside them
+
+**Decided (Kathleen, 2026-08-18).** *"Merge Private Audition Coaching into Private Coaching as the
+single canonical My Service… Audition Prep should remain a specialization/use case of Private
+Coaching, not a separate top-level service."*
+
+**The five, in order:**
+**Choreography · Master Classes · Private Coaching · Adjudication · Guest Teaching**
+
+**The product rule this establishes.** A top-level service is a *category a studio would search for*.
+A specialization is a *use case within one*. Audition Prep, College Audition Coaching, Technique,
+Solo Coaching and Career Coaching are all specializations of **Private Coaching** — promoting each to
+its own top-level service would turn My Services into twenty near-identical buttons and make the
+Roster's Services facet useless, which is the opposite of what the facet is for.
+
+**No specialties schema was created** (founder instruction: *"Do not create a new schema just for
+specialties in this slice if one does not already exist; simply preserve that product decision for
+later"*). The decision lives here and in `lib/roster/services.ts` until there is something to build.
+
+**Which row survived, and why it matters.** The two rows were not equivalent:
+
+| | `Private Audition Coaching` | `Private Coaching` |
+|---|---|---|
+| origin | **the member's own**, 2026-08-13 | machine placeholder, 2026-08-18 |
+| type | `session` | `service` |
+| pricing | `hourly`, **"$125 / hour"** | `contact`, no price |
+| description | their own words | generic |
+
+So the merge **kept the member's row and renamed it**, and deleted the placeholder. Doing it the
+obvious way round — keeping the row that already had the right title — would have silently destroyed
+a real price, a real description, the row's `id` and its `created_at`. The instruction was "preserve
+all existing data and references", and only this direction does that. Verified first: no foreign key
+anywhere references `professional_offerings.id`.
+
+The surviving description is kept **verbatim** ("Individual coaching for dancers preparing for
+college, professional, or company auditions") rather than rewritten to match the broader title —
+rewriting a member's own copy would be inventing words. It now reads narrower than the title; that is
+a copy edit for the member, not a migration.
+
+**Old searches keep working.** `LEGACY_SERVICE_ALIASES` in `lib/roster/services.ts` resolves
+`private-audition-coaching` → `private-coaching`, applied in both the pure predicate and the live SQL
+query. A bookmarked `/roster?svc=private-audition-coaching` still finds the right professionals —
+including members who only ever had "Private Coaching" and never held the retired slug. Like the
+availability aliases, this is an alias for retired URLs, **not** a second source of truth: nothing is
+stored against it and no member ever sees it.
+
+**Verified against production:** all five canonical slugs resolve; the retired slug resolves; all
+four legacy `?avail=` URLs still return their results; and `private-audition-coaching` no longer
+appears anywhere in the live `service_slugs`.
+
+---
+
+## 2026-08-18 — Availability publishes ONLY when the member explicitly marks a window public
+
+**Decided (Kathleen, 2026-08-18).** *"Only publish when the member explicitly marks a window
+public."* This is the rule the whole This Week ↔ public-availability boundary is built on.
+
+**What it means:**
+
+- A `personal_events` row is **always private**. Creating one publishes nothing, ever. There is no
+  automatic derivation, no "availability category means public", no background sync.
+- A member publishes by taking an action, and that action **writes a row in
+  `service_availability`** — the separate, public table. Publishing IS the existence of that row.
+- Unpublishing **deletes that row**. It never edits the private event.
+- Only the *shape* of the window crosses over — `starts_at`, `ends_at`, `timezone`, and the service
+  being offered. **Never** the title, category, note, or `detail` of the private event. A studio
+  learns *when* someone is free, and never *why* they are not.
+
+**Why explicit, and not automatic.** Automatic publication is one bad `UPDATE`, one misread enum, or
+one well-meant "sync my calendar" feature away from putting an audition, a medical appointment or a
+funeral on a public page. The founder's rule: *"A person's private calendar may inform public
+availability, but Relevé must never expose why they're unavailable."* An explicit act is auditable,
+reversible, and impossible to trigger by accident.
+
+**This preserves an existing firewall rather than inventing one.** `service_availability` was already
+built this way — publication as a separate row, `source_personal_event_id` and `internal_note`
+REVOKEd from `anon`/`authenticated` at column level, and RLS confirming `personal_events` has exactly
+ONE policy (owner-only, no anon read, no studio/guardian/teacher path). This decision ratifies that
+design and forbids the shortcuts that would erode it.
+
+### ⚠ One schema mismatch this exposes, to resolve before building
+
+`service_availability.service_id` currently references **`professional_services`** — the *other
+businesses* table (massage, Pilates, photography) — **not `professional_offerings`**, which is My
+Services and the ratified source of truth for what a professional offers.
+
+So a published window cannot currently point at "Guest Teaching". The bridge exists, but it is wired
+to the wrong table. Resolving it is a schema change and needs a pre-flight and explicit approval; the
+likely shape is a nullable `offering_id` alongside the existing `service_id`, so the Professional
+Services booking path that column was built for is not broken. **Both tables have 0 rows**, so this
+is still free to change.
+
+---
+
+## 2026-08-18 — The public read path: publishing and discovery are two different things
+
+**Found (Kathleen, 2026-08-18).** After the This Week write path shipped, Kathleen published a
+real window — Guest Teaching, Aug 20, 2–4 PM — and confirmed the private confirmation ("Added, and
+your window is public"). An anonymous visit to `/kathleen-mcaree` showed nothing. The database had
+the row; nothing read it.
+
+**The lesson, in her words:** *"We just found the difference between 'the database can publish
+availability' and 'a studio can actually discover that availability.' Relevé needs both."* The write
+path (`service_availability` insert) and the read path (the public profile query) are two separate
+pieces of work, and shipping the first without the second is a silent gap — the feature LOOKS done
+from the member's side and is invisible from the studio's side.
+
+**What was built:**
+
+- `lib/profile/public-availability.ts` — pure formatting (date, time range, DST-correct timezone
+  abbreviation via `Intl…timeZoneName:"short"`, not a hand-rolled ET/PT table). 11 tests.
+- `[handle]/AvailabilityWindowsSection.tsx` — "Available This Week", placed beside the Availability
+  tag row per founder direction. No feature flag: this is the completion of an existing capability,
+  not a new gated one. Guarded by `windows.length`, same as Offerings/Services.
+- The loader query in `[handle]/page.tsx` selects **exactly five fields** —
+  `id, starts_at, ends_at, timezone, professional_offerings(id, title)` — and never asks for
+  `source_personal_event_id` or `internal_note`. The admin client bypasses RLS and column grants
+  entirely, so the ONLY thing enforcing the firewall on this query is that discipline. Documented
+  inline as the load-bearing property it is.
+- Filters: `status='open'` (explicitly published only) · `offering_id is not null` (My Services
+  windows, not the separate Professional Services booking path) · the joined offering's
+  `status='active'` (a since-deactivated service's old windows don't linger) · `ends_at >= now`
+  (nothing already past).
+
+**The "PUBLIC" badge — a second, sharper firewall finding.** Marking a member's own This Week card as
+published required reading `service_availability.source_personal_event_id` — and column privileges
+confirmed that column has **no SELECT grant for `authenticated`, not just `anon`**. The REVOKE from
+20260815173203 was written to block everyone via the ordinary API, including the owner reading their
+own linkage. So `fetchPublishedEventIds()` is a new, narrowly-scoped ADMIN-client read: it runs only
+after `profileId` is resolved from the caller's own session, touches only that profile's rows, and
+returns nothing but a boolean-per-card. This mirrors the existing precedent of `buildLiveWeek` already
+mixing an RLS-scoped client with an admin client for different needs (e.g. `materialiseSessions`).
+
+**Verified anonymously against Kathleen's real published window**, not synthetic data: the exact
+query, run as the `anon` role, returns exactly her one window, with exactly the five safe fields, and
+`source_personal_event_id`/`internal_note` remain blocked (`42501`) on that same anon connection. A
+cancelled window was inserted and confirmed absent from the anonymous read, then removed. The browser
+check ran with zero cookies — a genuinely anonymous session — and rendered "AVAILABLE THIS WEEK ·
+Guest Teaching · Thu, Aug 20 · 2:00 – 4:00 PM EDT" with no console errors.
+
+---
+
+## 2026-08-18 — The public profile stops looking like an application
+
+**Found (Kathleen, 2026-08-18, walking the real profile).** *"The public professional profile
+currently feels too much like a job application or database record."* Styles, Teaching Levels,
+Focus, and general Availability were rendered as standalone tag rows — useful as structured intake
+data, wrong as the first thing a studio sees.
+
+**The principle she set:** two different concepts had been living in one page. **Intake / structured
+data** — used internally for search, matching, filtering, admin — and the **public profile**, a
+curated storefront answering: who is this, what do they do, can I hire them, are they available, can
+I see their work, what establishes credibility. The fix is presentation-only: nothing stored,
+nothing searchable, nothing editable was touched.
+
+**What was removed from the public render (data, editor, admin, and Roster search left untouched):**
+Styles, Teaching Levels, Focus, general Availability, and the already-dead "Currently accepting" tag
+row. `loadProfile` still fetches every one of them, byte-for-byte — confirmed before touching
+anything that the Roster's search reads a wholly separate SQL view (`roster_profiles`), independent
+of this page's code, so hiding these tags here could not have touched search even if the fetch had
+been removed too. It wasn't: **"leave the existing loadProfile data fetching intact... do not
+combine this presentation cleanup with query optimization"** was the explicit instruction, honored
+by commenting out five render calls and touching nothing else. "Teaching at / Touring with" and
+Professional Services (the other-businesses section — a different concept from My Services) were
+hidden the same way: fetch preserved, render commented out, restorable in one line.
+
+**The new hierarchy:** Professional Header (photo, name, standing marks, title, location, years) →
+Bio, set larger and unlabelled so it reads as an introduction, not a form field → **My Services**,
+moved up to directly follow the story → **Available This Week**, immediately after → **Selected
+Work** (Featured Reel + gallery, combined) → Credentials → Links. This must work for a choreographer,
+adjudicator, or performer as well as a teacher — which is what forced the next decision.
+
+**The Featured Reel stopped being a hero concept.** It was hardcoded "Teaching Reel," permanently
+above the fold — correct framing for a teacher, wrong for a choreographer, adjudicator, or performer,
+for whom the reel is a résumé tape or a performance clip, not a lesson. *"Make this a generic Featured
+Work / Featured Reel media position... the component must not be teacher-specific."* It moved out of
+the hero into Selected Work, generically labelled. The underlying column
+(`talent_profiles.teaching_reel_url`) is unchanged — no schema touched in this pass; only the label
+and position are generic now.
+
+**Available This Week got the Inquire action it was missing**, and the fix was to *extract*, not
+duplicate. The exact same interaction My Services already used — open a note, prefill it, send via
+the existing connections flow, show sent/error/pending — was pulled out of `OfferingCta.tsx` into a
+shared `InquireButton.tsx`, used by both surfaces now. The window's prefill names the service **and**
+the exact date/time (`windowInquiryPrefillMessage`), built from nothing but the same four-field public
+whitelist the read path already enforced — no new privacy surface, because the function is never
+given anything else to leak.
+
+**Verified anonymously after the pass, not assumed:** the firewall check re-run against Kathleen's
+real published window — `source_personal_event_id` and `internal_note` still blocked (`42501`) for
+`anon`, `personal_events` still 0 rows, exactly one window still returned. Confirmed in the DOM,
+signed out, zero session cookies: `h2` order reads Services → Available This Week → Selected Work →
+Credentials, no Styles/Levels/Focus/Availability tag rows anywhere, all 6 Inquire buttons route an
+anonymous visitor to `/login?next=/kathleen-mcaree`.
+
+700 tests (was 696). Typecheck clean, build green. Lint shows 7 new warnings — the now-unread
+`loadProfile` return fields plus the dormant `TagRow` helper — which is the correct, expected shape
+of "fetch preserved, render removed," not a defect.
+
+---
+
+## 2026-08-18 — A Founding Professional signed in and landed on the paywall, not the Roster
+
+**Reported (Kathleen, urgent, production incident).** Geoffrey Doig-Marx — an invited Founding
+Professional — followed his invite link, entered his sign-in code, and was sent to `/subscribe`. Her
+production trace (confirmed via the Supabase edge logs) showed his grant matched, his `users` row was
+created, his Professional membership was materialized as `active` / `complimentary_permanent`, and his
+founder identity was stamped — but `activateProfessionalProfile` never ran. No `talent_profiles` row
+was ever attempted for him. Seven other Founding Professionals had already been invited and were at
+risk of the same landing.
+
+**Root cause, confirmed by diffing this branch against `main` (production's source), not inferred:**
+production is running a build that predates the Profile V2 activation module entirely. `main` has no
+`src/lib/profile/activate.ts`, no `activation.ts`, no `/profile/review` route — its
+`claimFoundingProfessionalOnSignIn` creates the membership and stamps identity, exactly as Kathleen's
+trace showed, but has no call to any profile-activation service at all, because that service doesn't
+exist yet on `main`. `/profile/edit` on `main` only checks the membership gate and renders whatever
+profile row happens to exist (or doesn't) — it never creates one. This branch's Profile V2 work
+(slices 1–4, already built and tested) is correct; it simply was never deployed.
+
+**The trap Kathleen flagged, and why it mattered for the fix's shape:** Geoffrey's grant already has
+`claimed_at` set. `claimFoundingProfessionalOnSignIn` returns early forever once `claimed_at` is
+non-null — so once this branch IS deployed, his claim path still cannot recover him. His only route
+back is a catch-up that does not depend on the claim function at all.
+
+**Three bugs found and fixed in this branch's own Profile V2 code — all three would have surfaced the
+moment it deployed, even with the claim path working correctly:**
+
+1. **`src/lib/auth/destination.ts` — an explicit `?next=` bypassed catch-up activation entirely.**
+   Every Founding Professional invite link is `/login?next=/profile/edit&email=...`
+   (`FoundingProfessionalsConsole.tsx`). The old code honored `requestedNext` immediately after the
+   founding-claim attempt, before the draft-check/catch-up further down the function ever ran — so
+   even a WORKING claim+activation would have sent someone straight to the raw editor, or (for
+   Geoffrey's already-claimed case) straight back to `/subscribe`, forever, on every sign-in. Fixed by
+   adding a catch-up activation gated on `requestedNext` being present — i.e., exactly the condition
+   about to short-circuit — that calls `activateProfessionalProfile` directly (never through the claim
+   function, so `claimed_at` is irrelevant to it) and redirects to `/profile/review` when the result is
+   a draft. Deliberately did NOT make this run unconditionally: `destination.test.ts` encodes on
+   purpose that a family guardian who also holds an eligible professional application must not be
+   auto-activated just for opening This Week. Gating on `requestedNext` preserves that precedence
+   exactly (the family-join flow never carries a `next`) while closing the invite-link bypass.
+
+2. **`src/lib/profile/activate.ts` — the display-name fallback chain could expose an email address.**
+   `user.display_name?.trim() || email || "Relevé Professional"` — an invited founder never fills in a
+   name (there is no application to seed one from), so `display_name` is null and this fell through to
+   their raw email as the PUBLIC-FACING name on a draft profile. Fixed: the email step is removed
+   entirely. The fallback is now `"New Relevé Professional"`, an explicit onboarding placeholder, never
+   contact information.
+
+3. **`src/app/profile/edit/page.tsx` — "Welcome to the Relevé Roster" was unreachable dead code.** The
+   heading ternary read `{profile ? "Edit your profile" : "Welcome to the Relevé Roster"}`, but
+   `profile` is the same query result that an earlier `if (!p) redirect(...)` guard already requires to
+   be truthy — the false branch could never render. Changed the condition to
+   `p?.profile_status === "draft"`, which is both reachable and actually means something: a first-time
+   activation now lands on `/profile/review` first (fix #1), so this only fires if someone reaches the
+   raw editor directly while still unpublished — and in that case the welcome framing is still correct.
+
+**Confirmed `/profile/review` itself needed no fix.** `src/lib/profile/review.ts`'s `resolveAudience`
+already returns `"invited_founder"` for a draft with no `prefilled_from_application_id`, and
+`WELCOME_COPY.invited_founder` is "Welcome — your Relevé profile is ready to build" — a real, correct,
+already-built first-run screen. The bug was entirely about reaching it, not what it says.
+
+**Tested twice.** First, 10 new Vitest cases added to the existing `destination.test.ts` and
+`activate.test.ts` suites (mocked DB, same pattern as the rest of the file), modeling Geoffrey's exact
+grant state (`claimed_at` set, active membership, no profile, `next=/profile/edit`) plus a fresh
+unclaimed founder, an approved non-founding professional with a missing profile, an existing published
+profile (no duplicate/reset), someone with no qualifying membership, and the family-guardian
+precedence case explicitly. Second, a temporary, self-cleaning integration test ran the REAL
+`resolveSignedInDestination` and `activateProfessionalProfile` against the REAL database — disposable
+`zz-verify-*@releve-test.invalid` rows only, a synthetic `user_id` with no Supabase Auth user ever
+created (`public.users.user_id` carries no FK to `auth.users`), full cleanup in `afterEach`, and an
+independent SQL sweep across every touched table afterward confirmed zero trace. That live run caught
+three schema mistakes in the TEST HARNESS itself (a NOT NULL `granted_by`, a NOT NULL `applications.email`,
+a nonexistent `family_accounts.family_name` column) — none were bugs in the app code — and, once
+corrected, confirmed all 6 required scenarios pass against the real schema, not just a mock. The test
+file was deleted after use; nothing from it is committed. 710 tests in the permanent suite (was 700),
+typecheck clean, lint clean on every changed file.
+
+**Explicitly not done, per Kathleen's stop condition:** no backfill for Geoffrey or any of the other
+six invited Founding Professionals (queried their live rows before and after this work — byte-for-byte
+unchanged), no commit, no push, no merge, no deploy. `feature/this-week-ui-redesign` untouched
+(confirmed still at `622631e`).

@@ -41,7 +41,7 @@ describe("foundingTierFor", () => {
   });
 
   it("never comps a tier above the entry point of its side", () => {
-    // Professional·Full and the higher studio tiers are upsells, not defaults.
+    // Creator and the higher studio tiers are upsells, not defaults.
     const granted = [
       foundingTierFor(["teacher"]),
       foundingTierFor(["studio_owner"]),

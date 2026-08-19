@@ -108,11 +108,17 @@ in the repo. Everything is configured in the host's dashboard.
 | Thing | Consequence |
 |---|---|
 | Supabase redirect allow-list | **Login completely broken, no error in your logs.** The classic cutover outage. |
-| `NEXT_PUBLIC_SITE_URL` | Every Stripe link + email link silently points at `localhost:3000`. Fails soft — payments look fine, then dead-end. |
+| `NEXT_PUBLIC_SITE_URL` | ✅ **No longer fails soft (F5, 2026-08-18).** Production now refuses to boot without a valid value, and says why in the deploy log. Email links were never exposed — `emailSiteUrl()` always fell back to production, not localhost. |
 | Stripe webhook endpoint | Payments take money and never grant access. |
 
-⚠️ `src/lib/stripe/config.ts` falls back to `localhost:3000` **silently** if the
-site URL is unset. Consider making it throw in production.
+✅ **CLOSED (F5, 2026-08-18).** `src/lib/stripe/config.ts` no longer falls back
+silently. In production a missing, blank, relative, non-http, **or loopback**
+`NEXT_PUBLIC_SITE_URL` throws `SiteUrlNotConfiguredError`, naming the variable and
+the fix. Checked twice — at call time, and at boot from `src/instrumentation.ts`.
+Verified in a production-like run: the server logs the reason and **refuses to
+serve** (connection refused) rather than taking money and stranding the payer.
+`next build` is deliberately exempt, so a config gap can never break the build.
+Local development is unchanged.
 
 **Also absent (not blockers):** no `robots.txt`, no sitemap, no `metadataBase`,
 no OpenGraph tags — profile links shared to Instagram render as bare links. No
@@ -160,6 +166,28 @@ Also in the **Supabase dashboard** (not the repo):
 handler, so annual renewals never extend `renewal_date`, and a member who lapses
 on one failed payment is **never restored** when the retry succeeds.
 
+✅ **CLOSED 2026-08-18 (F1).** `/subscribe` is now the canonical membership chooser
+and billing home. It renders the tiers, the prices and what each includes, wires in
+`SubscribeButtons`, and renders for a **signed-out** visitor so a stranger can see
+what Relevé costs before signing in. All three individual tiers are sellable.
+Built on the membership-state resolver, so each of the twelve situations gets its
+own copy — a Live Pass holder is never re-sold Live Pass (F3), a complimentary
+member never meets a price list, and nobody is handed a checkout that would 403.
+The original gap, for the record:
+
+🔨 ~~**Known gap — NO UI PATH TO BUY A MEMBERSHIP (logged 2026-08-16).**~~
+`POST /api/membership/checkout` works end to end — proven with a real $99 Live
+Pass test purchase in Stripe test mode: Checkout → webhook → membership `active`
+→ subscription id + annual renewal date saved → correct confirmation email
+triggered. **But nothing in the product calls it.** `/subscribe` shows the free
+founding-period copy and has no purchase button, and `SubscribeButtons.tsx`
+exists but is rendered nowhere — the only way to reach checkout today is to
+invoke the endpoint by hand. Deliberately NOT solved in the welcome-page fix of
+the same date. **Before paid membership launches, someone must decide where the
+buy path lives** (a rewritten `/subscribe`, a Live Pass door on `/welcome`, or
+both) and wire `SubscribeButtons` to it. Until then the $99 Live Pass tier is
+unsellable in the UI even though the plumbing is finished.
+
 ---
 
 ## 6. 🧍 Decisions to hold
@@ -176,6 +204,45 @@ on one failed payment is **never restored** when the retry succeeds.
 - 🧍 **Founding members were promised ONE FREE YEAR** (through ~2027-07-20).
   They need a real renewal path before then. The four-step "switch payment back
   on" recipe is in `RESUME-HERE.md`.
+- 🧍 **PUBLIC ROSTER / PUBLIC PROFESSIONAL PROFILE DISCOVERABILITY — founder +
+  product decision, NOT started (logged 2026-08-16).** Question: can the vetted
+  18+ Professional Roster and individual Professional profiles be browsed
+  publicly, without membership or login? Investigated read-only on 2026-08-16;
+  **no code was changed and `/roster` gating is untouched.**
+
+  *Where things actually stand:*
+  - **`/[handle]` is ALREADY public** — no login, no membership. It renders
+    `profile_status='published' AND visibility='public'` via the service-role
+    client. Public individual profiles are the status quo, not a change.
+  - **`/roster` is gated by two lines** (`src/app/roster/page.tsx` — redirect if
+    signed out, redirect if no active membership). The `roster_profiles` view is
+    read with the service role, so opening it would need **no DB/RLS change**.
+  - **Minor / family / student / studio-member / team data has NO public read
+    path.** `students`, `family_accounts`, `guardianships`, `affiliations`,
+    `studio_classes`, `class_sessions` are all authenticated-only in RLS;
+    `personal_events` is owner-only. Opening the Roster would not expose them.
+
+  *Two things that must be settled FIRST — this is the substance of the decision:*
+  1. **Wire the `unlisted` visibility control.** `talent_profiles.visibility`
+     exists and is honoured on read, but `saveProfile` **always writes
+     `'public'`** and no UI offers `unlisted`. Members published under
+     "discoverable by paying members"; a public Roster changes that to
+     "indexable by anyone", which is a materially bigger consent step. The opt-out
+     must exist before the meaning changes.
+  2. **Decide SEO/indexing deliberately.** There is **no `robots.txt` and no
+     `noindex`** anywhere in the app. Public profiles today are already
+     crawlable; a public Roster would mean search engines indexing every
+     published professional — name, headshot, city, bio. Arguably the point, but
+     it should be chosen, not inherited.
+
+  *Also weigh:* the Roster is described in the pricing SSOT as a paid benefit at
+  every tier, so opening it is a pricing decision as much as a privacy one.
+
+  *Privacy controls that already work and would carry over unchanged:* the
+  publish/draft toggle; per-service `show_email` / `show_phone` (default false,
+  stripped server-side by `toPublicService` so unpublished values never reach the
+  browser); Professional Services rendering only when `status='active'` and
+  `moderation_status <> 'removed'`.
 
 ---
 

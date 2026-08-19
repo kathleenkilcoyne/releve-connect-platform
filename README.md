@@ -89,6 +89,8 @@ at once — each is only required when its feature is built.
 | `MAILERLITE_LICENSING_GROUP_ID` | Homepage "tell me when licensing opens" signups join this group *in addition to* The Climb (optional) | MailerLite |
 | ~~`ADMIN_TOKEN`~~ | **Retired 2026-07-22** — admin writes now require a signed-in admin. Safe to delete. | — |
 | `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
+| `PROFESSIONAL_OFFERINGS_ENABLED` | Turns on "What I Offer" (Professional Offerings). Set to `true` to enable; anything else = off | Your choice |
+| `PROFESSIONAL_SERVICES_ENABLED` | Turns on "Professional Services" — other businesses a member runs (massage, Pilates, photography, accompanying). Set to `true` to enable; anything else = off | Your choice |
 
 ### Admin console (pre-launch)
 

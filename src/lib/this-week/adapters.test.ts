@@ -130,6 +130,36 @@ describe("toPersonalCalendarEvent", () => {
     expect(toPersonalCalendarEvent(window, 25).detail).toEqual(["within 25 miles"]);
     expect(toPersonalCalendarEvent(window, null).detail).toEqual([]);
   });
+
+  // The "PUBLIC" badge source (2026-08-18).
+  describe("published", () => {
+    const availability: PersonalEventRow = {
+      ...base,
+      category: "availability",
+      title: "Available for guest teaching",
+    };
+
+    it("is unset by default — no set passed, nothing published", () => {
+      expect(toPersonalCalendarEvent(availability, null).published).toBeUndefined();
+    });
+
+    it("is true when this event's id is in the published set", () => {
+      expect(toPersonalCalendarEvent(availability, null, new Set(["pe_1"])).published).toBe(true);
+    });
+
+    it("is unset when the id is not in the set", () => {
+      expect(
+        toPersonalCalendarEvent(availability, null, new Set(["some_other_id"])).published,
+      ).toBeUndefined();
+    });
+
+    // Only `availability` may ever be published — the entry.ts rule, mirrored
+    // here as a defensive check rather than trusted to the caller alone.
+    it("is NEVER true for a category other than availability, even if the id matches", () => {
+      const taking: PersonalEventRow = { ...base, category: "taking" };
+      expect(toPersonalCalendarEvent(taking, null, new Set(["pe_1"])).published).toBeUndefined();
+    });
+  });
 });
 
 describe("mergeWeek", () => {

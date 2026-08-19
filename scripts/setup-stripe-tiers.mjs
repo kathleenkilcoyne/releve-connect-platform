@@ -39,7 +39,7 @@ const live = key.startsWith("sk_live");
 const TIERS = [
   { slug: "live_pass", label: "Live Pass", cents: 9_900, env: "STRIPE_PRICE_LIVE_PASS" },
   { slug: "professional", label: "Professional", cents: 14_900, env: "STRIPE_PRICE_PROFESSIONAL" },
-  { slug: "professional_full", label: "Professional · Full", cents: 19_900, env: "STRIPE_PRICE_PROFESSIONAL_FULL" },
+  { slug: "professional_full", label: "Creator", cents: 19_900, env: "STRIPE_PRICE_PROFESSIONAL_FULL" },
   { slug: "studio_connect", label: "Studio Connect", cents: 24_900, env: "STRIPE_PRICE_STUDIO_CONNECT" },
   { slug: "studio_growth", label: "Studio Growth", cents: 49_900, env: "STRIPE_PRICE_STUDIO_GROWTH" },
   { slug: "studio_accelerator", label: "Studio Accelerator", cents: 149_900, env: "STRIPE_PRICE_STUDIO_ACCELERATOR" },

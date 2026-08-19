@@ -30,6 +30,7 @@ import {
 import { siteUrl } from "@/lib/stripe/config";
 import { getTier, dollars } from "@/lib/membership/tiers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -315,7 +316,14 @@ async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout
     ? await db.from("memberships").select("*").eq("membership_id", membershipId).maybeSingle()
     : { data: null };
   const membership = mData as
-    | { membership_id: string; tier: string; membership_status: string; stripe_subscription_id: string | null; price_cents: number | null }
+    | {
+        membership_id: string;
+        user_id: string;
+        tier: string;
+        membership_status: string;
+        stripe_subscription_id: string | null;
+        price_cents: number | null;
+      }
     | null;
   if (!membership) {
     console.error("[stripe webhook] no membership for session", session.id);
@@ -333,6 +341,16 @@ async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout
       updated_at: now,
     })
     .eq("membership_id", membership.membership_id);
+
+  // ── PROFILE V2 — activation ──
+  // The payment event is what creates the professional profile. The person was
+  // vetted earlier; this is the moment the second half of the rule is satisfied.
+  // Creates a DRAFT seeded once from their accepted application, or does nothing
+  // if they are not eligible or already have one. Never throws — a webhook must
+  // acknowledge even if profile creation has a bad day.
+  if (membership.user_id) {
+    await activateProfessionalProfile(db, membership.user_id);
+  }
 
   // Credit the $30 application fee (accepted AND now subscribed).
   if (creditFeeId) {

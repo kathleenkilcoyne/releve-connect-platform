@@ -15,6 +15,7 @@ import { AckButton } from "./AckButton";
 import { AttachmentChip } from "./AttachmentChip";
 import { CategoryTag } from "./CategoryTag";
 import { PayBadge } from "./PayBadge";
+import { PublicBadge } from "./PublicBadge";
 
 function formatTime(event: CalendarEvent): string {
   const { start, end } = event.time;
@@ -46,9 +47,10 @@ export function EventCard({ event }: { event: CalendarEvent }) {
 
         <p className="mt-1 text-sm text-[var(--rc-muted)]">{detailLine}</p>
 
-        {(event.pay || event.attachments?.length) && (
+        {(event.pay || event.published || event.attachments?.length) && (
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             {event.pay && <PayBadge pay={event.pay} />}
+            {event.published && <PublicBadge />}
             {event.attachments?.map((att) => (
               <AttachmentChip key={att.id} attachment={att} />
             ))}

@@ -582,6 +582,41 @@ export async function fetchSwingRadius(
   return (data?.travel_radius_miles as number | null) ?? null;
 }
 
+/**
+ * Which of this professional's OWN `availability` entries currently have a
+ * live public window — used only to render a "PUBLIC" badge on This Week.
+ *
+ * ⚠ MUST run on the ADMIN client, not the caller's. `source_personal_event_id`
+ * is REVOKEd from SELECT for BOTH `anon` and `authenticated`
+ * (20260815173203) — a deliberate choice so that even a signed-in member can
+ * never read that linkage back through the ordinary API, for anyone's window,
+ * including their own. This is the one privileged read that exists purely to
+ * restore that at-a-glance signal to the person who published it. It is safe
+ * because `profileId` is resolved from the caller's own session BEFORE this is
+ * ever called, and this returns nothing but a set of ids already known to be
+ * theirs — never another member's data, never sent to the client as anything
+ * but a boolean per card.
+ */
+export async function fetchPublishedEventIds(
+  admin: Client,
+  profileId: string,
+): Promise<Set<string>> {
+  const { data, error } = await admin
+    .from("service_availability")
+    .select("source_personal_event_id")
+    .eq("profile_id", profileId)
+    .eq("status", "open")
+    .not("source_personal_event_id", "is", null);
+
+  if (error) {
+    console.error("[this-week] published-window read failed:", error.message);
+    return new Set();
+  }
+  return new Set(
+    (data as Array<{ source_personal_event_id: string }>).map((r) => r.source_personal_event_id),
+  );
+}
+
 /* ────────────────────────────  Communications  ───────────────────────────── */
 
 /** The studio <-> family thread for a student, newest first. */

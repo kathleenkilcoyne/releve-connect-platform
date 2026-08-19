@@ -79,6 +79,24 @@ export default async function ThisWeekPage({
     weekOffset,
   );
 
+  // ── My Services, for the write path (2026-08-18) ──
+  // This Week asks WHEN someone is available for the services they ALREADY
+  // offer. So the picker in the add-entry form is fed from the source of truth
+  // — `professional_offerings` — and never asks anyone to name a service twice.
+  // Read as the caller, so RLS returns only their own. Empty for a guardian with
+  // no talent profile, which correctly hides the whole control.
+  let myServices: Array<{ id: string; title: string }> = [];
+  const proViewer = payload.professional?.viewer;
+  if (proViewer?.kind === "professional") {
+    const { data } = await supabase
+      .from("professional_offerings")
+      .select("id, title")
+      .eq("profile_id", proViewer.id)
+      .eq("status", "active")
+      .order("sort_order");
+    myServices = (data ?? []) as Array<{ id: string; title: string }>;
+  }
+
   // Signed in but nothing scheduled and no children: show the sample rather than
   // an empty page, per the demo-mode decision. `isEmpty` is scoped to the week
   // being viewed, so paging into a quiet week correctly falls back too.
@@ -93,6 +111,7 @@ export default async function ThisWeekPage({
       payload={payload}
       greeting={greeting}
       initialView={initialView}
+      myServices={myServices}
     />
   );
 }

@@ -1,5 +1,25 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ PHASE 3 — MARKETPLACE SCAFFOLDING checkpointed locally (2026-08-14, night)
+>
+> **Phase 3 Marketplace scaffolding is complete and verified — additive, gated OFF, production untouched.** Committed **locally only** on branch **`phase3-marketplace-scaffolding`**.
+> - **Commit:** `4599e3b` — *feat: add gated marketplace phase 3 scaffolding* (full: `4599e3b22996b15e415ba42bb2b6a02296da6d28`). 9 files, +390 / −1.
+> - **Marketplace feature flag `GENERAL_MARKETPLACE_ENABLED` defaults OFF** (mirrors the Offerings flag; local-only preview via the gitignored `.env.local`). No transaction path exists in Phase 3.
+> - **FLAG OFF manual verification passed** — no Marketplace tile on `/profile`; `/marketplace` and `/profile/marketplace` both redirect away.
+> - **FLAG ON verification passed** — public "For Choreographers" `/marketplace` renders (no prices, no buy/list); the Seller Workspace shell `/profile/marketplace` renders; approved Payouts copy visible.
+> - **Admin preview passed** — an admin reaches the seller workspace shell even without the `professional_full` tier.
+> - **Non-seller entitlement gate verified by tests + code** — an active `professional` (non-`professional_full`), non-admin is redirected and sees no tile. Proven via the `access.test.ts` predicate + the page-gate composition; **no data altered to test it.**
+> - **264/264 tests pass · typecheck clean** (new/modified files lint-clean; only pre-existing unrelated lint issues remain).
+> - **Senior Spotlight $499 / 80-20 economics UNTOUCHED.** No Stripe, checkout, payment, webhook, migrations, pricing, or production behavior changed. `signature_works` / `experience_purchases` not migrated; the live $499 path and its webhook untouched.
+> - **`.env.local` restored to Marketplace OFF** after verification.
+> - **Nothing pushed, PR'd, or deployed. Phase 4 has NOT begun.**
+
+> ## 📍 CURRENT STATE (2026-08-14) — read this first; it supersedes the dated blocks below
+>
+> **Both features are now MERGED to `main` and DEPLOYED.** Professional Offerings (Slices 1–4) = `47329e9`; Founding Professional = `0db55cd`. Production runs this code today. The dated journal entries below still say "nothing merged, nothing deployed" — that was true *when each was written* (on their feature branches); it is no longer true. Do not act on those phrases.
+>
+> **The only live gate:** `PROFESSIONAL_OFFERINGS_ENABLED` is still **OFF in production** (unset in Vercel). With it off, the "My Offerings" builder and the public "What I Offer" section stay invisible even though the code is deployed. Flipping the Vercel env var is instant on / instant off (flag is read per-request). **Open decision:** turn it on before more founders build profiles.
+
 > ## ✅ FOUNDING PROFESSIONAL — invited-cohort entitlement DONE & PROVEN LIVE (2026-08-13, night)
 >
 > **A hand-selected founder can now be conferred full Professional access without ever touching the $30 application flow — as a deliberate, admin-audited entitlement.** Built on its OWN branch **`feature/founding-professional`** (off the Offerings branch HEAD). `main` untouched, **nothing merged, nothing deployed.** The one migration is **applied + registered** on prod (`20260814005457 founding_professional`).

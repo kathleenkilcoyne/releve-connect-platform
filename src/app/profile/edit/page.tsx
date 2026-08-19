@@ -7,7 +7,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { hasActiveProfileTier } from "@/lib/membership/access";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
+import { isProfessionalServicesEnabled } from "@/lib/services";
 import ProfileEditor from "./ProfileEditor";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +37,7 @@ type ProfileFields = {
   resume_url: string | null;
   social_links: Record<string, string> | null;
   profile_status: string | null;
+  visibility: string | null;
   teaching_at: string | null;
   touring_with: string | null;
 };
@@ -48,12 +52,24 @@ export default async function ProfileEditPage() {
   if (!user) redirect("/login");
 
   // GATE (build spec §6 + §17): the profile builder is the Professional tier's
-  // product. Only members with an ACTIVE Professional / Professional·Full
+  // product. Only members with an ACTIVE Professional / Creator
   // membership may build or edit a profile. Everyone else is sent to /subscribe
   // (approved applicants activate there; the page itself explains the ladder).
   if (!(await hasActiveProfileTier(supabase, user.id))) {
     redirect("/subscribe?from=profile");
   }
+
+  // PROFILE V2 — catch-up activation.
+  //
+  // Profiles are created by the activation service, not by saving this form. Two
+  // groups of people can hold an active membership and still have no profile row:
+  // anyone activated BEFORE Profile V2 shipped, and anyone whose webhook or
+  // approve-time activation failed. Running it here means they simply arrive and
+  // find their profile waiting, instead of hitting an editor that cannot save.
+  //
+  // Idempotent and cheap: it returns immediately when a profile already exists,
+  // which is the case on every visit after the first.
+  await activateProfessionalProfile(createAdminClient(), user.id);
 
   // Pick-lists (world-readable).
   const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
@@ -82,13 +98,21 @@ export default async function ProfileEditPage() {
     .select(
       "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, age_range, headshot_url, teaching_reel_url, " +
-        "gallery_urls, resume_url, social_links, profile_status, teaching_at, touring_with",
+        "gallery_urls, resume_url, social_links, profile_status, visibility, teaching_at, touring_with",
     )
     .eq("user_id", user.id)
     .maybeSingle();
 
   // The untyped client returns a loose type; cast once to a known shape.
   const p = profile as unknown as ProfileFields | null;
+
+  // Still no profile after the catch-up above means this person holds an active
+  // membership but was never approved and holds no founding grant — so under the
+  // Profile V2 rule they are not a vetted professional and must not have a
+  // professional profile. Paying for a membership does not confer one. Send them
+  // to /subscribe, which explains where they stand, rather than to an editor that
+  // could not save anyway.
+  if (!p) redirect("/subscribe?from=profile");
 
   // Which tags are currently selected.
   //
@@ -125,6 +149,20 @@ export default async function ProfileEditPage() {
     selectedAvailability = slugsOf(pa.data, "availability_tags");
   }
 
+  // Professional Services live in their own workspace (they're repeatable records
+  // with their own media, not fields on this form). The editor shows a doorway
+  // with a count — only when the flag is on, so with it OFF this page issues no
+  // extra query and renders exactly as before.
+  const servicesEnabled = isProfessionalServicesEnabled();
+  let servicesCount = 0;
+  if (servicesEnabled && p) {
+    const { count } = await supabase
+      .from("professional_services")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", p.profile_id);
+    servicesCount = count ?? 0;
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <div className="flex items-center justify-between">
@@ -144,7 +182,13 @@ export default async function ProfileEditPage() {
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        {profile ? "Edit your profile" : "Welcome to the Relevé Roster"}
+        {/* `profile` truthy is guaranteed by the `if (!p) redirect(...)` guard
+            above — this can never be "no profile", so it must ask what actually
+            varies: has this draft ever been reviewed/published? A brand-new
+            activation normally lands on /profile/review first (destination.ts);
+            this only fires for someone who reached the editor directly (a
+            bookmark, or a link from /profile/review) while still unpublished. */}
+        {p?.profile_status === "draft" ? "Welcome to the Relevé Roster" : "Edit your profile"}
       </h1>
       <p className="mt-3 text-neutral-600">
         This is your public page — what studios and fellow artists see. Fill in what you like now;
@@ -172,6 +216,7 @@ export default async function ProfileEditPage() {
                 resume_url: p.resume_url ?? "",
                 social_links: p.social_links ?? {},
                 profile_status: p.profile_status ?? "draft",
+                visibility: p.visibility ?? "public",
                 teaching_at: p.teaching_at ?? "",
                 touring_with: p.touring_with ?? "",
               }
@@ -188,6 +233,8 @@ export default async function ProfileEditPage() {
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
         selectedAvailability={selectedAvailability}
+        servicesEnabled={servicesEnabled}
+        servicesCount={servicesCount}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">

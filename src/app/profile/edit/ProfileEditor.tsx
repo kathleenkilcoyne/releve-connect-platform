@@ -4,8 +4,10 @@
 // action; React shows "Saving…", then a success or error message. Checkbox
 // groups (styles / levels / focus) submit their checked values as arrays.
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
+import { VISIBILITY_COPY } from "@/lib/profile/visibility";
 
 type Option = { slug: string; label: string };
 type AvailOption = Option & { kind: "general" | "currently" };
@@ -27,6 +29,7 @@ type Initial = {
   resume_url: string;
   social_links: Record<string, string>;
   profile_status: string;
+  visibility: string;
   teaching_at: string;
   touring_with: string;
 } | null;
@@ -51,6 +54,8 @@ export default function ProfileEditor({
   selectedFocus,
   selectedCerts,
   selectedAvailability,
+  servicesEnabled = false,
+  servicesCount = 0,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -64,6 +69,9 @@ export default function ProfileEditor({
   selectedFocus: string[];
   selectedCerts: string[];
   selectedAvailability: string[];
+  /** Professional Services doorway — off unless PROFESSIONAL_SERVICES_ENABLED. */
+  servicesEnabled?: boolean;
+  servicesCount?: number;
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -89,10 +97,14 @@ export default function ProfileEditor({
 
   const social = initial?.social_links ?? {};
 
-  // Availability comes from one table in two flavours: when you can work, and
-  // what you're taking on right now. Rendered as two groups, saved as one facet.
+  // Availability is now ONE thing: where and how you can work (founder IA,
+  // 2026-08-18). The `kind = 'currently'` flavour — "I'm currently accepting
+  // choreography / master classes / adjudication / guest teaching" — described
+  // what someone OFFERS, not when they are free, and became My Services in
+  // migration 20260818143121. Those tags are `is_active = false`, so
+  // `availOptions` no longer contains them and there is nothing to filter out
+  // here; the page reads whatever is active.
   const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -298,6 +310,44 @@ export default function ProfileEditor({
         />
       </section>
 
+      {/* Current work (moved out of Availability, 2026-08-18) ------------
+          Founder: "'Currently teaching at / touring with' should remain
+          professional context, separate from availability."
+          These are FACTS ABOUT SOMEONE'S CAREER — where they are right now —
+          not a statement of when or how they can be booked. They sat under
+          Availability only because the "Currently" grouping used to hold both
+          these lines and the "I'm currently accepting" tags. Those tags are now
+          My Services, so the grouping had nothing left to justify it. Neither
+          field is a Roster filter; both are free text, and they render as
+          context on the public profile. */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Current work</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          Where you are right now. Context for anyone reading your profile — not a
+          statement of availability.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className={label}>Teaching at</label>
+            <input
+              name="teaching_at"
+              defaultValue={initial?.teaching_at}
+              placeholder="e.g. Broadway Dance Center"
+              className={input}
+            />
+          </div>
+          <div>
+            <label className={label}>Touring with</label>
+            <input
+              name="touring_with"
+              defaultValue={initial?.touring_with}
+              placeholder="e.g. Hamilton — National Tour"
+              className={input}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Photo gallery (up to 8, shown as a grid — spec §6) ------------- */}
       <section>
         <h2 className="text-lg font-semibold text-neutral-900">Photo gallery</h2>
@@ -453,8 +503,8 @@ export default function ProfileEditor({
       <section className="rounded-xl border border-neutral-200 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">Availability</h2>
         <p className="mt-1 text-sm text-neutral-500">
-          Optional — but this is how studios find you. Each of these is a search filter on the
-          Roster.
+          Where and how you can work. What you offer lives in My Services; when you&apos;re free
+          for it lives in This Week. Each of these is a search filter on the Roster.
         </p>
 
         <div className="mt-5">
@@ -466,38 +516,6 @@ export default function ProfileEditor({
           />
         </div>
 
-        <div className="mt-7 border-t border-neutral-200 pt-6">
-          <p className="text-sm font-medium text-neutral-800">Currently</p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Teaching at</label>
-              <input
-                name="teaching_at"
-                defaultValue={initial?.teaching_at}
-                placeholder="e.g. Broadway Dance Center"
-                className={input}
-              />
-            </div>
-            <div>
-              <label className={label}>Touring with</label>
-              <input
-                name="touring_with"
-                defaultValue={initial?.touring_with}
-                placeholder="e.g. Hamilton — National Tour"
-                className={input}
-              />
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <AvailChipRow
-              title="I'm currently accepting"
-              name="availability"
-              options={currentlyAvail}
-              selected={selectedAvailability}
-            />
-          </div>
-        </div>
       </section>
 
       {/* The Swing (revisions 2026-07-24 §7) -----------------------------
@@ -516,6 +534,39 @@ export default function ProfileEditor({
         </p>
       </section>
 
+      {/* Professional Services (optional) --------------------------------
+          A service is a repeatable record with its own media and links, so it
+          gets its own workspace rather than more fields on this form — the same
+          shape as Offerings. This is the doorway, and it is entirely optional:
+          nothing here is required to complete a Relevé profile. Rendered only
+          when PROFESSIONAL_SERVICES_ENABLED is on. */}
+      {servicesEnabled && (
+        <section className="rounded-xl border border-neutral-200 p-5">
+          <h2 className="text-lg font-semibold text-neutral-900">Professional Services</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            Do you offer another professional service or own a business you’d like the Relevé
+            community to know about?
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <Link
+              href="/profile/services"
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            >
+              {servicesCount > 0 ? "Manage my services" : "+ Add Professional Service"}
+            </Link>
+            {servicesCount > 0 && (
+              <span className="text-sm text-neutral-500">
+                {servicesCount} {servicesCount === 1 ? "service" : "services"} added
+              </span>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            Optional. Save this page first if you have unsaved changes — the services workspace is a
+            separate page.
+          </p>
+        </section>
+      )}
+
       {/* Publish + save ------------------------------------------------- */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <label className="flex items-center gap-3">
@@ -531,8 +582,44 @@ export default function ProfileEditor({
         </label>
         <p className="mt-1 pl-7 text-xs text-neutral-500">
           Turn this on when you&apos;re ready for studios and fellow professionals to discover you.
-          Off means your profile stays a private draft.
+          Off means your profile stays a private draft that only you can see.
         </p>
+
+        {/* Visibility — the SECOND axis (founder decision §7). Publishing decides
+            whether the page is live at all; this decides how discoverable it is
+            once it is. The two were conflated before Profile V2: every save
+            forcibly wrote 'public', so this choice did not exist. The copy states
+            plainly what each option means BEFORE the member publishes. */}
+        <fieldset className="mt-6 border-t border-neutral-200 pt-5">
+          <legend className="text-sm font-medium text-neutral-800">
+            Once published, who can find it?
+          </legend>
+          <div className="mt-3 space-y-3">
+            {(["public", "unlisted"] as const).map((v) => (
+              <label key={v} className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value={v}
+                  defaultChecked={(initial?.visibility ?? "public") === v}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-neutral-800">
+                    {VISIBILITY_COPY[v].label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
+                    {VISIBILITY_COPY[v].help}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-neutral-400">
+            You can change this at any time, and switching to unlisted takes you off the Roster
+            immediately.
+          </p>
+        </fieldset>
 
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <button
@@ -553,10 +640,41 @@ export default function ProfileEditor({
           )}
         </div>
 
-        {state.message && (
+        {state.message && !state.missingEssentials && (
           <p className={`mt-4 text-sm ${state.ok ? "text-green-700" : "text-red-600"}`}>
             {state.message}
           </p>
+        )}
+
+        {/* A live profile may never be left without the four essentials. The save
+            is refused rather than silently taking the member off the Roster —
+            and it is never a dead end: restore the field, or deliberately
+            unpublish and keep the edit. */}
+        {state.missingEssentials && state.missingEssentials.length > 0 && (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-medium text-amber-900">{state.message}</p>
+            <ul className="mt-2 space-y-1">
+              {state.missingEssentials.map((m) => (
+                <li key={m.key} className="text-xs text-amber-900">
+                  <span className="font-medium">{m.label}</span> — {m.why}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-800">
+              Your profile is still live and unchanged — nothing was saved.
+            </p>
+            {state.canUnpublishAndSave && (
+              <button
+                type="submit"
+                name="intent"
+                value="unpublish_and_save"
+                disabled={pending}
+                className="mt-3 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-40"
+              >
+                {pending ? "Saving…" : "Unpublish and save as draft"}
+              </button>
+            )}
+          </div>
         )}
       </section>
     </form>

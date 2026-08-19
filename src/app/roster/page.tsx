@@ -4,15 +4,27 @@
 // with the service-role client (the view is server-only) and filters it from the
 // URL query params via the pure filter layer in src/lib/roster/filters.ts.
 //
-// Filter bar (clean, §8): style · level · certification · availability ·
-// location · text search. Role is a CATEGORY (tabs), never a filter chip;
-// honorifics render as recognition on cards but are NEVER filters (§13,
-// no-endorsement).
+// Filter bar (clean, §8): style · level · certification · SERVICES ·
+// availability · location · text search. Role is a CATEGORY (tabs), never a
+// filter chip; honorifics render as recognition on cards but are NEVER filters
+// (§13, no-endorsement).
 //
-// Availability (2026-07-24) is the facet that makes the real studio question
-// answerable — "Jazz teachers, available weekends, CPR-certified". It comes in
-// two flavours from one table: when someone can work ("general") and what
-// they're taking on ("currently", e.g. accepting commissions).
+// ── Services vs Availability (2026-08-18) ──
+// These answer two different studio questions and have two different sources:
+//
+//   SERVICES     what this person OFFERS  → professional_offerings (My Services)
+//   AVAILABILITY where/how they can WORK  → availability_tags, kind = 'general'
+//
+// Until 2026-08-18 both came from `availability_tags`: the `currently` flavour
+// ("accepting choreography") described what someone offers, which was the same
+// fact My Services already owned, stored a second time and free to disagree.
+// Those tags are now inactive and the Roster reads the services themselves —
+// one fact, one source of truth, many useful places it can appear.
+//
+// The legacy tags are PRESERVED (inactive) and `availability_slugs` still
+// resolves them, so every existing `?avail=` URL keeps its results. See
+// `legacyAvailabilityAsServices` for how those URLs also reach members who
+// joined after the conversion and have services but no tags.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -26,6 +38,11 @@ import {
   ROSTER_PAGE_SIZE,
   type RosterFilters,
 } from "@/lib/roster/filters";
+import {
+  canonicalServiceSlugs,
+  legacyAvailabilityAsServices,
+  toServiceOptions,
+} from "@/lib/roster/services";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +64,8 @@ type Card = {
   style_slugs: string[] | null;
   level_slugs: string[] | null;
   availability_slugs: string[] | null;
+  /** My Services — the source of truth for what this professional offers. */
+  service_slugs: string[] | null;
   years_experience: string | null;
 };
 
@@ -67,6 +86,7 @@ function href(base: RosterFilters, patch: Partial<Record<string, string | string
     level: base.levels,
     cert: base.certs,
     avail: base.availability,
+    svc: base.services,
     region: base.region,
     state: base.state,
     q: base.q,
@@ -112,7 +132,28 @@ export default async function RosterPage({
   const regionOptions = (regionsRes.data ?? []) as RegionOption[];
   const availOptions = (availRes.data ?? []) as AvailOption[];
   const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
+
+  // ── MY SERVICES — what a professional offers (2026-08-18) ──
+  // The `kind = 'currently'` availability tags used to answer this question.
+  // They were the same fact stored twice, and became My Services in migration
+  // 20260818143121. The Roster now reads the services themselves, so this facet
+  // has ONE source of truth and a member never declares what they offer twice.
+  //
+  // The pick-list is DERIVED, not curated: there is no vocabulary table that can
+  // drift from My Services, and a member who invents "Competition Cleaning"
+  // becomes findable by it without an admin adding a term first. Restricted to
+  // ACTIVE services on PUBLISHED, PUBLIC profiles — the same rows the view
+  // aggregates — so the filter bar can never offer a term that returns nobody.
+  const { data: serviceTitleRows } = await admin
+    .from("professional_offerings")
+    .select("title, talent_profiles!inner(profile_status, visibility)")
+    .eq("status", "active")
+    .eq("talent_profiles.profile_status", "published")
+    .eq("talent_profiles.visibility", "public")
+    .order("sort_order");
+  const serviceOptions = toServiceOptions(
+    ((serviceTitleRows ?? []) as Array<{ title: string }>).map((r) => r.title),
+  );
   const labelOf = (opts: Option[]) => Object.fromEntries(opts.map((o) => [o.slug, o.label]));
   const styleLabel = labelOf(styleOptions);
   const levelLabel = labelOf(levelOptions);
@@ -124,7 +165,7 @@ export default async function RosterPage({
     .select(
       "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "headshot_url, verification_flag, honorifics, style_slugs, level_slugs, " +
-        "availability_slugs, years_experience",
+        "availability_slugs, service_slugs, years_experience",
       { count: "exact" },
     )
     .eq("owner_active", true);
@@ -133,8 +174,31 @@ export default async function RosterPage({
   if (filters.styles.length) query = query.overlaps("style_slugs", filters.styles);
   if (filters.levels.length) query = query.overlaps("level_slugs", filters.levels);
   if (filters.certs.length) query = query.overlaps("cert_slugs", filters.certs);
-  if (filters.availability.length)
-    query = query.overlaps("availability_slugs", filters.availability);
+  // Availability, with the retired tags kept working. A profile satisfies an
+  // `avail` value if it still HOLDS that tag OR offers the service that replaced
+  // it. Mirrors `matchesAvailability` in lib/roster/filters.ts exactly.
+  //
+  // Both paths matter: a member who held the tag keeps matching (nothing lost
+  // today), and a member who joined AFTER the conversion has the service and no
+  // tag — which the tag-only path could never have found. It also keeps working
+  // once the legacy tags are finally deleted.
+  if (filters.availability.length) {
+    const asServices = legacyAvailabilityAsServices(filters.availability);
+    if (asServices.length > 0) {
+      query = query.or(
+        `availability_slugs.ov.{${filters.availability.join(",")}},` +
+          `service_slugs.ov.{${asServices.join(",")}}`,
+      );
+    } else {
+      query = query.overlaps("availability_slugs", filters.availability);
+    }
+  }
+
+  // My Services — the facet in its own right. Resolved through the alias table,
+  // so a bookmarked ?svc=private-audition-coaching still finds the people who
+  // now offer Private Coaching (the two were merged 2026-08-18).
+  if (filters.services.length)
+    query = query.overlaps("service_slugs", canonicalServiceSlugs(filters.services));
   if (filters.region) query = query.eq("region_id", filters.region);
   if (filters.state) query = query.ilike("state_province", filters.state);
   if (filters.q) query = query.textSearch("search_tsv", filters.q, { type: "websearch" });
@@ -233,15 +297,18 @@ export default async function RosterPage({
         {/* Both availability groups post to the same `avail` param — one facet,
             two headings, so the labels stay meaningful without splitting the
             filter logic in two. */}
+        {/* "Services" replaces the old "Currently accepting" row. Same studio
+            question — what does this person do? — now answered from My Services
+            instead of a duplicate tag vocabulary. */}
+        <FilterChips title="Services" name="svc" options={serviceOptions} selected={filters.services} chipCls={chipCls} />
         <FilterChips title="Availability" name="avail" options={generalAvail} selected={filters.availability} chipCls={chipCls} />
-        <FilterChips title="Currently accepting" name="avail" options={currentlyAvail} selected={filters.availability} chipCls={chipCls} />
 
         <div className="flex flex-wrap items-center gap-4">
           <button type="submit" className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white">
             Apply filters
           </button>
           {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="text-sm text-neutral-500 underline">
+            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], services: [], region: null, state: null, q: null, page: 1 }, {})} className="text-sm text-neutral-500 underline">
               Clear filters
             </Link>
           )}

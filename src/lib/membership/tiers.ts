@@ -1,7 +1,12 @@
 // The membership tiers, in one place — matching the ratified pricing Single
 // Source of Truth (docs/Releve_Pricing_RATIFIED_2026-06-25_…). Prices are ANNUAL
 // and in cents. Names are the ratified names (Live Pass / Professional /
-// Professional·Full · Studio Connect / Growth / Accelerator).
+// Creator · Studio Connect / Growth / Accelerator).
+//
+// NAMING (founder decision 2026-08-16): the $199 individual tier is called
+// "Creator" to members. Its internal slug stays `professional_full` — the label
+// below is the ONLY customer-facing name, and nothing keyed on the slug (database
+// tier values, Stripe Price ids, env vars, entitlement lists) changed with it.
 //
 // IMPORTANT (build spec §17): annual billing only, no monthly, no "$10" anywhere.
 // `account_type` is identity; what someone BOUGHT is captured by a membership row
@@ -27,6 +32,14 @@ export type MembershipTier = {
   applicationRequired: boolean;
   /** True if this tier grants a built, vetted Roster profile (Professional and up). */
   hasProfile: boolean;
+  /**
+   * INTERNAL entitlement flag (NOT customer-facing): does this tier grant General
+   * Marketplace SELLER access? True only for `professional_full`. This is the
+   * "professional_full is the seller-enabled entitlement" recognition — the tier's
+   * public label/slug/price are DELIBERATELY unchanged during scaffolding (founder
+   * decision 2026-08-14). Gates only non-economic Phase-3 UI; no commerce exists yet.
+   */
+  marketplaceSeller: boolean;
   /** Env var holding this tier's recurring (yearly) Stripe Price id (test → live swap). */
   priceEnvVar: string;
 };
@@ -40,6 +53,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false, // door-opener: no vetting, no built profile
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_LIVE_PASS",
+    marketplaceSeller: false,
   },
   professional: {
     slug: "professional",
@@ -49,14 +63,23 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: true,
     hasProfile: true,
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL",
+    marketplaceSeller: false,
   },
   professional_full: {
     slug: "professional_full",
-    label: "Professional · Full",
-    priceCents: 19_900, // $199 — multi-role + Marketplace/Audition Library
+    // CUSTOMER-FACING NAME: "Creator" (founder decision 2026-08-16). This
+    // supersedes the earlier plan to defer naming to Marketplace activation and
+    // the placeholder "Professional + Marketplace". The slug below is unchanged
+    // and remains the internal identifier everywhere.
+    label: "Creator",
+    priceCents: 19_900, // $199 — everything in Professional, plus licensing / IP / creator commerce
     side: "individual",
     applicationRequired: true,
     hasProfile: true,
+    // The seller-enabled entitlement: Creator is what adds licensing / IP /
+    // creator-commerce capability on top of Professional. Internal flag only —
+    // access logic reads this, never the label.
+    marketplaceSeller: true,
     priceEnvVar: "STRIPE_PRICE_PROFESSIONAL_FULL",
   },
   studio_connect: {
@@ -67,6 +90,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false, // studios are the employer/buyer side — no vetting fee
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_CONNECT",
+    marketplaceSeller: false,
   },
   studio_growth: {
     slug: "studio_growth",
@@ -76,6 +100,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false,
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_GROWTH",
+    marketplaceSeller: false,
   },
   studio_accelerator: {
     slug: "studio_accelerator",
@@ -85,6 +110,7 @@ export const TIERS: Record<TierSlug, MembershipTier> = {
     applicationRequired: false,
     hasProfile: false,
     priceEnvVar: "STRIPE_PRICE_STUDIO_ACCELERATOR",
+    marketplaceSeller: false,
   },
 };
 
@@ -100,9 +126,18 @@ export function stripePriceId(slug: TierSlug): string | null {
   return process.env[TIERS[slug].priceEnvVar] || null;
 }
 
-/** Format cents as a plain dollar string, e.g. 14900 -> "$149". */
+/**
+ * Format cents as a dollar string, e.g. 14900 -> "$149", 149900 -> "$1,499".
+ *
+ * DISPLAY ONLY — no price, slug or label is affected by this. The thousands
+ * separator was added 2026-08-18 because Studio Accelerator rendered as "$1499"
+ * on the membership chooser, while the ratified pricing doc writes it "$1,499".
+ * Matches the house formatter in `lib/offerings/offerings.ts` (`formatMoney`).
+ */
 export function dollars(cents: number): string {
-  return cents % 100 === 0
-    ? `$${cents / 100}`
-    : `$${(cents / 100).toFixed(2)}`;
+  const whole = cents % 100 === 0;
+  const amount = cents / 100;
+  return whole
+    ? `$${amount.toLocaleString("en-US")}`
+    : `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
