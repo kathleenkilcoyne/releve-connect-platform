@@ -25,6 +25,7 @@
 // separate future system.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 // ---- Identity axis ---------------------------------------------------------
 
@@ -283,6 +284,18 @@ export async function claimFoundingProfessionalOnSignIn(
   // Leave the grant UNCLAIMED if billing didn't land, so the next sign-in retries
   // instead of getting stuck "claimed" with no membership.
   if (!materialized) return;
+
+  // ── PROFILE V2 — activation ──
+  // The grant IS this person's activation: they were invited rather than vetted
+  // through the queue, and the complimentary membership was just materialized
+  // above. Create their DRAFT profile now, carrying the Founding Professional
+  // distinction and the Verified mark from the server-side grant. They never
+  // applied, so there is nothing to prefill — only their name.
+  //
+  // Ordered BEFORE stampFounderIdentity deliberately: activation creates the row
+  // already stamped, and the stamp below then covers the other case — a founder
+  // who already had a profile before their grant was conferred.
+  await activateProfessionalProfile(db, userId);
 
   await stampFounderIdentity(db, userId);
   await db
