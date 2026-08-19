@@ -52,7 +52,7 @@ export default function ConnectActions({
 
   return (
     <div className="mt-5">
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
         <button
           type="button"
           onClick={onToggleSave}
