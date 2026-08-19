@@ -306,23 +306,25 @@ export default async function PublicProfilePage({
 
         {/* Identity block */}
         <div className="flex-1">
-          <div className="flex items-center gap-4">
-            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200">
-              {profile.headshot_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profile.headshot_url}
-                  alt={profile.display_name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-4xl text-neutral-300">
-                  ☺
-                </div>
-              )}
+          <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+            <div className="w-44 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-neutral-200 sm:w-56">
+              <div className="aspect-[3/4]">
+                {profile.headshot_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.headshot_url}
+                    alt={profile.display_name}
+                    className="h-full w-full object-cover object-top"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-6xl text-neutral-300">
+                    ☺
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="text-center sm:pt-1 sm:text-left">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <h1 className="text-3xl font-semibold text-neutral-900">{profile.display_name}</h1>
                 {/* Founding Professional — the PROMINENT public distinction: a
                     founding member of the Relevé Professional Roster, conferred by
@@ -362,7 +364,7 @@ export default async function PublicProfilePage({
 
           {/* Honorifics — editorial recognition, visually separate from the mark. */}
           {honorifics.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
               {honorifics.map((h) => (
                 <span
                   key={h}

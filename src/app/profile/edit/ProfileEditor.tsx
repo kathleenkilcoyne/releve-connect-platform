@@ -100,15 +100,21 @@ export default function ProfileEditor({
       <section>
         <h2 className="text-lg font-semibold text-neutral-900">Photo</h2>
         <div className="mt-3 flex items-center gap-5">
-          <div className="h-24 w-24 overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200">
-            {photoPreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoPreview} alt="Your headshot" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-2xl text-neutral-300">
-                ☺
-              </div>
-            )}
+          <div className="w-32 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-neutral-200 sm:w-36">
+            <div className="aspect-[3/4]">
+              {photoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photoPreview}
+                  alt="Your headshot"
+                  className="h-full w-full object-cover object-top"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-4xl text-neutral-300">
+                  ☺
+                </div>
+              )}
+            </div>
           </div>
           <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
             {photoPreview ? "Change photo" : "Upload photo"}
