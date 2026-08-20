@@ -43,7 +43,6 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   if (!displayName) return { ok: false, message: "Please enter your name." };
 
   const bio = String(formData.get("bio") ?? "").trim();
-  const primaryRole = String(formData.get("primary_role") ?? "").trim() || null;
   const city = String(formData.get("city") ?? "").trim() || null;
   const stateProvince = String(formData.get("state_province") ?? "").trim() || null;
   const country = String(formData.get("country") ?? "").trim() || null;
@@ -61,6 +60,11 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const teachingAt = String(formData.get("teaching_at") ?? "").trim() || null;
   const touringWith = String(formData.get("touring_with") ?? "").trim() || null;
 
+  // Multi-select professional roles (redesign 2026-08-19 §3). Replaces the old
+  // single primary_role column, which is deliberately left untouched below —
+  // never written from here again — so no one's existing value is lost even
+  // though the new UI no longer reads or writes it.
+  const roles = formData.getAll("roles").map(String).filter(Boolean);
   const styles = formData.getAll("styles").map(String).filter(Boolean);
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
@@ -204,7 +208,9 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     user_id: user.id,
     display_name: displayName,
     public_slug: handle,
-    primary_role: primaryRole,
+    // primary_role deliberately NOT written here — it's deprecated in place,
+    // preserved with whatever value it already has. Roles live in
+    // profile_roles now (see the replaceJoin call below).
     city,
     state_province: stateProvince,
     country,
@@ -311,6 +317,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     }));
     if (inserts.length) await supabase.from(joinTable).insert(inserts);
   }
+  await replaceJoin("profile_roles", "role_id", roles, "role_types");
   await replaceJoin("profile_styles", "style_id", styles, "styles");
   await replaceJoin("profile_levels", "level_id", levels, "levels");
   await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");

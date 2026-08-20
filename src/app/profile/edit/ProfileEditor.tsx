@@ -53,6 +53,7 @@ export default function ProfileEditor({
   selectedFocus,
   selectedCerts,
   selectedAvailability,
+  selectedRoles,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -66,6 +67,7 @@ export default function ProfileEditor({
   selectedFocus: string[];
   selectedCerts: string[];
   selectedAvailability: string[];
+  selectedRoles: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -98,11 +100,15 @@ export default function ProfileEditor({
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
-      {/* Photo ---------------------------------------------------------- */}
-      <section>
-        <h2 className="text-lg font-semibold text-neutral-900">Photo</h2>
-        <div className="mt-3 flex items-center gap-5">
-          <div className="w-32 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-neutral-200 sm:w-36">
+      {/* Identity — portrait + Bio as one block (redesign 2026-08-19 §1).
+          Desktop: portrait LEFT, Bio RIGHT, top-aligned. Mobile: portrait
+          centered, Bio directly underneath, then the rest of the form. */}
+      <section className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:gap-8">
+        {/* Portrait + Change Photo control — sized ~33% larger than before on
+            desktop (was w-36/144px, now w-48/192px), same 3:4 portrait frame,
+            never circular. */}
+        <div className="w-40 shrink-0 sm:w-48">
+          <div className="overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-neutral-200">
             <div className="aspect-[3/4]">
               {photoPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -112,13 +118,13 @@ export default function ProfileEditor({
                   className="h-full w-full object-cover object-top"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-4xl text-neutral-300">
+                <div className="flex h-full w-full items-center justify-center text-5xl text-neutral-300">
                   ☺
                 </div>
               )}
             </div>
           </div>
-          <label className="cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+          <label className="mt-3 block cursor-pointer rounded-lg border border-neutral-300 px-4 py-2 text-center text-sm font-medium text-neutral-800 hover:bg-neutral-50">
             {photoPreview ? "Change photo" : "Upload photo"}
             <input
               type="file"
@@ -131,9 +137,55 @@ export default function ProfileEditor({
               }}
             />
           </label>
+          <p className="mt-2 text-center text-xs text-neutral-400 sm:text-left">
+            JPG, PNG, or WebP · up to 5MB.
+          </p>
         </div>
-        <p className="mt-2 text-xs text-neutral-400">JPG, PNG, or WebP · up to 5MB.</p>
+
+        {/* Bio — your story. Moved up from below Basics/Credentials so the top
+            of the page reads as one identity block (redesign 2026-08-19 §1).
+            Word guidance tightened from ~100–300 to ~75–100 (founder direction)
+            — this changes only the displayed hint and the "a bit long" cue;
+            nothing here truncates or limits what a member can actually type. */}
+        <div className="w-full">
+          <label className={label}>Bio — your story</label>
+          <p className="mb-2 text-sm text-neutral-500">
+            Tell us what makes you unique. Share your background, experience, and what dancers can
+            expect working with you.
+          </p>
+          <textarea
+            name="bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={8}
+            placeholder="Who you are, how you got here, what you're known for…"
+            className={input}
+          />
+          <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
+            <span className="text-neutral-400">
+              Keep it to the highlights — about 75–100 words. Save your full history for your CV /
+              résumé.
+            </span>
+            <span className={`shrink-0 tabular-nums ${bioLong ? "text-amber-600" : "text-neutral-400"}`}>
+              {bioWords} {bioWords === 1 ? "word" : "words"}
+              {bioLong ? " · a bit long" : ""}
+            </span>
+          </div>
+        </div>
       </section>
+
+      {/* Professional roles — multi-select (redesign 2026-08-19 §3). Replaces
+          the old single "Primary role" select, which couldn't represent a
+          multi-hyphenate professional (teacher + choreographer + adjudicator,
+          etc). Existing single roles were backfilled into profile_roles by the
+          2026-08-19 migration before this UI shipped, so no one's existing
+          role was lost in the switch. */}
+      <CheckGroup
+        title="Professional roles — choose all that apply"
+        name="roles"
+        options={roleOptions}
+        selected={selectedRoles}
+      />
 
       {/* Featured Video — the highest-value item, above the fold (spec §6).
           Renamed from "Teaching Reel" on 2026-07-24: not everyone on the Roster
@@ -180,17 +232,6 @@ export default function ProfileEditor({
         </div>
 
         <div>
-          <label className={label}>Primary role</label>
-          <select name="primary_role" defaultValue={initial?.primary_role} className={input}>
-            <option value="">Choose…</option>
-            {roleOptions.map((o) => (
-              <option key={o.slug} value={o.slug}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label className={label}>Years of experience</label>
           <select name="years_experience" defaultValue={initial?.years_experience} className={input}>
             <option value="">Choose…</option>
@@ -224,33 +265,6 @@ export default function ProfileEditor({
               </option>
             ))}
           </select>
-        </div>
-      </section>
-
-      {/* Bio ------------------------------------------------------------ */}
-      <section>
-        <label className={label}>Bio — your story</label>
-        <p className="mb-2 text-sm text-neutral-500">
-          Tell us what makes you unique. Share your background, experience, and what dancers can
-          expect working with you.
-        </p>
-        <textarea
-          name="bio"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          rows={5}
-          placeholder="Who you are, how you got here, what you're known for…"
-          className={input}
-        />
-        <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
-          <span className="text-neutral-400">
-            Keep it to the highlights — a few short paragraphs (aim for ~100–300 words). Save the
-            full history for your CV / résumé.
-          </span>
-          <span className={`shrink-0 tabular-nums ${bioLong ? "text-amber-600" : "text-neutral-400"}`}>
-            {bioWords} {bioWords === 1 ? "word" : "words"}
-            {bioLong ? " · a bit long" : ""}
-          </span>
         </div>
       </section>
 

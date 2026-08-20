@@ -127,14 +127,20 @@ export default async function ProfileEditPage() {
   let selectedFocus: string[] = [];
   let selectedCerts: string[] = [];
   let selectedAvailability: string[] = [];
+  // Multi-select professional roles (redesign 2026-08-19 §3), read from the
+  // profile_roles join table — backfilled from the old single primary_role
+  // column by the 2026-08-19 migration, so an existing single role still shows
+  // up here as one checked box, not an empty selection.
+  let selectedRoles: string[] = [];
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, pa] = await Promise.all([
+    const [ps, pl, pf, pc, pa, pr] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
       supabase.from("profile_availability").select("availability_tags(slug)").eq("profile_id", pid),
+      supabase.from("profile_roles").select("role_types(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -148,6 +154,7 @@ export default async function ProfileEditPage() {
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
     selectedAvailability = slugsOf(pa.data, "availability_tags");
+    selectedRoles = slugsOf(pr.data, "role_types");
   }
 
   return (
@@ -220,6 +227,7 @@ export default async function ProfileEditPage() {
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
         selectedAvailability={selectedAvailability}
+        selectedRoles={selectedRoles}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
