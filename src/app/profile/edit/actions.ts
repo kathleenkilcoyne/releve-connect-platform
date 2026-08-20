@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { normalizeVisibility } from "@/lib/profile/visibility";
+import { buildSwingAvailabilityRow } from "@/lib/swing/availability";
 
 export type SaveState = {
   ok: boolean;
@@ -54,6 +55,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // gain — the label is what members read.
   const teachingReelUrl = String(formData.get("teaching_reel_url") ?? "").trim() || null;
   const publish = formData.get("publish") === "on";
+  const swingAvailable = formData.get("swing_available") === "on";
 
   // The "Currently" lines. Free text on purpose — a specific employer name is a
   // fact about one person, not a facet anyone would filter the Roster by.
@@ -328,15 +330,40 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // replaceJoin here with an empty list would still run its unconditional
   // DELETE and wipe every existing member's stored tags on their very next
   // save, which is exactly the data loss the redesign was told to avoid — so
-  // this table is simply never touched again, same treatment as
-  // swing_availability below and primary_role above. The rows, and the
-  // availability_tags taxonomy itself, are left completely alone.
-  //
-  // NOTE: the Swing tables (swing_availability / swing_styles / swing_levels)
-  // are deliberately NOT written here any more. The builder no longer asks for
-  // that data (revisions 2026-07-24 §7), and writing an empty row would quietly
-  // erase what members already entered — so we leave those rows exactly as they
-  // are until The Swing actually ships.
+  // this table is simply never touched again, same treatment as primary_role
+  // above. The rows, and the availability_tags taxonomy itself, are left
+  // completely alone.
+
+  // ---- Swing (redesign 2026-08-19 §8) --------------------------------------
+  // Wired to the real column for the first time since the original opt-in
+  // form was pulled on 2026-07-24. This simplified toggle collects ONLY
+  // is_available — home_location / travel_radius_miles / notes aren't asked
+  // for here, so the existing row (if any) is read first and those three
+  // fields are carried forward unchanged. Without this, a member with real
+  // historical data there (the founder's own profile has a real home_location,
+  // travel_radius_miles, and notes from the original form) would have it
+  // silently nulled out the next time they saved anything on this page.
+  // swing_styles / swing_levels are untouched either way — this form has never
+  // asked for those. Swing eligibility, permissions, and pay ($50/hr,
+  // platform-enforced) are entirely unchanged — this is the toggle and its
+  // save path only.
+  const { data: existingSwing } = await supabase
+    .from("swing_availability")
+    .select("home_location, travel_radius_miles, notes")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  const swingRow = buildSwingAvailabilityRow({
+    available: swingAvailable,
+    homeLocation: (existingSwing as { home_location: string | null } | null)?.home_location ?? null,
+    travelRadiusRaw:
+      (existingSwing as { travel_radius_miles: number | null } | null)?.travel_radius_miles != null
+        ? String((existingSwing as { travel_radius_miles: number }).travel_radius_miles)
+        : null,
+    notes: (existingSwing as { notes: string | null } | null)?.notes ?? null,
+  });
+  await supabase
+    .from("swing_availability")
+    .upsert({ profile_id: profileId, ...swingRow }, { onConflict: "profile_id" });
 
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");

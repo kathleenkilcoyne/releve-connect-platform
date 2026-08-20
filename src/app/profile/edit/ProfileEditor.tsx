@@ -30,6 +30,7 @@ type Initial = {
   visibility: string;
   teaching_at: string;
   touring_with: string;
+  swing_available: boolean;
 } | null;
 
 const YEARS = ["0-2", "3-5", "6-10", "11-20", "20+"];
@@ -87,6 +88,10 @@ export default function ProfileEditor({
   const [resumePicked, setResumePicked] = useState<string>("");
 
   const social = initial?.social_links ?? {};
+
+  // Swing ON/OFF — live-updates the card's visual treatment as it's toggled,
+  // not just after save (redesign 2026-08-19 §8).
+  const [swingOn, setSwingOn] = useState(initial?.swing_available ?? false);
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -176,6 +181,67 @@ export default function ProfileEditor({
         options={roleOptions}
         selected={selectedRoles}
       />
+
+      {/* The Swing — moved up front as a core professional status, not a
+          buried box (redesign 2026-08-19 §8). Wired to the real
+          swing_availability.is_available column for the first time since the
+          original opt-in form was pulled on 2026-07-24. This simplified
+          toggle does not collect home_location / travel_radius / notes — the
+          save action reads and carries forward whatever values already exist
+          there so real historical data (e.g. the founder's own profile) is
+          never nulled out by a save this form doesn't ask about.
+
+          Studio-side dispatch (find / match / book) still isn't built, so
+          this deliberately does NOT promise an immediate match — it states
+          eligibility, not a live marketplace. Swing eligibility/permission
+          rules and pay ($50/hr, platform-enforced) are entirely unchanged;
+          this is presentation and the save path only. */}
+      <section
+        className={`rounded-xl border p-5 transition-colors ${
+          swingOn
+            ? "border-neutral-900 bg-neutral-900 ring-1 ring-amber-400/60"
+            : "border-neutral-200 bg-white"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className={`text-lg font-semibold ${swingOn ? "text-amber-400" : "text-neutral-900"}`}>
+              The Swing
+            </h2>
+            {swingOn ? (
+              <>
+                <p className="mt-1 text-sm font-medium text-white">Swing is ON</p>
+                <p className="mt-1 text-sm text-neutral-300">
+                  You&apos;re available to receive Swing teaching opportunities.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-sm font-medium text-neutral-700">Swing is OFF</p>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Turn it on when you want to receive eligible Swing teaching opportunities.
+                </p>
+              </>
+            )}
+          </div>
+          <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+            <input
+              type="checkbox"
+              name="swing_available"
+              checked={swingOn}
+              onChange={(e) => setSwingOn(e.target.checked)}
+              className="sr-only"
+            />
+            <div className={`h-7 w-12 rounded-full transition-colors ${swingOn ? "bg-amber-400" : "bg-neutral-300"}`}>
+              <div
+                className={`mt-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  swingOn ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </div>
+          </label>
+        </div>
+      </section>
 
       {/* Featured Video — the highest-value item, above the fold (spec §6).
           Renamed from "Teaching Reel" on 2026-07-24: not everyone on the Roster
@@ -493,22 +559,6 @@ export default function ProfileEditor({
             />
           </div>
         </div>
-      </section>
-
-      {/* The Swing (revisions 2026-07-24 §7) -----------------------------
-          The opt-in form used to live here — toggle, home base, travel radius,
-          styles/levels you'd sub. It's gone, replaced by one honest line.
-          A teacher could opt in, but the studio side (find / match / book) is
-          not built, so nobody could be booked; The Swing is the paid studio
-          product and is deliberately not being given away during the free
-          period (DECISIONS.md 2026-07-22). Asking for availability that nothing
-          consumes is a chore with no payoff. Anyone who already filled it in
-          keeps their answers — the swing_availability rows are untouched. */}
-      <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-5">
-        <h2 className="text-lg font-semibold text-neutral-900">The Swing</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          You will receive opportunities when Swing launches.
-        </p>
       </section>
 
       {/* Publish + save ------------------------------------------------- */}

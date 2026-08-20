@@ -112,11 +112,9 @@ export default async function ProfileEditPage() {
 
   // Which tags are currently selected.
   //
-  // The Swing's own fields (opt-in, home base, travel radius, styles/levels
-  // they'd sub) are no longer loaded here — the builder now shows a single line
-  // saying opportunities arrive when Swing launches (revisions 2026-07-24 §7).
-  // The swing_availability rows are deliberately left ALONE rather than cleared:
-  // anyone who already filled them in keeps their answers for when Swing ships.
+  // Swing's is_available flag IS loaded now (redesign 2026-08-19 §8) — the
+  // simplified toggle only reads/shows that one field; home_location / travel
+  // radius / notes stay untouched in the database and are not surfaced here.
   let selectedStyles: string[] = [];
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
@@ -126,14 +124,16 @@ export default async function ProfileEditPage() {
   // column by the 2026-08-19 migration, so an existing single role still shows
   // up here as one checked box, not an empty selection.
   let selectedRoles: string[] = [];
+  let swingAvailable = false;
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, pr] = await Promise.all([
+    const [ps, pl, pf, pc, pr, sw] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
       supabase.from("profile_roles").select("role_types(slug)").eq("profile_id", pid),
+      supabase.from("swing_availability").select("is_available").eq("profile_id", pid).maybeSingle(),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -147,6 +147,7 @@ export default async function ProfileEditPage() {
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
     selectedRoles = slugsOf(pr.data, "role_types");
+    swingAvailable = Boolean((sw.data as { is_available?: boolean } | null)?.is_available);
   }
 
   return (
@@ -205,6 +206,7 @@ export default async function ProfileEditPage() {
                 visibility: p.visibility ?? "public",
                 teaching_at: p.teaching_at ?? "",
                 touring_with: p.touring_with ?? "",
+                swing_available: swingAvailable,
               }
             : null
         }
