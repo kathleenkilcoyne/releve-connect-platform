@@ -41,8 +41,6 @@ type ProfileFields = {
   touring_with: string | null;
 };
 
-type AvailOption = { slug: string; label: string; kind: "general" | "currently" };
-
 export default async function ProfileEditPage() {
   const supabase = await createClient();
   const {
@@ -70,18 +68,16 @@ export default async function ProfileEditPage() {
   // which is the case on every visit after the first.
   await activateProfessionalProfile(createAdminClient(), user.id);
 
-  // Pick-lists (world-readable).
-  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
+  // Pick-lists (world-readable). availability_tags is no longer queried here
+  // (redesign 2026-08-19 §5) — the legacy General Availability / "I'm
+  // currently accepting" pick-lists are retired from this form. The table and
+  // its rows are untouched; nothing here reads or writes them any more.
+  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
-    supabase
-      .from("availability_tags")
-      .select("slug, label, kind")
-      .eq("is_active", true)
-      .order("sort_order"),
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
@@ -89,7 +85,6 @@ export default async function ProfileEditPage() {
   const focusOptions = (focusRes.data ?? []) as Option[];
   const roleOptions = (rolesRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
-  const availOptions = (availRes.data ?? []) as AvailOption[];
 
   // My existing profile (own-row only via RLS).
   const { data: profile } = await supabase
@@ -126,7 +121,6 @@ export default async function ProfileEditPage() {
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
   let selectedCerts: string[] = [];
-  let selectedAvailability: string[] = [];
   // Multi-select professional roles (redesign 2026-08-19 §3), read from the
   // profile_roles join table — backfilled from the old single primary_role
   // column by the 2026-08-19 migration, so an existing single role still shows
@@ -134,12 +128,11 @@ export default async function ProfileEditPage() {
   let selectedRoles: string[] = [];
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, pa, pr] = await Promise.all([
+    const [ps, pl, pf, pc, pr] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
-      supabase.from("profile_availability").select("availability_tags(slug)").eq("profile_id", pid),
       supabase.from("profile_roles").select("role_types(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
@@ -153,7 +146,6 @@ export default async function ProfileEditPage() {
     selectedLevels = slugsOf(pl.data, "levels");
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
-    selectedAvailability = slugsOf(pa.data, "availability_tags");
     selectedRoles = slugsOf(pr.data, "role_types");
   }
 
@@ -221,12 +213,10 @@ export default async function ProfileEditPage() {
         focusOptions={focusOptions}
         roleOptions={roleOptions}
         certOptions={certOptions}
-        availOptions={availOptions}
         selectedStyles={selectedStyles}
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
-        selectedAvailability={selectedAvailability}
         selectedRoles={selectedRoles}
       />
 

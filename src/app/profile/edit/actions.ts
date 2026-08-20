@@ -69,9 +69,6 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
-  // Both availability groups ("general" + "currently") post under one name, so
-  // they land here as a single list and save as one facet.
-  const availability = formData.getAll("availability").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
   // facebook + tiktok added 2026-07-24. A key missing from this list is silently
@@ -322,13 +319,19 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   await replaceJoin("profile_levels", "level_id", levels, "levels");
   await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
   await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
-  await replaceJoin(
-    "profile_availability",
-    "availability_tag_id",
-    availability,
-    "availability_tags",
-  );
 
+  // NOTE: profile_availability is deliberately NOT written here any more
+  // (redesign 2026-08-19 §5, §7). The legacy General Availability chips
+  // (Saturdays / Weekends / Summers Only / Willing to Travel / Virtual
+  // Available) and "I'm currently accepting" are retired from the UI — actual
+  // availability now lives in Offerings, This Week, and Swing status. Calling
+  // replaceJoin here with an empty list would still run its unconditional
+  // DELETE and wipe every existing member's stored tags on their very next
+  // save, which is exactly the data loss the redesign was told to avoid — so
+  // this table is simply never touched again, same treatment as
+  // swing_availability below and primary_role above. The rows, and the
+  // availability_tags taxonomy itself, are left completely alone.
+  //
   // NOTE: the Swing tables (swing_availability / swing_styles / swing_levels)
   // are deliberately NOT written here any more. The builder no longer asks for
   // that data (revisions 2026-07-24 §7), and writing an empty row would quietly
