@@ -2,7 +2,10 @@
 
 // The interactive profile form. On submit it calls the saveProfile server
 // action; React shows "Saving…", then a success or error message. Checkbox
-// groups (styles / levels / focus) submit their checked values as arrays.
+// groups (certifications) submit their checked values as arrays. Roles /
+// Dance styles / Teaching levels / Focus areas use EditableTagGroup instead
+// (see below) — taxonomy quick-select PLUS free-text custom entries, both
+// submitted the same way, as repeated hidden inputs under one field name.
 
 import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
@@ -13,14 +16,12 @@ type Option = { slug: string; label: string };
 type Initial = {
   display_name: string;
   public_slug: string;
-  primary_role: string;
   city: string;
   state_province: string;
   country: string;
   bio: string;
   years_experience: string;
   credentials: string;
-  age_range: string;
   headshot_url: string;
   teaching_reel_url: string;
   gallery_urls: string[];
@@ -34,11 +35,132 @@ type Initial = {
 } | null;
 
 const YEARS = ["0-2", "3-5", "6-10", "11-20", "20+"];
-const AGES = ["18-24", "25-34", "35-50", "50+"];
 
 const input =
   "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
 const label = "block text-xs font-medium text-neutral-600 mb-1";
+
+/**
+ * A tag group that supports BOTH quick-select from a controlled taxonomy AND
+ * free-text custom entries (redesign 2026-08-20, approved via scratch preview
+ * over several review rounds). Selected items — taxonomy or custom — render
+ * as removable chips and are submitted as repeated hidden inputs under one
+ * field name (matching the existing gallery_existing pattern), so
+ * `formData.getAll(name)` on the server sees exactly what's shown here.
+ *
+ * The server (actions.ts) is what decides which submitted values are
+ * taxonomy matches (written to the join table) vs. custom text (written to
+ * the matching `custom_*` array column) — this component doesn't need to
+ * know the difference, it just tracks strings.
+ */
+function EditableTagGroup({
+  title,
+  name,
+  options,
+  selected,
+  onChange,
+  addLabel,
+  addPlaceholder,
+  helperText,
+}: {
+  title: string;
+  name: string;
+  options: Option[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  addLabel: string;
+  addPlaceholder: string;
+  helperText?: string;
+}) {
+  const [customInput, setCustomInput] = useState("");
+  const labelFor = (value: string) => options.find((o) => o.slug === value)?.label ?? value;
+  const suggestions = options.filter((o) => !selected.includes(o.slug));
+
+  function add(value: string) {
+    const v = value.trim();
+    if (!v || selected.includes(v)) return;
+    onChange([...selected, v]);
+  }
+  function remove(value: string) {
+    onChange(selected.filter((s) => s !== value));
+  }
+  function addCustom() {
+    add(customInput);
+    setCustomInput("");
+  }
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+      {helperText && <p className="mt-1 text-sm text-neutral-500">{helperText}</p>}
+
+      {selected.map((s) => (
+        <input key={s} type="hidden" name={name} value={s} />
+      ))}
+
+      {/* Selected — removable chips, taxonomy and custom look identical */}
+      {selected.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {selected.map((s) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-900 bg-neutral-900 px-3 py-1.5 text-sm text-white"
+            >
+              {labelFor(s)}
+              <button
+                type="button"
+                onClick={() => remove(s)}
+                aria-label={`Remove ${labelFor(s)}`}
+                className="text-neutral-300 hover:text-white"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Quick-select suggestions from the controlled taxonomy */}
+      {suggestions.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {suggestions.map((o) => (
+            <button
+              key={o.slug}
+              type="button"
+              onClick={() => add(o.slug)}
+              className="rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:border-neutral-500"
+            >
+              + {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Custom entry */}
+      <div className="mt-3 flex gap-2">
+        <input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCustom();
+            }
+          }}
+          placeholder={addPlaceholder}
+          className={`${input} max-w-xs`}
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          {addLabel}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export default function ProfileEditor({
   initial,
@@ -52,6 +174,10 @@ export default function ProfileEditor({
   selectedFocus,
   selectedCerts,
   selectedRoles,
+  customRoles,
+  customStyles,
+  customLevels,
+  customFocus,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -64,6 +190,10 @@ export default function ProfileEditor({
   selectedFocus: string[];
   selectedCerts: string[];
   selectedRoles: string[];
+  customRoles: string[];
+  customStyles: string[];
+  customLevels: string[];
+  customFocus: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -92,6 +222,25 @@ export default function ProfileEditor({
   // Swing ON/OFF — live-updates the card's visual treatment as it's toggled,
   // not just after save (redesign 2026-08-19 §8).
   const [swingOn, setSwingOn] = useState(initial?.swing_available ?? false);
+
+  // Roles / Styles / Levels / Focus — each combines its taxonomy selections
+  // with any custom (free-text) entries into one list, since EditableTagGroup
+  // treats them identically (redesign 2026-08-20).
+  const [roles, setRoles] = useState<string[]>([...selectedRoles, ...customRoles]);
+  const [styles, setStyles] = useState<string[]>([...selectedStyles, ...customStyles]);
+  const [levels, setLevels] = useState<string[]>([...selectedLevels, ...customLevels]);
+  const [focus, setFocus] = useState<string[]>([...selectedFocus, ...customFocus]);
+
+  // Role-aware sections (redesign 2026-08-20). Teaching Levels and Swing only
+  // appear when "Teacher / Educator" (slug "teacher") is one of the selected
+  // roles — Choreographer, Performer, Adjudicator, Coach, and Director don't
+  // force either just for holding a professional profile. Dance Styles and
+  // Focus Areas stay universal. This is a UNION, not per-role duplication:
+  // each section renders at most once no matter how many roles are checked.
+  // Hiding a section never clears its state — `levels` and `swingOn` live in
+  // this same component, untouched by conditional rendering, so unchecking
+  // Teacher and rechecking it later restores exactly what was there before.
+  const isTeacher = roles.includes("teacher");
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -137,11 +286,7 @@ export default function ProfileEditor({
           </p>
         </div>
 
-        {/* Bio — your story. Moved up from below Basics/Credentials so the top
-            of the page reads as one identity block (redesign 2026-08-19 §1).
-            Word guidance tightened from ~100–300 to ~75–100 (founder direction)
-            — this changes only the displayed hint and the "a bit long" cue;
-            nothing here truncates or limits what a member can actually type. */}
+        {/* Bio — your story. */}
         <div className="w-full">
           <label className={label}>Bio — your story</label>
           <p className="mb-2 text-sm text-neutral-500">
@@ -169,101 +314,27 @@ export default function ProfileEditor({
         </div>
       </section>
 
-      {/* Professional roles — multi-select (redesign 2026-08-19 §3). Replaces
-          the old single "Primary role" select, which couldn't represent a
-          multi-hyphenate professional (teacher + choreographer + adjudicator,
-          etc). Existing single roles were backfilled into profile_roles by the
-          2026-08-19 migration before this UI shipped, so no one's existing
-          role was lost in the switch. */}
-      <CheckGroup
+      {/* Professional roles — multi-select + custom entry (redesign
+          2026-08-20). Replaces the old single "Primary role" select, which
+          couldn't represent a multi-hyphenate professional. */}
+      <EditableTagGroup
         title="Professional roles — choose all that apply"
         name="roles"
         options={roleOptions}
-        selected={selectedRoles}
+        selected={roles}
+        onChange={setRoles}
+        addLabel="Add another role"
+        addPlaceholder="Don't see your role? Type your own…"
       />
+      <p className="-mt-6 text-xs text-neutral-400">
+        Teaching Levels and Swing appear below only when Teacher / Educator is selected.
+      </p>
 
-      {/* The Swing — moved up front as a core professional status, not a
-          buried box (redesign 2026-08-19 §8). Wired to the real
-          swing_availability.is_available column for the first time since the
-          original opt-in form was pulled on 2026-07-24. This simplified
-          toggle does not collect home_location / travel_radius / notes — the
-          save action reads and carries forward whatever values already exist
-          there so real historical data (e.g. the founder's own profile) is
-          never nulled out by a save this form doesn't ask about.
-
-          Studio-side dispatch (find / match / book) still isn't built, so
-          this deliberately does NOT promise an immediate match — it states
-          eligibility, not a live marketplace. Swing eligibility/permission
-          rules and pay ($50/hr, platform-enforced) are entirely unchanged;
-          this is presentation and the save path only. */}
-      <section
-        className={`rounded-xl border p-5 transition-colors ${
-          swingOn
-            ? "border-neutral-900 bg-neutral-900 ring-1 ring-amber-400/60"
-            : "border-neutral-200 bg-white"
-        }`}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className={`text-lg font-semibold ${swingOn ? "text-amber-400" : "text-neutral-900"}`}>
-              The Swing
-            </h2>
-            {swingOn ? (
-              <>
-                <p className="mt-1 text-sm font-medium text-white">Swing is ON</p>
-                <p className="mt-1 text-sm text-neutral-300">
-                  You&apos;re available to receive Swing teaching opportunities.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="mt-1 text-sm font-medium text-neutral-700">Swing is OFF</p>
-                <p className="mt-1 text-sm text-neutral-500">
-                  Turn it on when you want to receive eligible Swing teaching opportunities.
-                </p>
-              </>
-            )}
-          </div>
-          <label className="relative inline-flex shrink-0 cursor-pointer items-center">
-            <input
-              type="checkbox"
-              name="swing_available"
-              checked={swingOn}
-              onChange={(e) => setSwingOn(e.target.checked)}
-              className="sr-only"
-            />
-            <div className={`h-7 w-12 rounded-full transition-colors ${swingOn ? "bg-amber-400" : "bg-neutral-300"}`}>
-              <div
-                className={`mt-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
-                  swingOn ? "translate-x-5" : "translate-x-0.5"
-                }`}
-              />
-            </div>
-          </label>
-        </div>
-      </section>
-
-      {/* Featured Video — the highest-value item, above the fold (spec §6).
-          Renamed from "Teaching Reel" on 2026-07-24: not everyone on the Roster
-          teaches, and a choreographer or working dancer shouldn't have to read
-          past a label that isn't for them. The DB column keeps its old name. */}
-      <section>
-        <h2 className="text-lg font-semibold text-neutral-900">Featured Video</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          A teaching clip, choreography, class footage, or performance. This plays at the top of
-          your profile — paste a Vimeo or YouTube link. A{" "}
-          <span className="font-medium">vertical</span> clip (like a Reel) fills the hero best.
-        </p>
-        <input
-          name="teaching_reel_url"
-          type="url"
-          defaultValue={initial?.teaching_reel_url}
-          placeholder="https://vimeo.com/…  or  https://youtube.com/watch?v=…"
-          className={`${input} mt-3`}
-        />
-      </section>
-
-      {/* Basics --------------------------------------------------------- */}
+      {/* Name / handle / location / years (redesign 2026-08-20: reordered
+          right after Roles; Age Range removed — this is a professional
+          identity, not a casting application. The age_range column is NOT
+          dropped from the database; it simply isn't read, written, or shown
+          by this form any more.) */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className={label}>Name *</label>
@@ -288,18 +359,6 @@ export default function ProfileEditor({
         </div>
 
         <div>
-          <label className={label}>Years of experience</label>
-          <select name="years_experience" defaultValue={initial?.years_experience} className={input}>
-            <option value="">Choose…</option>
-            {YEARS.map((y) => (
-              <option key={y} value={y}>
-                {y} years
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
           <label className={label}>City</label>
           <input name="city" defaultValue={initial?.city} className={input} />
         </div>
@@ -312,43 +371,133 @@ export default function ProfileEditor({
           <input name="country" defaultValue={initial?.country} className={input} />
         </div>
         <div>
-          <label className={label}>Age range</label>
-          <select name="age_range" defaultValue={initial?.age_range} className={input}>
-            <option value="">Prefer not to say</option>
-            {AGES.map((a) => (
-              <option key={a} value={a}>
-                {a}
+          <label className={label}>Years of experience</label>
+          <select name="years_experience" defaultValue={initial?.years_experience} className={input}>
+            <option value="">Choose…</option>
+            {YEARS.map((y) => (
+              <option key={y} value={y}>
+                {y} years
               </option>
             ))}
           </select>
         </div>
       </section>
 
-      {/* Styles --------------------------------------------------------- */}
-      <CheckGroup
+      {/* Featured Video — the highest-value item, above the fold (spec §6). */}
+      <section>
+        <h2 className="text-lg font-semibold text-neutral-900">Featured Video</h2>
+        <p className="mt-1 text-sm text-neutral-500">
+          A teaching clip, choreography, class footage, or performance. This plays at the top of
+          your profile — paste a Vimeo or YouTube link. A{" "}
+          <span className="font-medium">vertical</span> clip (like a Reel) fills the hero best.
+        </p>
+        <input
+          name="teaching_reel_url"
+          type="url"
+          defaultValue={initial?.teaching_reel_url}
+          placeholder="https://vimeo.com/…  or  https://youtube.com/watch?v=…"
+          className={`${input} mt-3`}
+        />
+      </section>
+
+      {/* The Swing — moved up front as a core professional status, role-gated
+          on Teacher / Educator (redesign 2026-08-19 §8, 2026-08-20 role-aware
+          pass). Wired to the real swing_availability.is_available column.
+          This simplified toggle does not collect home_location / travel_radius
+          / notes — the save action reads and carries forward whatever values
+          already exist there so real historical data is never nulled out by a
+          save this form doesn't ask about.
+
+          Studio-side dispatch (find / match / book) still isn't built, so
+          this deliberately does NOT promise an immediate match — it states
+          eligibility, not a live marketplace. Swing eligibility/permission
+          rules and pay ($50/hr, platform-enforced) are entirely unchanged;
+          this is presentation and the save path only. */}
+      {isTeacher && (
+        <section
+          className={`rounded-xl border p-5 transition-colors ${
+            swingOn
+              ? "border-neutral-900 bg-neutral-900 ring-1 ring-amber-400/60"
+              : "border-neutral-200 bg-white"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className={`text-lg font-semibold ${swingOn ? "text-amber-400" : "text-neutral-900"}`}>
+                The Swing
+              </h2>
+              {swingOn ? (
+                <>
+                  <p className="mt-1 text-sm font-medium text-white">Swing is ON</p>
+                  <p className="mt-1 text-sm text-neutral-300">
+                    You&apos;re available to receive Swing teaching opportunities.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm font-medium text-neutral-700">Swing is OFF</p>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    Turn it on when you want to receive eligible Swing teaching opportunities.
+                  </p>
+                </>
+              )}
+            </div>
+            <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+              <input
+                type="checkbox"
+                name="swing_available"
+                checked={swingOn}
+                onChange={(e) => setSwingOn(e.target.checked)}
+                className="sr-only"
+              />
+              <div className={`h-7 w-12 rounded-full transition-colors ${swingOn ? "bg-amber-400" : "bg-neutral-300"}`}>
+                <div
+                  className={`mt-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    swingOn ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </div>
+            </label>
+          </div>
+        </section>
+      )}
+
+      {/* Dance styles / Teaching levels / Focus areas — quick-select + custom
+          entry (redesign 2026-08-20). Teaching levels is role-gated the same
+          way Swing is; Dance styles and Focus areas are universal. */}
+      <EditableTagGroup
         title="Dance styles"
         name="styles"
         options={styleOptions}
-        selected={selectedStyles}
+        selected={styles}
+        onChange={setStyles}
+        addLabel="Add"
+        addPlaceholder="Add your own style…"
       />
-      {/* Levels --------------------------------------------------------- */}
-      {/* Teaching levels — the five seeded rungs, multi-select. Check only the
-          levels you'll teach (no age-group filter; age is demographic-only). */}
-      <CheckGroup
-        title="Teaching levels"
-        name="levels"
-        options={levelOptions}
-        selected={selectedLevels}
-      />
-      {/* Focus areas ---------------------------------------------------- */}
-      <CheckGroup
+      {isTeacher && (
+        <EditableTagGroup
+          title="Teaching levels"
+          name="levels"
+          options={levelOptions}
+          selected={levels}
+          onChange={setLevels}
+          addLabel="Add"
+          addPlaceholder="Add your own level…"
+        />
+      )}
+      <EditableTagGroup
         title="Focus areas"
         name="focus"
         options={focusOptions}
-        selected={selectedFocus}
+        selected={focus}
+        onChange={setFocus}
+        addLabel="Add"
+        addPlaceholder="Add your own focus…"
       />
+
       {/* Certifications — structured, searchable tags (spec §6). Self-reported,
-          searchable, NOT endorsed (§13) — studios can filter the Roster by these. */}
+          searchable, NOT endorsed (§13) — studios can filter the Roster by
+          these. Unchanged: closed list, no custom entry (not requested). */}
       {certOptions.length > 0 && (
         <div>
           <CheckGroup
@@ -506,9 +655,6 @@ export default function ProfileEditor({
           <label className={label}>YouTube</label>
           <input name="youtube" defaultValue={social.youtube} placeholder="https://youtube.com/…" className={input} />
         </div>
-        {/* Facebook + TikTok added 2026-07-24 — the form only had website /
-            Instagram / Vimeo / YouTube / LinkedIn, so members on those two
-            platforms had nowhere to put them. */}
         <div>
           <label className={label}>Facebook</label>
           <input name="facebook" defaultValue={social.facebook} placeholder="https://facebook.com/…" className={input} />
@@ -523,38 +669,30 @@ export default function ProfileEditor({
         </div>
       </section>
 
-      {/* Currently (redesign 2026-08-19 §6, §7) ---------------------------
-          Replaces the old "Availability" section. The general availability
-          chips (Saturdays / Weekends / Summers Only / Willing to Travel /
-          Virtual Available) and the "I'm currently accepting" chips are both
-          retired — actual availability is now represented through individual
-          Offerings, This Week, and Swing status, not a generic profile-level
-          checklist. Teaching at / Touring with survive: they're professional
-          context/credentials, not availability, so they get their own simple,
-          optional section, no longer nested under a label that no longer
-          applies. Existing stored availability_tags data is left completely
-          alone — see actions.ts for why. */}
+      {/* Currently — profession-neutral (redesign 2026-08-20). "Teaching at" /
+          "Touring with" assumed everyone was a touring teacher; these two read
+          naturally for an educator, choreographer, performer, adjudicator,
+          coach, or director alike. The underlying columns are unchanged
+          (teaching_at / touring_with) — only the labels and placeholders. */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <h2 className="text-lg font-semibold text-neutral-900">Currently</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Optional — where you&apos;re teaching or touring right now.
-        </p>
+        <p className="mt-1 text-sm text-neutral-500">Optional — what you&apos;re part of right now.</p>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className={label}>Teaching at</label>
+            <label className={label}>Current affiliation / organization</label>
             <input
               name="teaching_at"
               defaultValue={initial?.teaching_at}
-              placeholder="e.g. Broadway Dance Center"
+              placeholder="e.g. Broadway Dance Center, Alvin Ailey, a studio or company name"
               className={input}
             />
           </div>
           <div>
-            <label className={label}>Touring with</label>
+            <label className={label}>Current project / production / engagement</label>
             <input
               name="touring_with"
               defaultValue={initial?.touring_with}
-              placeholder="e.g. Hamilton — National Tour"
+              placeholder="e.g. Hamilton — National Tour, a residency, a fall showcase"
               className={input}
             />
           </div>
@@ -581,9 +719,7 @@ export default function ProfileEditor({
 
         {/* Visibility — the SECOND axis (founder decision §7). Publishing decides
             whether the page is live at all; this decides how discoverable it is
-            once it is. The two were conflated before Profile V2: every save
-            forcibly wrote 'public', so this choice did not exist. The copy states
-            plainly what each option means BEFORE the member publishes. */}
+            once it is. */}
         <fieldset className="mt-6 border-t border-neutral-200 pt-5">
           <legend className="text-sm font-medium text-neutral-800">
             Once published, who can find it?

@@ -22,14 +22,12 @@ type ProfileFields = {
   profile_id: string;
   display_name: string | null;
   public_slug: string | null;
-  primary_role: string | null;
   city: string | null;
   state_province: string | null;
   country: string | null;
   bio: string | null;
   years_experience: string | null;
   credentials: string | null;
-  age_range: string | null;
   headshot_url: string | null;
   teaching_reel_url: string | null;
   gallery_urls: string[] | null;
@@ -39,6 +37,10 @@ type ProfileFields = {
   visibility: string | null;
   teaching_at: string | null;
   touring_with: string | null;
+  custom_roles: string[] | null;
+  custom_styles: string[] | null;
+  custom_levels: string[] | null;
+  custom_focus_areas: string[] | null;
 };
 
 export default async function ProfileEditPage() {
@@ -90,9 +92,10 @@ export default async function ProfileEditPage() {
   const { data: profile } = await supabase
     .from("talent_profiles")
     .select(
-      "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
-        "bio, years_experience, credentials, age_range, headshot_url, teaching_reel_url, " +
-        "gallery_urls, resume_url, social_links, profile_status, visibility, teaching_at, touring_with",
+      "profile_id, display_name, public_slug, city, state_province, country, " +
+        "bio, years_experience, credentials, headshot_url, teaching_reel_url, " +
+        "gallery_urls, resume_url, social_links, profile_status, visibility, teaching_at, touring_with, " +
+        "custom_roles, custom_styles, custom_levels, custom_focus_areas",
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -189,14 +192,12 @@ export default async function ProfileEditPage() {
             ? {
                 display_name: p.display_name ?? "",
                 public_slug: p.public_slug ?? "",
-                primary_role: p.primary_role ?? "",
                 city: p.city ?? "",
                 state_province: p.state_province ?? "",
                 country: p.country ?? "",
                 bio: p.bio ?? "",
                 years_experience: p.years_experience ?? "",
                 credentials: p.credentials ?? "",
-                age_range: p.age_range ?? "",
                 headshot_url: p.headshot_url ?? "",
                 teaching_reel_url: p.teaching_reel_url ?? "",
                 gallery_urls: p.gallery_urls ?? [],
@@ -220,6 +221,10 @@ export default async function ProfileEditPage() {
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
         selectedRoles={selectedRoles}
+        customRoles={p.custom_roles ?? []}
+        customStyles={p.custom_styles ?? []}
+        customLevels={p.custom_levels ?? []}
+        customFocus={p.custom_focus_areas ?? []}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">

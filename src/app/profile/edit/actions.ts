@@ -49,7 +49,10 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const country = String(formData.get("country") ?? "").trim() || null;
   const years = String(formData.get("years_experience") ?? "").trim() || null;
   const credentials = String(formData.get("credentials") ?? "").trim() || null;
-  const ageRange = String(formData.get("age_range") ?? "").trim() || null;
+  // age_range is deliberately NOT read here any more (redesign 2026-08-20 §4)
+  // — Age Range is removed from this professional-profile form. The column is
+  // NOT dropped from the database and is never written from here, so any
+  // existing value is preserved untouched, same treatment as primary_role.
   // The DB column is still `teaching_reel_url`; the form now calls it "Featured
   // Video" (revisions 2026-07-24 §2). Renaming the column would be churn for no
   // gain — the label is what members read.
@@ -216,7 +219,8 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     bio: bio || null,
     years_experience: years,
     credentials,
-    age_range: ageRange,
+    // age_range deliberately absent from this object — see the comment above
+    // where it used to be read. The column keeps whatever value it already had.
     teaching_reel_url: teachingReelUrl,
     teaching_at: teachingAt,
     touring_with: touringWith,
@@ -300,27 +304,49 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     profileId = (data as { profile_id: string }).profile_id;
   }
 
-  // ---- Replace the tag selections (styles / levels / focus areas) ----------
+  // ---- Replace the tag selections (roles / styles / levels / focus / certs) ----
+  // Returns the submitted values that DON'T match a taxonomy slug — i.e. the
+  // free-text custom entries (redesign 2026-08-20). The caller decides what to
+  // do with those; certs ignores the return value (no custom entry there).
   async function replaceJoin(
     joinTable: string,
     fkColumn: string,
     slugs: string[],
     taxTable: string,
-  ) {
+  ): Promise<string[]> {
     await supabase.from(joinTable).delete().eq("profile_id", profileId);
-    if (slugs.length === 0) return;
+    if (slugs.length === 0) return [];
     const { data: rows } = await supabase.from(taxTable).select("id, slug").in("slug", slugs);
-    const inserts = (rows ?? []).map((r: { id: string }) => ({
-      profile_id: profileId,
-      [fkColumn]: r.id,
-    }));
+    const matched = (rows ?? []) as Array<{ id: string; slug: string }>;
+    const matchedSlugs = new Set(matched.map((r) => r.slug));
+    const inserts = matched.map((r) => ({ profile_id: profileId, [fkColumn]: r.id }));
     if (inserts.length) await supabase.from(joinTable).insert(inserts);
+    return slugs.filter((s) => !matchedSlugs.has(s));
   }
-  await replaceJoin("profile_roles", "role_id", roles, "role_types");
-  await replaceJoin("profile_styles", "style_id", styles, "styles");
-  await replaceJoin("profile_levels", "level_id", levels, "levels");
-  await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
+  const customRolesSubmitted = await replaceJoin("profile_roles", "role_id", roles, "role_types");
+  const customStylesSubmitted = await replaceJoin("profile_styles", "style_id", styles, "styles");
+  const customLevelsSubmitted = await replaceJoin("profile_levels", "level_id", levels, "levels");
+  const customFocusSubmitted = await replaceJoin(
+    "profile_focus_areas",
+    "focus_area_id",
+    focus,
+    "focus_areas",
+  );
   await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
+
+  // Custom (non-taxonomy) entries — additive columns from the 2026-08-20
+  // migration, never colliding with the structured joins above. Always
+  // written as the full desired state (an empty array means the member
+  // removed all their custom entries, which is a real, intentional edit).
+  await supabase
+    .from("talent_profiles")
+    .update({
+      custom_roles: customRolesSubmitted,
+      custom_styles: customStylesSubmitted,
+      custom_levels: customLevelsSubmitted,
+      custom_focus_areas: customFocusSubmitted,
+    })
+    .eq("profile_id", profileId);
 
   // NOTE: profile_availability is deliberately NOT written here any more
   // (redesign 2026-08-19 §5, §7). The legacy General Availability chips
@@ -334,7 +360,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // above. The rows, and the availability_tags taxonomy itself, are left
   // completely alone.
 
-  // ---- Swing (redesign 2026-08-19 §8) --------------------------------------
+  // ---- Swing (redesign 2026-08-19 §8, 2026-08-20 role-aware pass) ----------
   // Wired to the real column for the first time since the original opt-in
   // form was pulled on 2026-07-24. This simplified toggle collects ONLY
   // is_available — home_location / travel_radius_miles / notes aren't asked
@@ -343,27 +369,36 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // historical data there (the founder's own profile has a real home_location,
   // travel_radius_miles, and notes from the original form) would have it
   // silently nulled out the next time they saved anything on this page.
-  // swing_styles / swing_levels are untouched either way — this form has never
-  // asked for those. Swing eligibility, permissions, and pay ($50/hr,
-  // platform-enforced) are entirely unchanged — this is the toggle and its
-  // save path only.
-  const { data: existingSwing } = await supabase
-    .from("swing_availability")
-    .select("home_location, travel_radius_miles, notes")
-    .eq("profile_id", profileId)
-    .maybeSingle();
-  const swingRow = buildSwingAvailabilityRow({
-    available: swingAvailable,
-    homeLocation: (existingSwing as { home_location: string | null } | null)?.home_location ?? null,
-    travelRadiusRaw:
-      (existingSwing as { travel_radius_miles: number | null } | null)?.travel_radius_miles != null
-        ? String((existingSwing as { travel_radius_miles: number }).travel_radius_miles)
-        : null,
-    notes: (existingSwing as { notes: string | null } | null)?.notes ?? null,
-  });
-  await supabase
-    .from("swing_availability")
-    .upsert({ profile_id: profileId, ...swingRow }, { onConflict: "profile_id" });
+  //
+  // GUARD: the Swing card only renders when "teacher" is among the selected
+  // roles, so for anyone else `swing_available` is simply absent from the
+  // submitted form and `swingAvailable` above resolves to `false` — NOT
+  // because they turned it off, but because the field was never on the page.
+  // Writing that false unconditionally would silently disable Swing for a
+  // Teacher who, in this same edit, also removed their Teacher role — an
+  // edit to Roles turning off Swing as an invisible side effect. So this
+  // entire write is skipped unless "teacher" is actually among the roles
+  // just submitted; the existing row (on or off) is left exactly as it was.
+  const rolesIncludeTeacher = roles.includes("teacher");
+  if (rolesIncludeTeacher) {
+    const { data: existingSwing } = await supabase
+      .from("swing_availability")
+      .select("home_location, travel_radius_miles, notes")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+    const swingRow = buildSwingAvailabilityRow({
+      available: swingAvailable,
+      homeLocation: (existingSwing as { home_location: string | null } | null)?.home_location ?? null,
+      travelRadiusRaw:
+        (existingSwing as { travel_radius_miles: number | null } | null)?.travel_radius_miles != null
+          ? String((existingSwing as { travel_radius_miles: number }).travel_radius_miles)
+          : null,
+      notes: (existingSwing as { notes: string | null } | null)?.notes ?? null,
+    });
+    await supabase
+      .from("swing_availability")
+      .upsert({ profile_id: profileId, ...swingRow }, { onConflict: "profile_id" });
+  }
 
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");
