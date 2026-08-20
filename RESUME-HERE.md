@@ -1,5 +1,29 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
+> ## ✅ FOUNDING PROFESSIONAL ACTIVATION — production incident, hotfixed, deployed, Geoffrey recovered (2026-08-18/19, night)
+>
+> **Geoffrey Doig-Marx (invited Founding Professional) signed in, his membership and founder identity were created correctly, but no profile was ever created — he landed on `/subscribe` instead of the Roster builder.** Root cause, confirmed by diffing against `main` directly: production was running a build that predates the entire Profile V2 activation module (no `activate.ts`, no `/profile/review`) — that work only ever existed on a separate, still-open branch. Fixed, tested, deployed, and Geoffrey is recovered. **He is the only one of the seven who has signed in; the other six self-heal on their own first sign-in — nothing left to do for them.**
+>
+> ### What shipped — a hand-scoped hotfix, NOT the big Profile V2 branch
+> New branch **`hotfix/founding-professional-activation`**, built directly off `origin/main`, carrying **only 16 files** — the minimum runtime dependency set for activation + the routing fix, individually traced and verified against `main` (no schema/migration needed; the DB already had every column live). Three real bugs fixed along the way:
+> 1. **The routing bypass.** Every founder invite link is `/login?next=/profile/edit`. The old code honored that `next` immediately, before any catch-up/draft-check ran — so even a working activation would skip straight past the review screen. Worse: `claimFoundingProfessionalOnSignIn` only ever activates a grant ONCE (`claimed_at` set = never again) — Geoffrey's exact trap. Fixed with a catch-up gated on `next` being present, calling the activation service **directly**, independent of `claimed_at`. Deliberately gated (not unconditional) so it doesn't disturb the existing, deliberate rule that a family guardian isn't auto-activated just for opening This Week.
+> 2. **Email-as-display-name.** `display_name ?? email ?? "Relevé Professional"` could put a raw email address on a public draft profile. Fixed — no email fallback, ever; falls to `"New Relevé Professional"` instead.
+> 3. **Dead "Welcome to the Relevé Roster" copy.** The heading's condition could never evaluate false (an earlier guard already guaranteed the opposite). Now keyed off actual draft status.
+>
+> **Hand-trimmed, not cherry-picked:** `src/app/profile/edit/page.tsx` took only the catch-up call + missing-profile guard + heading fix — no `visibility` column, no Professional Services doorway, no tier-rename copy. `visibility.ts` itself was trimmed to just what the review screen needs. The `saveProfile` "stop self-creating profiles" rework is **explicitly deferred** — not required for these seven, tracked as a follow-up, its two guard tests kept as `it.skip` (not deleted) so the intent isn't lost.
+>
+> ### The trail: PR #4 (this hotfix) → merged → deployed → Geoffrey recovered
+> Branch pushed → **PR #4** opened against `main`, verified via the GitHub API to contain **exactly 1 commit, 16 files** (no trace of the other, much larger Profile V2 branch) → checks green → merged (`13c9921`) → confirmed live on production (`curl` against the real `/profile/review` route, read-only) → **Geoffrey's real profile recovered** by running the actual deployed `activateProfessionalProfile` once against his real `user_id` (one throwaway verification script, deleted immediately after). Verified directly against the database, before and after: **exactly one** `talent_profiles` row now exists for him (`profile_status: draft`, `founder_distinction: founding_professional`, placeholder name `"New Relevé Professional"` — never his email); his membership and grant rows are **byte-for-byte unchanged** (identical `updated_at` timestamps). His next sign-in resolves to `/profile/review`, confirmed by directly invoking the real routing function against his real account. **Confirmed not publicly visible:** zero rows in the Roster search view, and an anonymous `curl` against his real slug on production returns **404** (RLS has no `anon` SELECT policy on `talent_profiles` at all; the public page additionally gates on `published`+`public` in application code).
+>
+> ### Still open, on purpose
+> - **The other six Founding Professional grants:** unclaimed, no `user_id` yet — nothing to backfill; they'll activate correctly the moment they sign in.
+> - **Geoffrey's real name/photo:** he's live with the safe placeholder name; only he should set his real display name, via `/profile/review`.
+> - **The big Profile V2 branch (still open as PR #3)** — the 35-commit/123-file body of work (the payment sprint, This Week's write path, Professional Services, the public-profile redesign) is untouched by any of tonight's work. Still needs its own review/merge decision.
+> - **`feature/this-week-ui-redesign`** — also untouched all night, still at `622631e`, PR not yet requested.
+> - **Follow-up issue to file:** the `saveProfile` self-creation/trust-signal rework deferred out of the hotfix.
+>
+> **▶️ NEXT:** decide what happens with PR #3 (the large branch) now that the narrow activation fix is already live independently of it — merge it as-is, rebase it on top of tonight's hotfix, or something else. That decision hasn't been made yet.
+
 > ## ✅ FOUNDING PROFESSIONAL — invited-cohort entitlement DONE & PROVEN LIVE (2026-08-13, night)
 >
 > **A hand-selected founder can now be conferred full Professional access without ever touching the $30 application flow — as a deliberate, admin-audited entitlement.** Built on its OWN branch **`feature/founding-professional`** (off the Offerings branch HEAD). `main` untouched, **nothing merged, nothing deployed.** The one migration is **applied + registered** on prod (`20260814005457 founding_professional`).
