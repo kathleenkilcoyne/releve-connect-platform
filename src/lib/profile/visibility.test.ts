@@ -71,7 +71,7 @@ describe("appearsInDiscovery — the Roster and every other discovery surface", 
     // so the Roster needed no change. This asserts the code agrees with the
     // database rather than drifting from it.
     const sql = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260712010000_roster_certifications_and_view.sql"),
+      join(process.cwd(), "supabase/migrations/20260712210504_roster_certifications_and_view.sql"),
       "utf8",
     );
     expect(sql).toContain("where p.profile_status = 'published' and p.visibility = 'public'");
