@@ -8,8 +8,10 @@
 // submitted the same way, as repeated hidden inputs under one field name.
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { saveProfile, type SaveState } from "./actions";
 import { VISIBILITY_COPY } from "@/lib/profile/visibility";
+import { shouldShowOnboardingOfferingsCta } from "@/lib/offerings";
 
 type Option = { slug: string; label: string };
 
@@ -169,11 +171,13 @@ export default function ProfileEditor({
   focusOptions,
   roleOptions,
   certOptions,
+  expOptions,
   selectedStyles,
   selectedLevels,
   selectedFocus,
   selectedCerts,
   selectedRoles,
+  selectedExperience,
   customRoles,
   customStyles,
   customLevels,
@@ -185,11 +189,13 @@ export default function ProfileEditor({
   focusOptions: Option[];
   roleOptions: Option[];
   certOptions: Option[];
+  expOptions: Option[];
   selectedStyles: string[];
   selectedLevels: string[];
   selectedFocus: string[];
   selectedCerts: string[];
   selectedRoles: string[];
+  selectedExperience: string[];
   customRoles: string[];
   customStyles: string[];
   customLevels: string[];
@@ -513,6 +519,26 @@ export default function ProfileEditor({
         </div>
       )}
 
+      {/* Professional experience — Phase 1 rebuild (founder-approved
+          2026-08-21). Structured metadata, not a résumé listing — this is
+          what lets a search like "Vocal Coach + Broadway" resolve to an
+          exact chip combination instead of a hopeful keyword match against a
+          bio. Closed list, no custom entry, same treatment as Certifications. */}
+      {expOptions.length > 0 && (
+        <div>
+          <CheckGroup
+            title="Professional experience"
+            name="experience"
+            options={expOptions}
+            selected={selectedExperience}
+          />
+          <p className="mt-2 text-xs text-neutral-400">
+            Self-reported and searchable — check what applies. Studios can filter the Roster by
+            these.
+          </p>
+        </div>
+      )}
+
       {/* Credentials ---------------------------------------------------- */}
       <section>
         <label className={label}>Credentials & training</label>
@@ -759,11 +785,29 @@ export default function ProfileEditor({
           >
             {pending ? "Saving…" : "Save profile"}
           </button>
+          {/* Discoverability fix (2026-08-21): while What I Offer is still
+              empty, this is the more obvious next step than viewing the
+              public page — it's what "Choose Option B" means: keep gently
+              showing this until they've added at least one offering, not
+              just on the very first save. Disappears the moment
+              hasOfferings is true. */}
+          {shouldShowOnboardingOfferingsCta(state) && (
+            <Link
+              href="/profile/offerings"
+              className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white"
+            >
+              Next: Add What You Offer →
+            </Link>
+          )}
           {state.ok && state.slug && (
             <a
               href={`/${state.slug}`}
               target="_blank"
-              className="text-sm font-medium text-neutral-700 underline"
+              className={
+                shouldShowOnboardingOfferingsCta(state)
+                  ? "text-sm text-neutral-500 underline"
+                  : "text-sm font-medium text-neutral-700 underline"
+              }
             >
               View my public page ↗
             </a>

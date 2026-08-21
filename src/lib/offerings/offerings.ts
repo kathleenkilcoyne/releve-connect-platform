@@ -524,6 +524,31 @@ export function resolvePricing(input: {
   return { ok: true, pricingType: typeRaw, priceDisplay: null };
 }
 
+// Discoverability fix (2026-08-21) — the two decisions that drive "Add" vs
+// "Manage" copy and the post-save onboarding nudge. Extracted as pure functions
+// (rather than left as inline ternaries in the Server Component/Server Action)
+// so the empty-offerings branch is genuinely unit-tested, not just reasoned
+// about — the same discipline `deriveCta` above already gets.
+
+/** Dashboard tile subcopy on /profile: "Add" while empty, "Manage" once started. */
+export function offeringsTileSubcopy(hasOfferings: boolean): string {
+  return hasOfferings ? "Manage what you offer" : "Add what you offer";
+}
+
+/**
+ * Whether the post-save onboarding CTA ("Next: Add What You Offer →") should
+ * render. Mirrors the exact guard used in ProfileEditor.tsx: a successful save
+ * that returned a slug, and the member has zero offerings so far. Once
+ * `hasOfferings` flips true, this returns false and the nudge disappears.
+ */
+export function shouldShowOnboardingOfferingsCta(state: {
+  ok: boolean;
+  slug?: string;
+  hasOfferings?: boolean;
+}): boolean {
+  return Boolean(state.ok && state.slug && state.hasOfferings === false);
+}
+
 /** The persisted Offering row shape (what the builder + cards render from). */
 export type OfferingRow = {
   id: string;

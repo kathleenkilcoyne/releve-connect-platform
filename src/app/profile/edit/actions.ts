@@ -13,12 +13,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { normalizeVisibility } from "@/lib/profile/visibility";
 import { buildSwingAvailabilityRow } from "@/lib/swing/availability";
+import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
 
 export type SaveState = {
   ok: boolean;
   message: string;
   slug?: string;
   published?: boolean;
+  // Whether this member has at least one professional_offerings row (any
+  // status) — drives the "Next: Add What You Offer" onboarding CTA on the
+  // editor (2026-08-21 discoverability fix). Not present on a failed save.
+  hasOfferings?: boolean;
 };
 
 function slugify(input: string): string {
@@ -74,6 +79,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
+  const experience = formData.getAll("experience").map(String).filter(Boolean);
 
   const social: Record<string, string> = {};
   // facebook + tiktok added 2026-07-24. A key missing from this list is silently
@@ -333,6 +339,16 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     "focus_areas",
   );
   await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
+  // Professional experience — Phase 1 rebuild (2026-08-21). Closed list, no
+  // custom entry (not requested), same treatment as certifications: the
+  // return value (any submitted value that isn't a real taxonomy slug) is
+  // ignored rather than written to a custom_* column.
+  await replaceJoin(
+    "profile_professional_experience",
+    "experience_tag_id",
+    experience,
+    "professional_experience_tags",
+  );
 
   // Custom (non-taxonomy) entries — additive columns from the 2026-08-20
   // migration, never colliding with the structured joins above. Always
@@ -400,6 +416,22 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
       .upsert({ profile_id: profileId, ...swingRow }, { onConflict: "profile_id" });
   }
 
+  // Discoverability fix (2026-08-21): does this member have at least one What
+  // I Offer entry yet? Drives the post-save onboarding CTA below — read-only,
+  // no offering data written or touched. `head: true` skips fetching rows,
+  // just the count. Any status counts (a draft in progress still means they've
+  // started, not that they still need the nudge). Flag-gated like every other
+  // Offerings read — with the flag off, this issues no query and the CTA never
+  // renders, byte-for-byte unchanged from before this fix.
+  let hasOfferings = false;
+  if (isProfessionalOfferingsEnabled()) {
+    const { count: offeringsCount } = await supabase
+      .from("professional_offerings")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", profileId);
+    hasOfferings = (offeringsCount ?? 0) > 0;
+  }
+
   revalidatePath(`/talent/${handle}`);
   revalidatePath("/profile/edit");
 
@@ -407,6 +439,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     ok: true,
     slug: handle,
     published: publish,
+    hasOfferings,
     message: publish
       ? "Saved — you're on the Relevé Roster. Your public page is live."
       : "Saved as a draft. Turn on “Ready to Join the Relevé Roster” when you're ready to go live.",

@@ -12,7 +12,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor } from "@/lib/professional/actor";
-import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
+import { isProfessionalOfferingsEnabled, offeringsTileSubcopy } from "@/lib/offerings";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,19 @@ export default async function ProfileHomePage() {
 
   const actor = await resolveProfessionalActor(createAdminClient(), user.id);
   if (!actor.isProfessional) redirect("/");
+
+  // What I Offer — whether this member has added anything yet, so the tile
+  // below reads "Add" vs "Manage" (discoverability fix, 2026-08-21). Read-only,
+  // no offering data touched. Only queried when the flag is on and a profile
+  // exists, matching the tile's own guard below.
+  let hasOfferings = false;
+  if (isProfessionalOfferingsEnabled() && actor.talentProfileId) {
+    const { count } = await supabase
+      .from("professional_offerings")
+      .select("id", { count: "exact", head: true })
+      .eq("profile_id", actor.talentProfileId);
+    hasOfferings = (count ?? 0) > 0;
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
@@ -54,16 +67,18 @@ export default async function ProfileHomePage() {
           <span className="block font-medium text-neutral-900">Edit profile</span>
           <span className="mt-0.5 block text-sm text-neutral-500">Keep your details current</span>
         </Link>
-        {/* Professional Offerings doorway — behind PROFESSIONAL_OFFERINGS_ENABLED,
-            so it's invisible in production until the feature is turned on. */}
+        {/* What I Offer doorway (internally "Professional Offerings") — behind
+            PROFESSIONAL_OFFERINGS_ENABLED, so it's invisible if the feature is
+            ever turned off again. Subcopy nudges "Add" vs "Manage" depending on
+            whether they've started (discoverability fix, 2026-08-21). */}
         {isProfessionalOfferingsEnabled() && (
           <Link
             href="/profile/offerings"
             className="rounded-xl border border-neutral-200 px-5 py-4 hover:border-neutral-400"
           >
-            <span className="block font-medium text-neutral-900">Professional Offerings</span>
+            <span className="block font-medium text-neutral-900">What I Offer</span>
             <span className="mt-0.5 block text-sm text-neutral-500">
-              Showcase the skills, services, creative work, experiences, and products you offer.
+              {offeringsTileSubcopy(hasOfferings)}
             </span>
           </Link>
         )}

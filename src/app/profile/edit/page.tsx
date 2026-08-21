@@ -74,12 +74,17 @@ export default async function ProfileEditPage() {
   // (redesign 2026-08-19 §5) — the legacy General Availability / "I'm
   // currently accepting" pick-lists are retired from this form. The table and
   // its rows are untouched; nothing here reads or writes them any more.
-  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes] = await Promise.all([
+  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, expRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
+    supabase
+      .from("professional_experience_tags")
+      .select("slug, label")
+      .eq("is_active", true)
+      .order("sort_order"),
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
@@ -87,6 +92,7 @@ export default async function ProfileEditPage() {
   const focusOptions = (focusRes.data ?? []) as Option[];
   const roleOptions = (rolesRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
+  const expOptions = (expRes.data ?? []) as Option[];
 
   // My existing profile (own-row only via RLS).
   const { data: profile } = await supabase
@@ -127,15 +133,20 @@ export default async function ProfileEditPage() {
   // column by the 2026-08-19 migration, so an existing single role still shows
   // up here as one checked box, not an empty selection.
   let selectedRoles: string[] = [];
+  let selectedExperience: string[] = [];
   let swingAvailable = false;
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, pr, sw] = await Promise.all([
+    const [ps, pl, pf, pc, pr, pe, sw] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
       supabase.from("profile_roles").select("role_types(slug)").eq("profile_id", pid),
+      supabase
+        .from("profile_professional_experience")
+        .select("professional_experience_tags(slug)")
+        .eq("profile_id", pid),
       supabase.from("swing_availability").select("is_available").eq("profile_id", pid).maybeSingle(),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
@@ -150,6 +161,7 @@ export default async function ProfileEditPage() {
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
     selectedRoles = slugsOf(pr.data, "role_types");
+    selectedExperience = slugsOf(pe.data, "professional_experience_tags");
     swingAvailable = Boolean((sw.data as { is_available?: boolean } | null)?.is_available);
   }
 
@@ -216,11 +228,13 @@ export default async function ProfileEditPage() {
         focusOptions={focusOptions}
         roleOptions={roleOptions}
         certOptions={certOptions}
+        expOptions={expOptions}
         selectedStyles={selectedStyles}
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
         selectedRoles={selectedRoles}
+        selectedExperience={selectedExperience}
         customRoles={p.custom_roles ?? []}
         customStyles={p.custom_styles ?? []}
         customLevels={p.custom_levels ?? []}

@@ -4,9 +4,12 @@
 // with the service-role client (the view is server-only) and filters it from the
 // URL query params via the pure filter layer in src/lib/roster/filters.ts.
 //
-// Filter bar (clean, §8): style · level · certification · availability ·
-// location · text search. Role is a CATEGORY (tabs), never a filter chip;
-// honorifics render as recognition on cards but are NEVER filters (§13,
+// Filter bar (Phase 1 rebuild, founder-approved 2026-08-21): role · style ·
+// level · focus area · certification · professional experience · availability
+// · location · text search. Role is now a proper multi-select facet — its
+// option list is read live from `role_types` (is_active + show_in_roster),
+// not a hardcoded array, so an admin adding a role never needs a code change.
+// Honorifics render as recognition on cards but are NEVER filters (§13,
 // no-endorsement).
 //
 // Availability (2026-07-24) is the facet that makes the real studio question
@@ -22,7 +25,6 @@ import { hasAnyActiveMembership } from "@/lib/membership/access";
 import {
   parseRosterParams,
   hasNoActiveFilters,
-  ROSTER_CATEGORIES,
   ROSTER_PAGE_SIZE,
   type RosterFilters,
 } from "@/lib/roster/filters";
@@ -37,13 +39,13 @@ type Card = {
   profile_id: string;
   display_name: string;
   public_slug: string;
-  primary_role: string | null;
   city: string | null;
   state_province: string | null;
   country: string | null;
   headshot_url: string | null;
   verification_flag: boolean;
   honorifics: string[] | null;
+  role_slugs: string[] | null;
   style_slugs: string[] | null;
   level_slugs: string[] | null;
   availability_slugs: string[] | null;
@@ -62,10 +64,12 @@ function href(base: RosterFilters, patch: Partial<Record<string, string | string
     (Array.isArray(v) ? v : [v]).forEach((x) => p.append(k, x));
   };
   const merged: Record<string, string | string[] | null | undefined> = {
-    role: base.role,
+    role: base.roles,
     style: base.styles,
     level: base.levels,
+    focus: base.focusAreas,
     cert: base.certs,
+    exp: base.experience,
     avail: base.availability,
     region: base.region,
     state: base.state,
@@ -95,25 +99,42 @@ export default async function RosterPage({
 
   // ---- Pick-lists for the filter bar (world-readable) --------------------
   const admin = createAdminClient();
-  const [stylesRes, levelsRes, certsRes, regionsRes, availRes] = await Promise.all([
-    admin.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
-    admin.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
-    admin.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
-    admin.from("regions").select("id, label").eq("is_active", true).order("sort_order"),
-    admin
-      .from("availability_tags")
-      .select("slug, label, kind")
-      .eq("is_active", true)
-      .order("sort_order"),
-  ]);
+  const [roleRes, stylesRes, levelsRes, focusRes, certsRes, expRes, regionsRes, availRes] =
+    await Promise.all([
+      admin
+        .from("role_types")
+        .select("slug, label")
+        .eq("is_active", true)
+        .eq("show_in_roster", true)
+        .order("sort_order"),
+      admin.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
+      admin.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
+      admin.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
+      admin.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
+      admin
+        .from("professional_experience_tags")
+        .select("slug, label")
+        .eq("is_active", true)
+        .order("sort_order"),
+      admin.from("regions").select("id, label").eq("is_active", true).order("sort_order"),
+      admin
+        .from("availability_tags")
+        .select("slug, label, kind")
+        .eq("is_active", true)
+        .order("sort_order"),
+    ]);
+  const roleOptions = (roleRes.data ?? []) as Option[];
   const styleOptions = (stylesRes.data ?? []) as Option[];
   const levelOptions = (levelsRes.data ?? []) as Option[];
+  const focusOptions = (focusRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
+  const expOptions = (expRes.data ?? []) as Option[];
   const regionOptions = (regionsRes.data ?? []) as RegionOption[];
   const availOptions = (availRes.data ?? []) as AvailOption[];
   const generalAvail = availOptions.filter((a) => a.kind === "general");
   const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
   const labelOf = (opts: Option[]) => Object.fromEntries(opts.map((o) => [o.slug, o.label]));
+  const roleLabel = labelOf(roleOptions);
   const styleLabel = labelOf(styleOptions);
   const levelLabel = labelOf(levelOptions);
 
@@ -122,17 +143,19 @@ export default async function RosterPage({
   let query = admin
     .from("roster_profiles")
     .select(
-      "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
-        "headshot_url, verification_flag, honorifics, style_slugs, level_slugs, " +
+      "profile_id, display_name, public_slug, city, state_province, country, " +
+        "headshot_url, verification_flag, honorifics, role_slugs, style_slugs, level_slugs, " +
         "availability_slugs, years_experience",
       { count: "exact" },
     )
     .eq("owner_active", true);
 
-  if (filters.role) query = query.eq("primary_role", filters.role);
+  if (filters.roles.length) query = query.overlaps("role_slugs", filters.roles);
   if (filters.styles.length) query = query.overlaps("style_slugs", filters.styles);
   if (filters.levels.length) query = query.overlaps("level_slugs", filters.levels);
+  if (filters.focusAreas.length) query = query.overlaps("focus_area_slugs", filters.focusAreas);
   if (filters.certs.length) query = query.overlaps("cert_slugs", filters.certs);
+  if (filters.experience.length) query = query.overlaps("experience_slugs", filters.experience);
   if (filters.availability.length)
     query = query.overlaps("availability_slugs", filters.availability);
   if (filters.region) query = query.eq("region_id", filters.region);
@@ -169,42 +192,12 @@ export default async function RosterPage({
       </div>
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Find a professional</h1>
       <p className="mt-2 text-neutral-600">
-        Vetted, verified dance professionals. Search by style, level, certification, availability,
-        and location.
+        Vetted, verified performing-arts professionals. Filter by role, style, level, focus area,
+        certification, professional experience, availability, and location.
       </p>
 
-      {/* Category tabs (role) — a category, not a filter (§8). Switching a tab
-          keeps your other filters. */}
-      <nav className="mt-8 flex flex-wrap gap-2">
-        <Link
-          href={href(filters, { role: null, page: null })}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-            filters.role === null
-              ? "bg-neutral-900 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-          }`}
-        >
-          Everyone
-        </Link>
-        {ROSTER_CATEGORIES.map((c) => (
-          <Link
-            key={c.slug}
-            href={href(filters, { role: c.slug, page: null })}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              filters.role === c.slug
-                ? "bg-neutral-900 text-white"
-                : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-            }`}
-          >
-            {c.label}
-          </Link>
-        ))}
-      </nav>
-
-      {/* Filter bar — plain GET form (no client JS). Preserves the active tab. */}
-      <form method="get" action="/roster" className="mt-6 space-y-5 rounded-xl border border-neutral-200 p-5">
-        {filters.role && <input type="hidden" name="role" value={filters.role} />}
-
+      {/* Filter bar — plain GET form (no client JS). */}
+      <form method="get" action="/roster" className="mt-8 space-y-5 rounded-xl border border-neutral-200 p-5">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-medium text-neutral-600">Search name or bio</label>
@@ -227,9 +220,16 @@ export default async function RosterPage({
           </div>
         </div>
 
+        {/* Professional Role — Phase 1 rebuild (2026-08-21): a proper
+            multi-select facet (ANY-within, like every other facet below), no
+            longer a single-select category tab pinned to the deprecated
+            primary_role column. Options come live from role_types. */}
+        <FilterChips title="Professional role" name="role" options={roleOptions} selected={filters.roles} chipCls={chipCls} />
         <FilterChips title="Style" name="style" options={styleOptions} selected={filters.styles} chipCls={chipCls} />
         <FilterChips title="Teaching level" name="level" options={levelOptions} selected={filters.levels} chipCls={chipCls} />
+        <FilterChips title="Focus area" name="focus" options={focusOptions} selected={filters.focusAreas} chipCls={chipCls} />
         <FilterChips title="Certification" name="cert" options={certOptions} selected={filters.certs} chipCls={chipCls} />
+        <FilterChips title="Professional experience" name="exp" options={expOptions} selected={filters.experience} chipCls={chipCls} />
         {/* Both availability groups post to the same `avail` param — one facet,
             two headings, so the labels stay meaningful without splitting the
             filter logic in two. */}
@@ -241,7 +241,7 @@ export default async function RosterPage({
             Apply filters
           </button>
           {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="text-sm text-neutral-500 underline">
+            <Link href={href({ ...filters, roles: [], styles: [], levels: [], focusAreas: [], certs: [], experience: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="text-sm text-neutral-500 underline">
               Clear filters
             </Link>
           )}
@@ -264,7 +264,7 @@ export default async function RosterPage({
         <div className="mt-6 rounded-xl border border-dashed border-neutral-300 px-6 py-16 text-center">
           <p className="text-neutral-600">No professionals match these filters yet.</p>
           {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="mt-3 inline-block text-sm text-neutral-500 underline">
+            <Link href={href({ ...filters, roles: [], styles: [], levels: [], focusAreas: [], certs: [], experience: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="mt-3 inline-block text-sm text-neutral-500 underline">
               Clear filters
             </Link>
           )}
@@ -273,6 +273,11 @@ export default async function RosterPage({
         <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => {
             const location = [c.city, c.state_province, c.country].filter(Boolean).join(", ");
+            // Roles read from role_slugs (profile_roles), not the deprecated
+            // primary_role column — Phase 1 rebuild 2026-08-21. A multi-role
+            // professional shows every role they currently hold, not just the
+            // one frozen at profile creation.
+            const roleNames = (c.role_slugs ?? []).map((r) => roleLabel[r] ?? titleCase(r)).join(" · ");
             const chips = [
               ...(c.style_slugs ?? []).map((s) => styleLabel[s] ?? titleCase(s)),
               ...(c.level_slugs ?? []).map((l) => levelLabel[l] ?? titleCase(l)),
@@ -298,8 +303,8 @@ export default async function RosterPage({
                       )}
                     </div>
                     <p className="truncate text-sm text-neutral-600">
-                      {c.primary_role ? titleCase(c.primary_role) : ""}
-                      {c.primary_role && location ? " · " : ""}
+                      {roleNames}
+                      {roleNames && location ? " · " : ""}
                       {location}
                     </p>
                   </div>

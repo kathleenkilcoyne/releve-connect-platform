@@ -22,6 +22,8 @@ import {
   formatMoney,
   formatPriceDisplay,
   resolvePricing,
+  offeringsTileSubcopy,
+  shouldShowOnboardingOfferingsCta,
   introPrefillMessage,
   type OfferingInput,
 } from "./offerings";
@@ -368,5 +370,44 @@ describe("introPrefillMessage (Slice 4 — Inquire prefill)", () => {
     const msg = introPrefillMessage("  Kathleen  ", "  Master Class  ");
     expect(msg).toContain('"Master Class"');
     expect(msg).toContain("Hi Kathleen,");
+  });
+});
+
+// Discoverability fix (2026-08-21). Verified against the real reference case:
+// Geoffrey Doig-Marx (profile 96715139-29b9-4e76-a1bf-944c6c56b8f3) has ZERO
+// rows in professional_offerings as of this writing (confirmed live, read-only,
+// via direct SQL — his account was never touched to produce this test). These
+// tests exercise exactly the "hasOfferings = false" branch his account is
+// currently in, without signing in as him, altering his data, or fabricating a
+// throwaway account.
+describe("offeringsTileSubcopy", () => {
+  it("reads 'Add' for a member with no offerings yet — Geoffrey's exact case", () => {
+    expect(offeringsTileSubcopy(false)).toBe("Add what you offer");
+  });
+
+  it("reads 'Manage' once at least one offering exists", () => {
+    expect(offeringsTileSubcopy(true)).toBe("Manage what you offer");
+  });
+});
+
+describe("shouldShowOnboardingOfferingsCta", () => {
+  it("shows the nudge after a successful save with zero offerings — Geoffrey's exact case", () => {
+    expect(
+      shouldShowOnboardingOfferingsCta({ ok: true, slug: "geoffrey-doig-marx", hasOfferings: false }),
+    ).toBe(true);
+  });
+
+  it("hides the nudge the moment an offering exists", () => {
+    expect(
+      shouldShowOnboardingOfferingsCta({ ok: true, slug: "kathleen-mcaree", hasOfferings: true }),
+    ).toBe(false);
+  });
+
+  it("never shows on a failed save, regardless of offerings state", () => {
+    expect(shouldShowOnboardingOfferingsCta({ ok: false, hasOfferings: false })).toBe(false);
+  });
+
+  it("never shows before a slug exists (no profile created yet)", () => {
+    expect(shouldShowOnboardingOfferingsCta({ ok: true, hasOfferings: false })).toBe(false);
   });
 });
