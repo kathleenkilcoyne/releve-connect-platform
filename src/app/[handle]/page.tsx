@@ -116,7 +116,12 @@ async function loadProfile(handle: string) {
   // simply no longer rendered as standalone tag rows on this page (founder
   // decision 2026-08-21 — see the commented-out render calls below).
   const pid = profile.profile_id;
-  const [styles, levels, focus, avail] = await Promise.all([
+  const [roles, styles, levels, focus, avail] = await Promise.all([
+    // Multi-role, read from profile_roles — the live source of truth since
+    // 2026-08-19 (see Slice A-D). primary_role on `profile` above is left
+    // completely alone (not read for display any more — merge-readiness fix
+    // 2026-08-21) but stays fetched/untouched in the row itself.
+    db.from("profile_roles").select("role_types(label)").eq("profile_id", pid),
     db.from("profile_styles").select("styles(label)").eq("profile_id", pid),
     db.from("profile_levels").select("levels(label)").eq("profile_id", pid),
     db.from("profile_focus_areas").select("focus_areas(label)").eq("profile_id", pid),
@@ -148,6 +153,7 @@ async function loadProfile(handle: string) {
   return {
     profile,
     isDraftPreview,
+    roles: labelsOf(roles.data, "role_types"),
     styles: labelsOf(styles.data, "styles"),
     levels: labelsOf(levels.data, "levels"),
     focus: labelsOf(focus.data, "focus_areas"),
@@ -291,7 +297,7 @@ export default async function PublicProfilePage({
   const loaded = await loadProfile(handle);
   if (!loaded) notFound();
 
-  const { profile, isDraftPreview } = loaded;
+  const { profile, roles, isDraftPreview } = loaded;
   const location = [profile.city, profile.state_province, profile.country]
     .filter(Boolean)
     .join(", ");
@@ -443,8 +449,11 @@ export default async function PublicProfilePage({
               )}
             </div>
             <p className="mt-1 text-neutral-600">
-              {profile.primary_role ? titleCase(profile.primary_role) : ""}
-              {profile.primary_role && location ? " · " : ""}
+              {/* Roles read from profile_roles (role_slugs' label equivalent),
+                  not the deprecated primary_role column — merge-readiness fix
+                  2026-08-21, consistent with the Roster cards. */}
+              {roles.join(" · ")}
+              {roles.length > 0 && location ? " · " : ""}
               {location}
             </p>
             {profile.years_experience && (

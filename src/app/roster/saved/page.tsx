@@ -20,11 +20,8 @@ type Card = {
   country: string | null;
   headshot_url: string | null;
   verification_flag: boolean;
+  roles: string[];
 };
-
-function titleCase(s: string) {
-  return s.replace(/(^|[-_ ])(\w)/g, (_, sep, c) => (sep ? " " : "") + c.toUpperCase()).trim();
-}
 
 export default async function SavedPage() {
   const supabase = await createClient();
@@ -63,8 +60,35 @@ export default async function SavedPage() {
       )
       .in("profile_id", ids)
       .eq("profile_status", "published");
+
+    // Multi-role, read from profile_roles — the live source of truth since
+    // 2026-08-19 (see Slice A-D), same fix already applied to the Roster and
+    // the public profile (merge-readiness, 2026-08-21). primary_role above is
+    // left completely alone — still fetched, just no longer read for display.
+    const rows = (data ?? []) as Array<Omit<Card, "roles">>;
+    const profileIds = rows.map((r) => r.profile_id);
+    const { data: roleRows } = profileIds.length
+      ? await admin
+          .from("profile_roles")
+          .select("profile_id, role_types(label)")
+          .in("profile_id", profileIds)
+      : { data: [] as unknown[] };
+    const rolesByProfile = new Map<string, string[]>();
+    for (const r of (roleRows ?? []) as Array<{
+      profile_id: string;
+      role_types: { label: string } | { label: string }[] | null;
+    }>) {
+      const rt = Array.isArray(r.role_types) ? r.role_types[0] : r.role_types;
+      if (!rt?.label) continue;
+      const list = rolesByProfile.get(r.profile_id) ?? [];
+      list.push(rt.label);
+      rolesByProfile.set(r.profile_id, list);
+    }
+
     // Preserve the saved order.
-    const byId = new Map((data as Card[] | null ?? []).map((c) => [c.profile_id, c]));
+    const byId = new Map(
+      rows.map((c) => [c.profile_id, { ...c, roles: rolesByProfile.get(c.profile_id) ?? [] }]),
+    );
     cards = ids.map((id) => byId.get(id)).filter((c): c is Card => Boolean(c));
   }
 
@@ -112,8 +136,8 @@ export default async function SavedPage() {
                       )}
                     </div>
                     <p className="truncate text-sm text-neutral-600">
-                      {c.primary_role ? titleCase(c.primary_role) : ""}
-                      {c.primary_role && location ? " · " : ""}
+                      {c.roles.join(" · ")}
+                      {c.roles.length > 0 && location ? " · " : ""}
                       {location}
                     </p>
                   </div>
