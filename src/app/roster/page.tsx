@@ -5,17 +5,21 @@
 // URL query params via the pure filter layer in src/lib/roster/filters.ts.
 //
 // Filter bar (Phase 1 rebuild, founder-approved 2026-08-21): role · style ·
-// level · focus area · certification · professional experience · availability
-// · location · text search. Role is now a proper multi-select facet — its
-// option list is read live from `role_types` (is_active + show_in_roster),
-// not a hardcoded array, so an admin adding a role never needs a code change.
-// Honorifics render as recognition on cards but are NEVER filters (§13,
-// no-endorsement).
+// level · focus area · certification · professional experience · location ·
+// text search. Role is now a proper multi-select facet — its option list is
+// read live from `role_types` (is_active + show_in_roster), not a hardcoded
+// array, so an admin adding a role never needs a code change. Honorifics
+// render as recognition on cards but are NEVER filters (§13, no-endorsement).
 //
-// Availability (2026-07-24) is the facet that makes the real studio question
-// answerable — "Jazz teachers, available weekends, CPR-certified". It comes in
-// two flavours from one table: when someone can work ("general") and what
-// they're taking on ("currently", e.g. accepting commissions).
+// Generic Availability (the "Saturdays / Weekends / Willing to Travel /
+// Virtual Available" chips added 2026-07-24) is REMOVED from this filter bar
+// (founder decision 2026-08-21): a profile shouldn't have to announce vague
+// availability — "Available This Week" (the real, dated, service-linked
+// booking system on the public profile) is the actual answer to "when can I
+// book this person." The `availability_tags` table, `profile_availability`
+// join, and the view's `availability_slugs` column are all UNTOUCHED and
+// still filterable via `?avail=` for reversibility; only the UI controls
+// are gone. See RosterFilters.availability in filters.ts, still intact.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -33,7 +37,6 @@ export const dynamic = "force-dynamic";
 
 type Option = { slug: string; label: string };
 type RegionOption = { id: string; label: string };
-type AvailOption = Option & { kind: "general" | "currently" };
 
 type Card = {
   profile_id: string;
@@ -99,7 +102,11 @@ export default async function RosterPage({
 
   // ---- Pick-lists for the filter bar (world-readable) --------------------
   const admin = createAdminClient();
-  const [roleRes, stylesRes, levelsRes, focusRes, certsRes, expRes, regionsRes, availRes] =
+  // Availability chips deliberately NOT fetched here any more (founder
+  // decision 2026-08-21) — see the file header comment. The `availability_tags`
+  // table and `profile_availability` join are untouched; this page simply no
+  // longer queries them for a filter UI that no longer exists.
+  const [roleRes, stylesRes, levelsRes, focusRes, certsRes, expRes, regionsRes] =
     await Promise.all([
       admin
         .from("role_types")
@@ -117,11 +124,6 @@ export default async function RosterPage({
         .eq("is_active", true)
         .order("sort_order"),
       admin.from("regions").select("id, label").eq("is_active", true).order("sort_order"),
-      admin
-        .from("availability_tags")
-        .select("slug, label, kind")
-        .eq("is_active", true)
-        .order("sort_order"),
     ]);
   const roleOptions = (roleRes.data ?? []) as Option[];
   const styleOptions = (stylesRes.data ?? []) as Option[];
@@ -130,9 +132,6 @@ export default async function RosterPage({
   const certOptions = (certsRes.data ?? []) as Option[];
   const expOptions = (expRes.data ?? []) as Option[];
   const regionOptions = (regionsRes.data ?? []) as RegionOption[];
-  const availOptions = (availRes.data ?? []) as AvailOption[];
-  const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
   const labelOf = (opts: Option[]) => Object.fromEntries(opts.map((o) => [o.slug, o.label]));
   const roleLabel = labelOf(roleOptions);
   const styleLabel = labelOf(styleOptions);
@@ -193,7 +192,7 @@ export default async function RosterPage({
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Find a professional</h1>
       <p className="mt-2 text-neutral-600">
         Vetted, verified performing-arts professionals. Filter by role, style, level, focus area,
-        certification, professional experience, availability, and location.
+        certification, professional experience, and location.
       </p>
 
       {/* Filter bar — plain GET form (no client JS). */}
@@ -230,11 +229,11 @@ export default async function RosterPage({
         <FilterChips title="Focus area" name="focus" options={focusOptions} selected={filters.focusAreas} chipCls={chipCls} />
         <FilterChips title="Certification" name="cert" options={certOptions} selected={filters.certs} chipCls={chipCls} />
         <FilterChips title="Professional experience" name="exp" options={expOptions} selected={filters.experience} chipCls={chipCls} />
-        {/* Both availability groups post to the same `avail` param — one facet,
-            two headings, so the labels stay meaningful without splitting the
-            filter logic in two. */}
-        <FilterChips title="Availability" name="avail" options={generalAvail} selected={filters.availability} chipCls={chipCls} />
-        <FilterChips title="Currently accepting" name="avail" options={currentlyAvail} selected={filters.availability} chipCls={chipCls} />
+        {/* Generic Availability chips removed here (founder decision
+            2026-08-21) — "Available This Week" on the public profile is the
+            real, actionable answer to "when can I book this person." The
+            `avail` param and RosterFilters.availability still work end-to-end
+            if ever restored; only this UI is gone. */}
 
         <div className="flex flex-wrap items-center gap-4">
           <button type="submit" className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white">
