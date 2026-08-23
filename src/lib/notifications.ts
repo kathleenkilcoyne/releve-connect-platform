@@ -230,14 +230,16 @@ export async function fireMailerLiteTag(email: string, tag: string): Promise<voi
 /**
  * EMAILS.md #4 — "Approved — welcome". MANUAL (admin clicks Approve).
  *
- * FREE FOUNDING PERIOD: approval now grants a complimentary founding membership
- * outright, so this is a welcome email, not a "next step is payment" email.
+ * Welcomes the applicant onto the Professional Roster. Approval alone no longer
+ * grants a complimentary membership (2026-08-23) — that is a separate, explicit
+ * admin action ("grant_complimentary"), so `foundingUntil` is only ever passed
+ * when that later action actually granted one.
  */
 export async function sendApplicationApproved(input: {
   to: string;
   firstName: string | null;
   tierLabel: string | null; // e.g. "Established" for a choreographer; null otherwise
-  /** Set when a complimentary founding membership was granted. */
+  /** Set only when a complimentary founding membership has ALREADY been granted. */
   foundingUntil?: string | null;
 }): Promise<void> {
   const site = emailSiteUrl();
@@ -270,7 +272,13 @@ export async function sendApplicationApproved(input: {
       ...(input.tierLabel
         ? [`Your choreographer standing has been set to ${input.tierLabel}.`]
         : []),
-      `Start here — build your profile: ${site}/profile/edit`,
+      // Membership is no longer guaranteed at approval time (2026-08-23) — only
+      // link straight to the profile builder when it's actually open to them.
+      // Otherwise send them to /subscribe, which explains exactly where they
+      // stand and what happens next.
+      input.foundingUntil
+        ? `Start here — build your profile: ${site}/profile/edit`
+        : `See where you stand: ${site}/subscribe`,
     ),
   });
 }
