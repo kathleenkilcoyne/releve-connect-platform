@@ -199,20 +199,23 @@ function LinkList({ links }: { links: Array<[string, string]> }) {
 /**
  * Turn an API response into a sentence the admin can trust.
  *
- * Deliberately reports the SIDE EFFECT, not just the state change — approving
- * now also grants a complimentary founding membership, and if that silently
- * failed while the approval succeeded, you would want to know immediately
- * rather than when the member emails asking why they're locked out.
+ * "approve" grants Professional Roster status ONLY (2026-08-23) — it no longer
+ * touches membership/billing, so it no longer reports a membership outcome.
+ * Complimentary membership is a separate action ("grant_complimentary") with
+ * its own outcome sentence, reported the same honest way: report the side
+ * effect, not just "done", so a silent failure is never mistaken for success.
  */
 function describeOutcome(action: string | undefined, data: Record<string, unknown>): string {
   if (action === "approve") {
+    return "Approved ✓ — Professional Roster status granted. Welcome email sent.";
+  }
+  if (action === "grant_complimentary") {
     const fm = data.foundingMembership;
     if (fm && typeof fm === "object" && "until" in fm) {
-      // No date, matching the member-facing copy (2026-07-21).
-      return "Approved ✓ — complimentary membership granted. Welcome email sent.";
+      return "Complimentary membership granted ✓ — profile builder is now open to them.";
     }
-    if (fm === "already_active") return "Approved ✓ — they already had an active membership.";
-    return "Approved ✓ — but NO membership was granted. Check the server log.";
+    if (fm === "already_active") return "Already had an active membership — nothing changed.";
+    return "Complimentary membership was NOT granted. Check the server log.";
   }
   if (action === "decline") return "Declined — the 'not right now' email has been sent.";
   if (action === "request_info") return "More info requested — email sent.";
@@ -384,6 +387,26 @@ function ApplicationCard({
                   className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 disabled:opacity-40"
                 >
                   Decline
+                </button>
+              </div>
+            )}
+
+            {/* Complimentary membership — a SEPARATE explicit action from Approve
+                (2026-08-23). Approving only grants Professional Roster status;
+                nothing here happens automatically. Shown whenever the application
+                is approved, independent of `outcome`, so it stays available after
+                a page refresh and isn't hidden once something else is acted on. */}
+            {app.state === "approved" && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3">
+                <p className="w-full text-xs text-neutral-500">
+                  Approval alone does not grant membership. Complimentary access is a separate step:
+                </p>
+                <button
+                  disabled={!canAct}
+                  onClick={() => act(app.application_id, { action: "grant_complimentary" })}
+                  className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+                >
+                  {busy ? "Granting…" : "Grant complimentary membership"}
                 </button>
               </div>
             )}
