@@ -65,6 +65,9 @@ vi.mock("@/lib/studio/access", () => ({ resolveStudioForUser: async () => null }
 vi.mock("@/lib/founding/founding-professional", () => ({
   claimFoundingProfessionalOnSignIn: async () => {},
 }));
+vi.mock("@/lib/invited-professional/invited-professional", () => ({
+  claimPrivateInvitationOnSignIn: async () => {},
+}));
 
 const { resolveSignedInDestination } = await import("./destination");
 
@@ -82,6 +85,7 @@ const baseTables = (): Record<string, Row[]> => ({
   applications: [],
   memberships: [],
   founding_professional_grants: [],
+  private_invitations: [],
   family_accounts: [],
   guardianships: [],
   styles: [],
@@ -186,6 +190,20 @@ describe("post-sign-in routing — the /welcome misrouting and its fix", () => {
     expect(await go()).toBe("/profile/review");
     expect(inserts.talent_profiles?.[0].founder_distinction).toBe("founding_professional");
     expect(inserts.talent_profiles?.[0].profile_status).toBe("draft");
+  });
+
+  it("a privately invited professional with a comp membership activates too, with NO founder_distinction (2026-08-24)", async () => {
+    // Structurally separate from the Founding Professional case above: its own
+    // table, and — the entire point — no public distinction is ever conferred.
+    tables.memberships = [activeMembership];
+    tables.private_invitations = [
+      { id: "pi1", email: "zz@example.com", revoked_at: null },
+    ];
+
+    expect(await go()).toBe("/profile/review");
+    expect(inserts.talent_profiles?.[0].profile_status).toBe("draft");
+    expect(inserts.talent_profiles?.[0]).not.toHaveProperty("founder_distinction");
+    expect(inserts.talent_profiles?.[0].verification_flag).toBe(true);
   });
 });
 

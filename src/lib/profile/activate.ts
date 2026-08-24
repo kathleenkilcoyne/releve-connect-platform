@@ -21,9 +21,10 @@
 //   3. RACE-SAFE. The unique index on talent_profiles.user_id is the authority;
 //      a unique violation means someone else won and is treated as SUCCESS.
 //
-// Called from four places: the Stripe webhook (membership goes active), the
+// Called from five places: the Stripe webhook (membership goes active), the
 // admin approve route (complimentary membership granted), the founding-grant
-// sign-in claim, and a catch-up check in the /profile/edit gate.
+// sign-in claim, the private-invitation sign-in claim (2026-08-24), and a
+// catch-up check in the /profile/edit gate.
 
 import {
   resolveActivationBasis,
@@ -103,14 +104,27 @@ export async function activateProfessionalProfile(
     // anything a link or a form supplied.
     const email = (user.email ?? "").toLowerCase();
     let hasFoundingGrant = false;
+    let hasPrivateInvite = false;
     if (email) {
-      const { data: grant } = await admin
-        .from("founding_professional_grants")
-        .select("id")
-        .eq("email", email)
-        .is("revoked_at", null)
-        .maybeSingle();
+      const [{ data: grant }, { data: invitation }] = await Promise.all([
+        admin
+          .from("founding_professional_grants")
+          .select("id")
+          .eq("email", email)
+          .is("revoked_at", null)
+          .maybeSingle(),
+        // A privately invited professional — a SEPARATE table, SEPARATE
+        // lookup, deliberately not touching founding_professional_grants.
+        // See @/lib/invited-professional/invited-professional.
+        admin
+          .from("private_invitations")
+          .select("id")
+          .eq("email", email)
+          .is("revoked_at", null)
+          .maybeSingle(),
+      ]);
       hasFoundingGrant = Boolean(grant);
+      hasPrivateInvite = Boolean(invitation);
     }
 
     // ── 3. The gate ──
@@ -119,6 +133,7 @@ export async function activateProfessionalProfile(
         ? { application_id: application.application_id, state: application.state }
         : null,
       hasFoundingGrant,
+      hasPrivateInvite,
       membershipRows: memberships,
     });
     if (!basis) return { created: false, reason: "not_eligible" };
@@ -130,6 +145,10 @@ export async function activateProfessionalProfile(
     // 2). Absent a real name, start in an explicit, safe onboarding state and
     // let the member supply their own name on /profile/review or /profile/edit.
     const displayName = user.display_name?.trim() || "New Relevé Professional";
+    // buildFoundingSeed is genuinely identity-agnostic — "no application, seed
+    // from the name alone" — so it is correct to reuse for a private_invite
+    // basis too, not just founding_grant. It has never carried any
+    // Founding-specific data.
     const seed: ProfileSeed =
       basis.kind === "approved_application"
         ? buildProfileSeed(application?.answers ?? null, { displayName })
@@ -168,6 +187,12 @@ export async function activateProfessionalProfile(
     // Only set when actually awarded, so the database defaults ('emerging' /
     // 'none') apply otherwise. An ordinary approved member never inherits a
     // distinction or a tier they were not given.
+    //
+    // Deliberately checks hasFoundingGrant ONLY, never hasPrivateInvite: a
+    // privately invited professional (basis.kind === "private_invite") must
+    // never receive founder_distinction. hasFoundingGrant and hasPrivateInvite
+    // are independent booleans from independent tables, so this is structural,
+    // not a convention someone could forget.
     if (application?.approved_tier) row.choreographer_tier = application.approved_tier;
     if (hasFoundingGrant) row.founder_distinction = "founding_professional";
 

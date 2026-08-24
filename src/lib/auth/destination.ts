@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
 import { claimFoundingProfessionalOnSignIn } from "@/lib/founding/founding-professional";
+import { claimPrivateInvitationOnSignIn } from "@/lib/invited-professional/invited-professional";
 import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 /**
@@ -53,6 +54,21 @@ export async function resolveSignedInDestination(
       await claimFoundingProfessionalOnSignIn(admin, user.id, user.email);
     } catch (err) {
       console.error("[founding-professional] claim on sign-in failed (ignored):", err);
+    }
+  }
+
+  // ── Private invitation claim (best-effort, EVERY sign-in) ──
+  // Structurally separate from the Founding Professional claim above — its own
+  // table, its own module, no shared state. If this AUTHENTICATED email matches
+  // a pending private invitation, materialize the complimentary membership +
+  // stamp Verified Member ONLY (never founder_distinction) now, so an invited
+  // professional following their link arrives already activated. Must never
+  // throw into the sign-in path.
+  if (user?.email && admin) {
+    try {
+      await claimPrivateInvitationOnSignIn(admin, user.id, user.email);
+    } catch (err) {
+      console.error("[invited-professional] claim on sign-in failed (ignored):", err);
     }
   }
 

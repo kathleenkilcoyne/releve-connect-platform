@@ -84,6 +84,7 @@ const baseTables = () => ({
   applications: [approvedApplication] as Row[],
   memberships: [activeProMembership] as Row[],
   founding_professional_grants: [] as Row[],
+  private_invitations: [] as Row[],
   styles: [{ id: "s1", slug: "ballet" }],
   levels: [{ id: "l1", slug: "advanced" }],
   role_types: [] as Row[],
@@ -229,6 +230,55 @@ describe("activateProfessionalProfile — the founding path", () => {
       created: false,
       reason: "not_eligible",
     });
+  });
+});
+
+describe("activateProfessionalProfile — the private invitation path (2026-08-24)", () => {
+  const privatelyInvited = () => ({
+    ...baseTables(),
+    applications: [] as Row[],
+    private_invitations: [{ id: "pi1", email: "ada@example.com", revoked_at: null }],
+  });
+
+  it("creates a draft with Verified Member and NO founder_distinction, no prefill", async () => {
+    const db = makeDb(privatelyInvited());
+    const res = await activateProfessionalProfile(db, USER);
+    expect(res).toMatchObject({ created: true });
+
+    const row = created(db);
+    expect(row.verification_flag).toBe(true);
+    expect(row.profile_status).toBe("draft");
+    // The entire point of this pathway: no public distinction, ever.
+    expect(row).not.toHaveProperty("founder_distinction");
+    // They never applied, so there is no application to point at and nothing to seed.
+    expect(row.prefilled_from_application_id).toBeNull();
+    expect(row.display_name).toBe("Ada Lovelace");
+    expect(row.bio).toBeNull();
+  });
+
+  it("ignores a REVOKED private invitation", async () => {
+    const db = makeDb({
+      ...privatelyInvited(),
+      private_invitations: [
+        { id: "pi1", email: "ada@example.com", revoked_at: "2026-08-01T00:00:00Z" },
+      ],
+    });
+    expect(await activateProfessionalProfile(db, USER)).toEqual({
+      created: false,
+      reason: "not_eligible",
+    });
+  });
+
+  it("a Founding Professional grant and a private invitation on the same email never both apply — founder_distinction still wins when both are present", async () => {
+    // Not a realistic state (an admin shouldn't grant both), but the row-
+    // building logic must stay unambiguous if it ever happens: hasFoundingGrant
+    // is checked first in activate.ts, so founder_distinction is set.
+    const db = makeDb({
+      ...privatelyInvited(),
+      founding_professional_grants: [{ id: "g1", email: "ada@example.com", revoked_at: null }],
+    });
+    await activateProfessionalProfile(db, USER);
+    expect(created(db).founder_distinction).toBe("founding_professional");
   });
 });
 

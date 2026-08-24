@@ -46,16 +46,28 @@ export type ApplicationRef = {
  * - `founding_grant`: an INVITED Founding Professional. They never applied, so
  *   there is no application to seed from and nothing to prefill. Their identity
  *   (distinction + Verified mark) is stamped from the server-side grant.
+ * - `private_invite`: a privately invited professional (2026-08-24) — same
+ *   "never applied" shape as `founding_grant`, but deliberately NOT the same
+ *   basis: the caller must never set founder_distinction for this kind. See
+ *   @/lib/invited-professional/invited-professional, a structurally separate
+ *   module from Founding Professional's.
  */
 export type ActivationBasis =
   | { kind: "approved_application"; applicationId: string }
-  | { kind: "founding_grant" };
+  | { kind: "founding_grant" }
+  | { kind: "private_invite" };
 
 export type ActivationInput = {
   /** The person's most recent application, if they ever made one. */
   application: ApplicationRef | null;
   /** Do they hold an active, non-revoked Founding Professional grant? */
   hasFoundingGrant: boolean;
+  /**
+   * Do they hold an active, non-revoked private invitation? Optional so every
+   * existing caller/test that predates this basis keeps compiling and behaving
+   * identically — omitting it is the same as passing false.
+   */
+  hasPrivateInvite?: boolean;
   /** Every membership row for this user (the caller passes them all). */
   membershipRows: MembershipRow[];
 };
@@ -109,6 +121,7 @@ export function resolveActivationBasis(input: ActivationInput): ActivationBasis 
     return { kind: "approved_application", applicationId: input.application.application_id };
   }
   if (input.hasFoundingGrant) return { kind: "founding_grant" };
+  if (input.hasPrivateInvite) return { kind: "private_invite" };
 
   return null;
 }

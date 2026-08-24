@@ -126,6 +126,55 @@ describe("resolveActivationBasis — who may have a professional profile", () =>
       resolveActivationBasis({ application: approvedApp, hasFoundingGrant: true, membershipRows: activePro }),
     ).toEqual({ kind: "approved_application", applicationId: "app-1" });
   });
+
+  // ── Private Invited Professional (2026-08-24) — structurally separate from
+  // Founding Professional; see @/lib/invited-professional/invited-professional.
+  it("activates a privately invited professional who never applied", () => {
+    expect(
+      resolveActivationBasis({
+        application: null,
+        hasFoundingGrant: false,
+        hasPrivateInvite: true,
+        membershipRows: activePro,
+      }),
+    ).toEqual({ kind: "private_invite" });
+  });
+
+  it("omitting hasPrivateInvite behaves exactly like passing false (every pre-existing caller/test)", () => {
+    expect(
+      resolveActivationBasis({ application: null, hasFoundingGrant: false, membershipRows: activePro }),
+    ).toBeNull();
+  });
+
+  it("prefers the approved application over a private invitation too", () => {
+    expect(
+      resolveActivationBasis({
+        application: approvedApp,
+        hasFoundingGrant: false,
+        hasPrivateInvite: true,
+        membershipRows: activePro,
+      }),
+    ).toEqual({ kind: "approved_application", applicationId: "app-1" });
+  });
+
+  it("a Founding Professional grant and a private invitation are independent — founding wins when both are set, and neither implies the other", () => {
+    expect(
+      resolveActivationBasis({
+        application: null,
+        hasFoundingGrant: true,
+        hasPrivateInvite: true,
+        membershipRows: activePro,
+      }),
+    ).toEqual({ kind: "founding_grant" });
+    expect(
+      resolveActivationBasis({
+        application: null,
+        hasFoundingGrant: false,
+        hasPrivateInvite: true,
+        membershipRows: activePro,
+      }),
+    ).toEqual({ kind: "private_invite" });
+  });
 });
 
 const fullAnswers: ApplicationAnswers = {
