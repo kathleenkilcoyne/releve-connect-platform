@@ -11,7 +11,7 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hasActiveProfileTier } from "@/lib/membership/access";
 import { activateProfessionalProfile } from "@/lib/profile/activate";
@@ -27,9 +27,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProfileReviewPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Memoized per-request (see server.ts) — AdminConsoleLink and ProfessionalNav
+  // render on this same page load and ask for the same user; sharing one lookup
+  // instead of each doing its own getUser() round-trip.
+  const user = await getUser();
   if (!user) redirect("/login?next=/profile/review");
 
   if (!(await hasActiveProfileTier(supabase, user.id))) {

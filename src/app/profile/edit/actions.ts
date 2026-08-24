@@ -129,16 +129,26 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   let handle = requestedHandle ? slugify(requestedHandle) : existing?.public_slug ?? slugify(displayName);
   // Ensure global uniqueness (admin can see everyone's slugs; the RLS client can't)
   // AND that the handle never collides with a reserved app route.
+  //
+  // ONE query instead of up to 49 sequential ones (2026-08-23 perf fix — see
+  // Tracie Stanfield incident): fetch every slug that could possibly collide
+  // (the bare handle, or handle-<N>) in a single round trip, then pick the
+  // first free suffix in memory instead of awaiting one SELECT per candidate.
+  const { data: collisionRows } = await admin
+    .from("talent_profiles")
+    .select("profile_id, public_slug")
+    .or(`public_slug.eq.${handle},public_slug.like.${handle}-%`);
+  const takenSlugs = new Set(
+    ((collisionRows ?? []) as Array<{ profile_id: string; public_slug: string }>)
+      .filter((r) => r.profile_id !== existing?.profile_id)
+      .map((r) => r.public_slug),
+  );
   let candidate = handle;
-  for (let n = 2; n < 50; n++) {
-    const { data: taken } = await admin
-      .from("talent_profiles")
-      .select("profile_id")
-      .eq("public_slug", candidate)
-      .maybeSingle();
-    const collides = (taken && taken.profile_id !== existing?.profile_id) || isReservedSlug(candidate);
-    if (!collides) break;
-    candidate = `${handle}-${n}`;
+  if (takenSlugs.has(candidate) || isReservedSlug(candidate)) {
+    for (let n = 2; n < 50; n++) {
+      candidate = `${handle}-${n}`;
+      if (!takenSlugs.has(candidate) && !isReservedSlug(candidate)) break;
+    }
   }
   handle = candidate;
 
@@ -302,16 +312,17 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     }));
     if (inserts.length) await supabase.from(joinTable).insert(inserts);
   }
-  await replaceJoin("profile_styles", "style_id", styles, "styles");
-  await replaceJoin("profile_levels", "level_id", levels, "levels");
-  await replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas");
-  await replaceJoin("profile_certifications", "certification_id", certs, "certifications");
-  await replaceJoin(
-    "profile_availability",
-    "availability_tag_id",
-    availability,
-    "availability_tags",
-  );
+  // These 5 tables are independent of each other (no shared rows, no ordering
+  // dependency between them), so running them concurrently instead of one
+  // after another (2026-08-23 perf fix) cuts ~15 sequential round trips down
+  // to ~3 — the internal delete-then-select-then-insert of the slowest one.
+  await Promise.all([
+    replaceJoin("profile_styles", "style_id", styles, "styles"),
+    replaceJoin("profile_levels", "level_id", levels, "levels"),
+    replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas"),
+    replaceJoin("profile_certifications", "certification_id", certs, "certifications"),
+    replaceJoin("profile_availability", "availability_tag_id", availability, "availability_tags"),
+  ]);
 
   // NOTE: the Swing tables (swing_availability / swing_styles / swing_levels)
   // are deliberately NOT written here any more. The builder no longer asks for
