@@ -4,15 +4,26 @@
 // with the service-role client (the view is server-only) and filters it from the
 // URL query params via the pure filter layer in src/lib/roster/filters.ts.
 //
-// Filter bar (clean, §8): style · level · certification · availability ·
-// location · text search. Role is a CATEGORY (tabs), never a filter chip;
-// honorifics render as recognition on cards but are NEVER filters (§13,
-// no-endorsement).
+// Filter bar (clean, §8): style · level · certification · location · text
+// search. Role is a CATEGORY (tabs), never a filter chip; honorifics render as
+// recognition on cards but are NEVER filters (§13, no-endorsement).
 //
-// Availability (2026-07-24) is the facet that makes the real studio question
-// answerable — "Jazz teachers, available weekends, CPR-certified". It comes in
-// two flavours from one table: when someone can work ("general") and what
-// they're taking on ("currently", e.g. accepting commissions).
+// ── 2026-08-25 repair ──
+// This page was querying the deprecated single `primary_role` column, which no
+// longer exists on `roster_profiles` (the view moved to a multi-role
+// `role_slugs` array some time ago) — every Roster query was failing outright
+// as a result (PostgREST 42703, "column does not exist"), so the page always
+// rendered its normal empty state. Fixed: role now matches `role_slugs`
+// (ANY-within), and the category tabs are read live from `role_types` instead
+// of a hardcoded 3-role list, so every current and future talent role works
+// without another list to maintain (see EXCLUDED_ROSTER_ROLES in filters.ts
+// for the one deliberate exclusion — studio_owner).
+//
+// Availability (general + "currently accepting") is REMOVED from this page
+// (founder decision, 2026-08-25) — Available This Week is the real, actionable
+// answer to "when can I book this person." The `availability_tags` table,
+// `profile_availability` join, and the view's `availability_slugs` column are
+// untouched; only this page's fetch/filter/copy surface is gone.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -22,7 +33,7 @@ import { hasAnyActiveMembership } from "@/lib/membership/access";
 import {
   parseRosterParams,
   hasNoActiveFilters,
-  ROSTER_CATEGORIES,
+  EXCLUDED_ROSTER_ROLES,
   ROSTER_PAGE_SIZE,
   type RosterFilters,
 } from "@/lib/roster/filters";
@@ -31,13 +42,12 @@ export const dynamic = "force-dynamic";
 
 type Option = { slug: string; label: string };
 type RegionOption = { id: string; label: string };
-type AvailOption = Option & { kind: "general" | "currently" };
 
 type Card = {
   profile_id: string;
   display_name: string;
   public_slug: string;
-  primary_role: string | null;
+  role_slugs: string[] | null;
   city: string | null;
   state_province: string | null;
   country: string | null;
@@ -46,7 +56,6 @@ type Card = {
   honorifics: string[] | null;
   style_slugs: string[] | null;
   level_slugs: string[] | null;
-  availability_slugs: string[] | null;
   years_experience: string | null;
 };
 
@@ -66,7 +75,6 @@ function href(base: RosterFilters, patch: Partial<Record<string, string | string
     style: base.styles,
     level: base.levels,
     cert: base.certs,
-    avail: base.availability,
     region: base.region,
     state: base.state,
     q: base.q,
@@ -77,6 +85,16 @@ function href(base: RosterFilters, patch: Partial<Record<string, string | string
   const s = p.toString();
   return s ? `/roster?${s}` : "/roster";
 }
+
+const CLEARED: Partial<RosterFilters> = {
+  styles: [],
+  levels: [],
+  certs: [],
+  region: null,
+  state: null,
+  q: null,
+  page: 1,
+};
 
 export default async function RosterPage({
   searchParams,
@@ -93,48 +111,45 @@ export default async function RosterPage({
 
   const filters = parseRosterParams(await searchParams);
 
-  // ---- Pick-lists for the filter bar (world-readable) --------------------
+  // ---- Pick-lists for the filter bar / category tabs (world-readable) ----
   const admin = createAdminClient();
-  const [stylesRes, levelsRes, certsRes, regionsRes, availRes] = await Promise.all([
+  const [stylesRes, levelsRes, certsRes, regionsRes, roleTypesRes] = await Promise.all([
     admin.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     admin.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     admin.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
     admin.from("regions").select("id, label").eq("is_active", true).order("sort_order"),
-    admin
-      .from("availability_tags")
-      .select("slug, label, kind")
-      .eq("is_active", true)
-      .order("sort_order"),
+    admin.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
   ]);
   const styleOptions = (stylesRes.data ?? []) as Option[];
   const levelOptions = (levelsRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
   const regionOptions = (regionsRes.data ?? []) as RegionOption[];
-  const availOptions = (availRes.data ?? []) as AvailOption[];
-  const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
+  // Live from role_types, minus the deliberate exclusion (studios aren't a
+  // talent category) — the whole point of the repair is that this list needs
+  // no further maintenance as roles are added.
+  const roleOptions = ((roleTypesRes.data ?? []) as Option[]).filter(
+    (r) => !EXCLUDED_ROSTER_ROLES.has(r.slug),
+  );
   const labelOf = (opts: Option[]) => Object.fromEntries(opts.map((o) => [o.slug, o.label]));
   const styleLabel = labelOf(styleOptions);
   const levelLabel = labelOf(levelOptions);
+  const roleLabel = labelOf(roleOptions);
 
   // ---- Query the roster view (server-only) with the applied filters ------
   const from = (filters.page - 1) * ROSTER_PAGE_SIZE;
   let query = admin
     .from("roster_profiles")
     .select(
-      "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
-        "headshot_url, verification_flag, honorifics, style_slugs, level_slugs, " +
-        "availability_slugs, years_experience",
+      "profile_id, display_name, public_slug, role_slugs, city, state_province, country, " +
+        "headshot_url, verification_flag, honorifics, style_slugs, level_slugs, years_experience",
       { count: "exact" },
     )
     .eq("owner_active", true);
 
-  if (filters.role) query = query.eq("primary_role", filters.role);
+  if (filters.role) query = query.overlaps("role_slugs", [filters.role]);
   if (filters.styles.length) query = query.overlaps("style_slugs", filters.styles);
   if (filters.levels.length) query = query.overlaps("level_slugs", filters.levels);
   if (filters.certs.length) query = query.overlaps("cert_slugs", filters.certs);
-  if (filters.availability.length)
-    query = query.overlaps("availability_slugs", filters.availability);
   if (filters.region) query = query.eq("region_id", filters.region);
   if (filters.state) query = query.ilike("state_province", filters.state);
   if (filters.q) query = query.textSearch("search_tsv", filters.q, { type: "websearch" });
@@ -169,12 +184,12 @@ export default async function RosterPage({
       </div>
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Find a professional</h1>
       <p className="mt-2 text-neutral-600">
-        Vetted, verified dance professionals. Search by style, level, certification, availability,
-        and location.
+        Vetted, verified dance professionals. Search by style, level, certification, and location.
       </p>
 
       {/* Category tabs (role) — a category, not a filter (§8). Switching a tab
-          keeps your other filters. */}
+          keeps your other filters. Read live from role_types, not a hardcoded
+          list. */}
       <nav className="mt-8 flex flex-wrap gap-2">
         <Link
           href={href(filters, { role: null, page: null })}
@@ -186,7 +201,7 @@ export default async function RosterPage({
         >
           Everyone
         </Link>
-        {ROSTER_CATEGORIES.map((c) => (
+        {roleOptions.map((c) => (
           <Link
             key={c.slug}
             href={href(filters, { role: c.slug, page: null })}
@@ -230,18 +245,13 @@ export default async function RosterPage({
         <FilterChips title="Style" name="style" options={styleOptions} selected={filters.styles} chipCls={chipCls} />
         <FilterChips title="Teaching level" name="level" options={levelOptions} selected={filters.levels} chipCls={chipCls} />
         <FilterChips title="Certification" name="cert" options={certOptions} selected={filters.certs} chipCls={chipCls} />
-        {/* Both availability groups post to the same `avail` param — one facet,
-            two headings, so the labels stay meaningful without splitting the
-            filter logic in two. */}
-        <FilterChips title="Availability" name="avail" options={generalAvail} selected={filters.availability} chipCls={chipCls} />
-        <FilterChips title="Currently accepting" name="avail" options={currentlyAvail} selected={filters.availability} chipCls={chipCls} />
 
         <div className="flex flex-wrap items-center gap-4">
           <button type="submit" className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white">
             Apply filters
           </button>
           {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="text-sm text-neutral-500 underline">
+            <Link href={href({ ...filters, ...CLEARED }, {})} className="text-sm text-neutral-500 underline">
               Clear filters
             </Link>
           )}
@@ -264,7 +274,7 @@ export default async function RosterPage({
         <div className="mt-6 rounded-xl border border-dashed border-neutral-300 px-6 py-16 text-center">
           <p className="text-neutral-600">No professionals match these filters yet.</p>
           {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, styles: [], levels: [], certs: [], availability: [], region: null, state: null, q: null, page: 1 }, {})} className="mt-3 inline-block text-sm text-neutral-500 underline">
+            <Link href={href({ ...filters, ...CLEARED }, {})} className="mt-3 inline-block text-sm text-neutral-500 underline">
               Clear filters
             </Link>
           )}
@@ -273,6 +283,8 @@ export default async function RosterPage({
         <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => {
             const location = [c.city, c.state_province, c.country].filter(Boolean).join(", ");
+            const roles = c.role_slugs ?? [];
+            const roleText = roles.map((r) => roleLabel[r] ?? titleCase(r)).join(" / ");
             const chips = [
               ...(c.style_slugs ?? []).map((s) => styleLabel[s] ?? titleCase(s)),
               ...(c.level_slugs ?? []).map((l) => levelLabel[l] ?? titleCase(l)),
@@ -298,8 +310,8 @@ export default async function RosterPage({
                       )}
                     </div>
                     <p className="truncate text-sm text-neutral-600">
-                      {c.primary_role ? titleCase(c.primary_role) : ""}
-                      {c.primary_role && location ? " · " : ""}
+                      {roleText}
+                      {roleText && location ? " · " : ""}
                       {location}
                     </p>
                   </div>

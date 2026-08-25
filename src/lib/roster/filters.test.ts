@@ -3,6 +3,7 @@ import {
   parseRosterParams,
   profileMatchesFilters,
   hasNoActiveFilters,
+  EXCLUDED_ROSTER_ROLES,
   type RosterRow,
 } from "./filters";
 
@@ -17,7 +18,6 @@ describe("parseRosterParams", () => {
       styles: [],
       levels: [],
       certs: [],
-      availability: [],
       region: null,
       state: null,
       q: null,
@@ -26,12 +26,23 @@ describe("parseRosterParams", () => {
     expect(hasNoActiveFilters(f)).toBe(true);
   });
 
-  it("accepts a known role and rejects an unknown one", () => {
+  it("accepts any role slug — the category list is now dynamic (role_types), not a fixed allowlist", () => {
     expect(parseRosterParams({ role: "teacher" }).role).toBe("teacher");
     expect(parseRosterParams({ role: "choreographer" }).role).toBe("choreographer");
-    // studio_owner is not a talent category
+    // A role added long after any hardcoded list existed still works.
+    expect(parseRosterParams({ role: "audition_coach" }).role).toBe("audition_coach");
+    expect(parseRosterParams({ role: "college_university_faculty" }).role).toBe(
+      "college_university_faculty",
+    );
+  });
+
+  it("still rejects studio_owner — studios are the employer side, not talent (build spec §8)", () => {
     expect(parseRosterParams({ role: "studio_owner" }).role).toBeNull();
-    expect(parseRosterParams({ role: "nonsense" }).role).toBeNull();
+    expect(EXCLUDED_ROSTER_ROLES.has("studio_owner")).toBe(true);
+  });
+
+  it("normalizes role casing", () => {
+    expect(parseRosterParams({ role: "Teacher" }).role).toBe("teacher");
   });
 
   it("parses repeated and comma-separated multi-values, de-duped and lowercased", () => {
@@ -55,11 +66,10 @@ describe("parseRosterParams", () => {
 });
 
 const base: RosterRow = {
-  primary_role: "teacher",
+  role_slugs: ["teacher"],
   style_slugs: ["ballet", "contemporary"],
   level_slugs: ["advanced", "professional"],
   cert_slugs: ["abt-ntc"],
-  availability_slugs: ["weekends", "willing-to-travel", "accepting-choreography"],
   region_id: "region-nj",
   state_province: "NJ",
   display_name: "Ava Marchetti",
@@ -75,9 +85,16 @@ describe("profileMatchesFilters", () => {
     expect(profileMatchesFilters({ ...base, owner_active: false }, parseRosterParams({}))).toBe(false);
   });
 
-  it("filters by role category", () => {
+  it("filters by role — ANY-within role_slugs, not the old single primary_role equality", () => {
     expect(profileMatchesFilters(base, parseRosterParams({ role: "teacher" }))).toBe(true);
     expect(profileMatchesFilters(base, parseRosterParams({ role: "choreographer" }))).toBe(false);
+  });
+
+  it("matches a profile holding MULTIPLE roles against whichever tab is selected", () => {
+    const multiRole: RosterRow = { ...base, role_slugs: ["teacher", "choreographer"] };
+    expect(profileMatchesFilters(multiRole, parseRosterParams({ role: "teacher" }))).toBe(true);
+    expect(profileMatchesFilters(multiRole, parseRosterParams({ role: "choreographer" }))).toBe(true);
+    expect(profileMatchesFilters(multiRole, parseRosterParams({ role: "working_dancer" }))).toBe(false);
   });
 
   it("style/level/cert are ANY-within-facet (overlap)", () => {
@@ -111,36 +128,24 @@ describe("profileMatchesFilters", () => {
   it("tolerates null facet arrays", () => {
     const sparse: RosterRow = {
       ...base,
+      role_slugs: null,
       style_slugs: null,
       level_slugs: null,
       cert_slugs: null,
-      availability_slugs: null,
     };
     expect(profileMatchesFilters(sparse, parseRosterParams({}))).toBe(true);
     expect(profileMatchesFilters(sparse, parseRosterParams({ style: "ballet" }))).toBe(false);
-    expect(profileMatchesFilters(sparse, parseRosterParams({ avail: "weekends" }))).toBe(false);
+    expect(profileMatchesFilters(sparse, parseRosterParams({ role: "teacher" }))).toBe(false);
   });
 
-  // Availability (revisions 2026-07-24 §9). Both kinds of tag — when someone can
-  // work, and what they're taking on — share the single `avail` facet.
-  it("filters by availability, ANY-within-facet", () => {
-    expect(profileMatchesFilters(base, parseRosterParams({ avail: "weekends" }))).toBe(true);
-    expect(profileMatchesFilters(base, parseRosterParams({ avail: "saturdays" }))).toBe(false);
-    // ANY: has weekends, not summers-only → still a match
-    expect(profileMatchesFilters(base, parseRosterParams({ avail: "summers-only,weekends" }))).toBe(true);
-  });
-
-  it("treats 'currently accepting' tags as the same facet as general availability", () => {
-    expect(profileMatchesFilters(base, parseRosterParams({ avail: "accepting-choreography" }))).toBe(true);
-    expect(profileMatchesFilters(base, parseRosterParams({ avail: "available-for-adjudication" }))).toBe(false);
-  });
-
-  it("answers the studio's real question: jazz teacher, weekends, CPR-certified", () => {
-    // The query from PROFILE-REVISIONS-FROM-KATHLEEN.md, as a filter.
+  it("answers the studio's real question: jazz teacher, NJ, CPR-certified", () => {
+    // A variant of the classic query from PROFILE-REVISIONS-FROM-KATHLEEN.md,
+    // with availability removed (2026-08-25) — location + style + cert now
+    // carry the "can I actually book this person" answer instead.
     const query = parseRosterParams({
       role: "teacher",
       style: "jazz",
-      avail: "weekends",
+      state: "NJ",
       cert: "cpr-first-aid",
     });
 
@@ -152,17 +157,12 @@ describe("profileMatchesFilters", () => {
       display_name: "Jordan Reyes",
       style_slugs: ["jazz", "hip-hop"],
       cert_slugs: ["cpr-first-aid", "safe-sport"],
-      availability_slugs: ["weekends", "willing-to-travel"],
     };
     expect(profileMatchesFilters(match, query)).toBe(true);
 
-    // Same person, but only free weekends in summer → drops out.
+    // Same person, but in NY instead → drops out on state.
     expect(
-      profileMatchesFilters({ ...match, availability_slugs: ["summers-only"] }, query),
+      profileMatchesFilters({ ...match, state_province: "NY" }, query),
     ).toBe(false);
-  });
-
-  it("counts availability as an active filter (so 'Clear filters' shows)", () => {
-    expect(hasNoActiveFilters(parseRosterParams({ avail: "weekends" }))).toBe(false);
   });
 });
