@@ -1,12 +1,24 @@
-// THE ROSTER — the searchable directory of vetted professionals (build spec §8;
-// CLAUDE.md 4C, "the heart"). Discovery is a paid member benefit (§5), so the
-// page is gated behind an ACTIVE membership. Reads the `roster_profiles` view
-// with the service-role client (the view is server-only) and filters it from the
-// URL query params via the pure filter layer in src/lib/roster/filters.ts.
+// THE ROSTER — the public, searchable directory of vetted professionals
+// (build spec §8; CLAUDE.md 4C, "the heart"). Reads the `roster_profiles` view
+// with the service-role client (the view is server-only, and already returns
+// only published/public/active-membership profiles regardless of who's
+// asking) and filters it from the URL query params via the pure filter layer
+// in src/lib/roster/filters.ts.
 //
 // Filter bar (clean, §8): style · level · certification · location · text
 // search. Role is a CATEGORY (tabs), never a filter chip; honorifics render as
 // recognition on cards but are NEVER filters (§13, no-endorsement).
+//
+// ── 2026-08-25 made public ──
+// Browsing the Roster no longer requires signing in or holding a membership
+// (founder decision: the Roster is a public "Who's Who" — seeing respected
+// professionals listed is what creates the desire to join, so membership must
+// not gate merely SEEING who's on it). The former sign-in + active-membership
+// redirect gate is removed; nothing else in this file ever depended on the
+// signed-in user, since every real query here already ran through the
+// service-role client. Gated actions — saving/favoriting (`/roster/saved`),
+// messaging, booking, purchasing/licensing, Swing/This Week, profile editing —
+// are UNCHANGED and still require sign-in, enforced on their own routes.
 //
 // ── 2026-08-25 repair ──
 // This page was querying the deprecated single `primary_role` column, which no
@@ -26,10 +38,7 @@
 // untouched; only this page's fetch/filter/copy surface is gone.
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasAnyActiveMembership } from "@/lib/membership/access";
 import {
   parseRosterParams,
   hasNoActiveFilters,
@@ -101,14 +110,7 @@ export default async function RosterPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // ---- Gate: signed in + an active membership (§5) ------------------------
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?from=roster");
-  if (!(await hasAnyActiveMembership(supabase, user.id))) redirect("/subscribe?from=roster");
-
+  // No sign-in / membership gate here — the Roster is public (see header).
   const filters = parseRosterParams(await searchParams);
 
   // ---- Pick-lists for the filter bar / category tabs (world-readable) ----
