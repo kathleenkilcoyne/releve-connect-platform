@@ -1,0 +1,42 @@
+/* Roster design tokens — BLACK · CREAM · GOLD, applied to the public Roster.
+ *
+ * Relevé's palette is always these three (founder, 2026-07-20); the values
+ * here are the SAME ones already established in components/home/tokens.css,
+ * not a new palette. Scoped to `.roster-scope` on purpose — exactly like the
+ * homepage's and This Week's own tokens — so the Roster can carry the full
+ * brand treatment (cream ground, serif headings) without touching any other
+ * page's styling.
+ *
+ * Two tokens are new here (--rc-paper, --rc-line): the homepage never needed
+ * a "lighter grid ground" or a hairline-border color, because it isn't a
+ * results grid. Same ink/gold/cream/black values as home; this file only
+ * adds what a card grid specifically needs.
+ */
+
+.roster-scope {
+  --rc-cream: #f5eee1; /* hero ground */
+  --rc-cream-2: #efe6d5; /* card ground — one step down from cream */
+  --rc-paper: #fffdf9; /* results-grid ground — one step lighter than cream, so cards read crisp */
+  --rc-ink: #1e1a17; /* body text */
+  --rc-ink-soft: #3c3630;
+  --rc-muted: #6d6459;
+  --rc-line: #e3d9c3; /* hairline borders */
+  --rc-gold: #b6912f; /* the working gold: buttons, rules, accents */
+  --rc-gold-bright: #d9b85f; /* on black/photo only — b6912f is too dim there */
+  --rc-black: #0e0b0a; /* photo scrim, primary buttons */
+
+  /* Serif is the brand voice — identical stack to home/This Week. */
+  --font-rc-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+
+  background: var(--rc-paper);
+  color: var(--rc-ink);
+}
+
+/* Respect a reader who has asked for less motion — the card lift on hover is
+   decorative, matching the same rule in home/tokens.css. */
+@media (prefers-reduced-motion: reduce) {
+  .roster-scope * {
+    transition-duration: 0.001ms !important;
+  }
+}

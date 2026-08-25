@@ -5,20 +5,25 @@
 // asking) and filters it from the URL query params via the pure filter layer
 // in src/lib/roster/filters.ts.
 //
-// Filter bar (clean, §8): style · level · certification · location · text
-// search. Role is a CATEGORY (tabs), never a filter chip; honorifics render as
-// recognition on cards but are NEVER filters (§13, no-endorsement).
+// ── 2026-08-25 redesigned ──
+// Visual redesign only (founder direction: "results first, filters second" —
+// a curated, prestigious "Who's Who," not a database form). NONE of the data
+// fetching, query building, or filter semantics below changed from the
+// pre-redesign page — same fields, same predicates, same `filters.ts`. Only
+// the JSX changed: a compact cream/gold hero (scoped via
+// components/roster/tokens.css, the same pattern the homepage and This Week
+// already use — see that file's header), role tabs capped to the first 3
+// (by sort_order, after EXCLUDED_ROSTER_ROLES) plus a "+ More" disclosure,
+// the Region/State/Style/Level/Cert controls moved into RosterFilterTray (a
+// single collapsed <details>, closed by default, no client JS), and each
+// result rendered as a portrait RosterProfileCard instead of a small avatar
+// row. The hero search field and the filter tray share ONE <form> (as
+// before), so Enter-to-search and Apply-filters both submit every active
+// param together.
 //
-// ── 2026-08-25 made public ──
-// Browsing the Roster no longer requires signing in or holding a membership
-// (founder decision: the Roster is a public "Who's Who" — seeing respected
-// professionals listed is what creates the desire to join, so membership must
-// not gate merely SEEING who's on it). The former sign-in + active-membership
-// redirect gate is removed; nothing else in this file ever depended on the
-// signed-in user, since every real query here already ran through the
-// service-role client. Gated actions — saving/favoriting (`/roster/saved`),
-// messaging, booking, purchasing/licensing, Swing/This Week, profile editing —
-// are UNCHANGED and still require sign-in, enforced on their own routes.
+// Public access, the auth-free gate removed 2026-08-25, [handle] public
+// profiles, and every gated member action (/roster/saved, messaging,
+// booking, Swing/This Week, profile editing) are UNCHANGED by this pass.
 //
 // ── 2026-08-25 repair ──
 // This page was querying the deprecated single `primary_role` column, which no
@@ -46,6 +51,9 @@ import {
   ROSTER_PAGE_SIZE,
   type RosterFilters,
 } from "@/lib/roster/filters";
+import RosterProfileCard from "./RosterProfileCard";
+import RosterFilterTray from "./RosterFilterTray";
+import "@/components/roster/tokens.css";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +113,18 @@ const CLEARED: Partial<RosterFilters> = {
   page: 1,
 };
 
+/** The role row stays compact — Everyone plus the first few roles, never a
+ *  wall of tabs. The rest live behind "+ More". Driven by role_types'
+ *  existing sort_order, not a second hardcoded list — today that's exactly
+ *  Teacher / Educator, Choreographer, Dancer. */
+const FEATURED_ROLE_COUNT = 3;
+
+function rolePillCls(active: boolean) {
+  return active
+    ? "rounded-full bg-[color:var(--rc-black)] px-4 py-1.5 text-sm font-medium text-white"
+    : "rounded-full border border-[color:var(--rc-line)] bg-[color:var(--rc-paper)] px-4 py-1.5 text-sm font-medium text-[color:var(--rc-ink-soft)] hover:border-[color:var(--rc-gold)] hover:text-[color:var(--rc-ink)]";
+}
+
 export default async function RosterPage({
   searchParams,
 }: {
@@ -132,12 +152,19 @@ export default async function RosterPage({
   const roleOptions = ((roleTypesRes.data ?? []) as Option[]).filter(
     (r) => !EXCLUDED_ROSTER_ROLES.has(r.slug),
   );
+  const featuredRoles = roleOptions.slice(0, FEATURED_ROLE_COUNT);
+  const moreRoles = roleOptions.slice(FEATURED_ROLE_COUNT);
+  // If the active role is one that's tucked under "+ More", open that
+  // disclosure by default so the current selection is never hidden.
+  const activeRoleIsHidden = Boolean(filters.role) && moreRoles.some((r) => r.slug === filters.role);
+
   const labelOf = (opts: Option[]) => Object.fromEntries(opts.map((o) => [o.slug, o.label]));
   const styleLabel = labelOf(styleOptions);
   const levelLabel = labelOf(levelOptions);
   const roleLabel = labelOf(roleOptions);
 
   // ---- Query the roster view (server-only) with the applied filters ------
+  // UNCHANGED from the pre-redesign page — same fields, same predicates.
   const from = (filters.page - 1) * ROSTER_PAGE_SIZE;
   let query = admin
     .from("roster_profiles")
@@ -163,224 +190,182 @@ export default async function RosterPage({
   const cards = (data ?? []) as unknown as Card[];
   const total = count ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / ROSTER_PAGE_SIZE));
-
-  const inputCls =
-    "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
-  const chipCls =
-    "inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white";
+  const clearHref = href({ ...filters, ...CLEARED }, {});
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Relevé · The Roster
-        </p>
-        <div className="flex items-center gap-4">
-          <Link href="/roster/saved" className="text-sm font-medium text-neutral-700 underline">
-            ★ Saved
-          </Link>
-          <Link href="/" className="text-sm text-neutral-500 underline">
-            ← Relevé
-          </Link>
-        </div>
-      </div>
-      <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Find a professional</h1>
-      <p className="mt-2 text-neutral-600">
-        Vetted, verified dance professionals. Search by style, level, certification, and location.
-      </p>
-
-      {/* Category tabs (role) — a category, not a filter (§8). Switching a tab
-          keeps your other filters. Read live from role_types, not a hardcoded
-          list. */}
-      <nav className="mt-8 flex flex-wrap gap-2">
-        <Link
-          href={href(filters, { role: null, page: null })}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-            filters.role === null
-              ? "bg-neutral-900 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-          }`}
-        >
-          Everyone
+    <div className="roster-scope">
+      {/* Utility bar */}
+      <div className="mx-auto flex max-w-[1120px] items-center justify-end gap-5 px-6 pt-4 text-[13px] text-[color:var(--rc-muted)]">
+        <Link href="/roster/saved" className="border-b border-[color:var(--rc-line)] pb-px hover:border-[color:var(--rc-gold)] hover:text-[color:var(--rc-ink)]">
+          ★ Saved
         </Link>
-        {roleOptions.map((c) => (
-          <Link
-            key={c.slug}
-            href={href(filters, { role: c.slug, page: null })}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              filters.role === c.slug
-                ? "bg-neutral-900 text-white"
-                : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-            }`}
-          >
-            {c.label}
-          </Link>
-        ))}
-      </nav>
-
-      {/* Filter bar — plain GET form (no client JS). Preserves the active tab. */}
-      <form method="get" action="/roster" className="mt-6 space-y-5 rounded-xl border border-neutral-200 p-5">
-        {filters.role && <input type="hidden" name="role" value={filters.role} />}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Search name or bio</label>
-            <input name="q" defaultValue={filters.q ?? ""} placeholder="e.g. ballet, Juilliard, Ava…" className={inputCls} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Region</label>
-            <select name="region" defaultValue={filters.region ?? ""} className={inputCls}>
-              <option value="">Any region</option>
-              {regionOptions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">State / Province</label>
-            <input name="state" defaultValue={filters.state ?? ""} placeholder="e.g. NJ" className={inputCls} />
-          </div>
-        </div>
-
-        <FilterChips title="Style" name="style" options={styleOptions} selected={filters.styles} chipCls={chipCls} />
-        <FilterChips title="Teaching level" name="level" options={levelOptions} selected={filters.levels} chipCls={chipCls} />
-        <FilterChips title="Certification" name="cert" options={certOptions} selected={filters.certs} chipCls={chipCls} />
-
-        <div className="flex flex-wrap items-center gap-4">
-          <button type="submit" className="rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white">
-            Apply filters
-          </button>
-          {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, ...CLEARED }, {})} className="text-sm text-neutral-500 underline">
-              Clear filters
-            </Link>
-          )}
-        </div>
-      </form>
-
-      {/* Results */}
-      <div className="mt-8 flex items-baseline justify-between">
-        <p className="text-sm text-neutral-500">
-          {total} {total === 1 ? "professional" : "professionals"}
-        </p>
-        {total > 0 && (
-          <p className="text-sm text-neutral-400">
-            Page {filters.page} of {lastPage}
-          </p>
-        )}
+        <Link href="/" className="border-b border-[color:var(--rc-line)] pb-px hover:border-[color:var(--rc-gold)] hover:text-[color:var(--rc-ink)]">
+          ← Relevé
+        </Link>
       </div>
 
-      {cards.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-neutral-300 px-6 py-16 text-center">
-          <p className="text-neutral-600">No professionals match these filters yet.</p>
-          {!hasNoActiveFilters(filters) && (
-            <Link href={href({ ...filters, ...CLEARED }, {})} className="mt-3 inline-block text-sm text-neutral-500 underline">
-              Clear filters
-            </Link>
-          )}
-        </div>
-      ) : (
-        <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => {
-            const location = [c.city, c.state_province, c.country].filter(Boolean).join(", ");
-            const roles = c.role_slugs ?? [];
-            const roleText = roles.map((r) => roleLabel[r] ?? titleCase(r)).join(" / ");
-            const chips = [
-              ...(c.style_slugs ?? []).map((s) => styleLabel[s] ?? titleCase(s)),
-              ...(c.level_slugs ?? []).map((l) => levelLabel[l] ?? titleCase(l)),
-            ].slice(0, 4);
-            return (
-              <li key={c.profile_id} className="rounded-xl border border-neutral-200 p-5 hover:border-neutral-300">
-                <Link href={`/${c.public_slug}`} className="flex items-start gap-4">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-neutral-100 ring-1 ring-neutral-200">
-                    {c.headshot_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.headshot_url} alt={c.display_name} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-2xl text-neutral-300">☺</div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate font-semibold text-neutral-900">{c.display_name}</span>
-                      {c.verification_flag && (
-                        <span title="Verified Member" className="shrink-0 text-sky-600">
-                          ✓
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-sm text-neutral-600">
-                      {roleText}
-                      {roleText && location ? " · " : ""}
-                      {location}
-                    </p>
-                  </div>
+      {/* Hero — tight on purpose. The first professional should be one scroll
+          away on a phone, not several. */}
+      <header className="border-b border-[color:var(--rc-line)] bg-[color:var(--rc-cream)]">
+        <div className="mx-auto max-w-[1120px] px-6 pb-6 pt-6 text-center">
+          <p className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.2em] text-[color:var(--rc-gold)]">
+            Relevé Connect
+          </p>
+          <h1 className="mb-2 font-[family-name:var(--font-rc-serif)] text-[clamp(28px,4.2vw,42px)] font-normal leading-[1.08] text-[color:var(--rc-black)]">
+            The Professional Roster
+          </h1>
+          <p className="mx-auto mb-[18px] max-w-[480px] font-[family-name:var(--font-rc-serif)] text-[15.5px] italic leading-[1.45] text-[color:var(--rc-ink-soft)]">
+            Vetted, verified dance professionals — the industry&rsquo;s Who&rsquo;s Who.
+          </p>
+
+          {/* One shared form: the hero search field AND the collapsed filter
+              tray below submit together, so Enter here or Apply there both
+              carry every active param. */}
+          <form method="get" action="/roster">
+            {filters.role && <input type="hidden" name="role" value={filters.role} />}
+
+            <div className="relative mx-auto max-w-[520px]">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="pointer-events-none absolute left-[18px] top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--rc-muted)]"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                name="q"
+                defaultValue={filters.q ?? ""}
+                placeholder="Search by name, style, or specialty…"
+                className="w-full rounded-full border border-[color:var(--rc-line)] bg-[color:var(--rc-paper)] py-[13px] pl-11 pr-[18px] text-[15px] text-[color:var(--rc-ink)] outline-none focus:border-[color:var(--rc-gold)] focus:ring-[3px] focus:ring-[rgba(182,145,47,0.14)]"
+              />
+            </div>
+
+            {/* Role navigation — capped, never a wall of tabs. */}
+            <nav className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link href={href(filters, { role: null, page: null })} className={rolePillCls(filters.role === null)}>
+                Everyone
+              </Link>
+              {featuredRoles.map((r) => (
+                <Link key={r.slug} href={href(filters, { role: r.slug, page: null })} className={rolePillCls(filters.role === r.slug)}>
+                  {r.label}
                 </Link>
-                {chips.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {chips.map((chip) => (
-                      <span key={chip} className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs text-neutral-600">
-                        {chip}
-                      </span>
+              ))}
+              {moreRoles.length > 0 && (
+                <details className="inline-block" open={activeRoleIsHidden}>
+                  <summary
+                    className={`inline-flex cursor-pointer list-none items-center gap-1 rounded-full border border-dashed px-4 py-1.5 text-sm font-semibold [&::-webkit-details-marker]:hidden ${
+                      activeRoleIsHidden
+                        ? "border-[color:var(--rc-black)] bg-[color:var(--rc-black)] text-white"
+                        : "border-[color:var(--rc-gold)] text-[color:var(--rc-gold)]"
+                    }`}
+                  >
+                    {activeRoleIsHidden ? roleLabel[filters.role as string] ?? "+ More" : "+ More"}
+                  </summary>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2">
+                    {moreRoles.map((r) => (
+                      <Link key={r.slug} href={href(filters, { role: r.slug, page: null })} className={rolePillCls(filters.role === r.slug)}>
+                        {r.label}
+                      </Link>
                     ))}
                   </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                </details>
+              )}
+            </nav>
 
-      {/* Pagination */}
-      {total > ROSTER_PAGE_SIZE && (
-        <div className="mt-10 flex items-center justify-between">
-          {filters.page > 1 ? (
-            <Link href={href(filters, { page: String(filters.page - 1) })} className="text-sm font-medium text-neutral-700 underline">
-              ← Previous
-            </Link>
-          ) : (
-            <span />
-          )}
-          {filters.page < lastPage ? (
-            <Link href={href(filters, { page: String(filters.page + 1) })} className="text-sm font-medium text-neutral-700 underline">
-              Next →
-            </Link>
-          ) : (
-            <span />
+            {/* Collapsed advanced filters — Region · State · Style · Teaching
+                level · Certification. Closed by default; the trigger only
+                shows a count once something is actually applied. */}
+            <RosterFilterTray
+              filters={filters}
+              regionOptions={regionOptions}
+              styleOptions={styleOptions}
+              levelOptions={levelOptions}
+              certOptions={certOptions}
+              clearHref={clearHref}
+            />
+          </form>
+        </div>
+      </header>
+
+      {/* Results — appear immediately below the hero, nothing else in between. */}
+      <div className="mx-auto max-w-[1120px] px-6">
+        <div className="mt-[26px] flex items-baseline justify-between">
+          <p className="font-[family-name:var(--font-rc-serif)] text-[14.5px] text-[color:var(--rc-ink-soft)]">
+            <b className="font-semibold text-[color:var(--rc-black)]">{total}</b> {total === 1 ? "professional" : "professionals"}
+          </p>
+          {total > 0 && (
+            <p className="text-xs text-[color:var(--rc-muted)]">
+              Page {filters.page} of {lastPage}
+            </p>
           )}
         </div>
-      )}
-    </main>
-  );
-}
 
-function FilterChips({
-  title,
-  name,
-  options,
-  selected,
-  chipCls,
-}: {
-  title: string;
-  name: string;
-  options: Option[];
-  selected: string[];
-  chipCls: string;
-}) {
-  if (options.length === 0) return null;
-  const sel = new Set(selected);
-  return (
-    <div>
-      <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-neutral-500">{title}</p>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <label key={o.slug} className={chipCls}>
-            <input type="checkbox" name={name} value={o.slug} defaultChecked={sel.has(o.slug)} className="sr-only" />
-            {o.label}
-          </label>
-        ))}
+        {cards.length === 0 ? (
+          <div className="mt-6 rounded-xl border border-dashed border-[color:var(--rc-line)] px-6 py-16 text-center">
+            <p className="text-[color:var(--rc-ink-soft)]">No professionals match these filters yet.</p>
+            {!hasNoActiveFilters(filters) && (
+              <a href={clearHref} className="mt-3 inline-block text-sm text-[color:var(--rc-muted)] underline">
+                Clear filters
+              </a>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-[18px] sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
+            {cards.map((c) => {
+              const location = [c.city, c.state_province, c.country].filter(Boolean).join(", ");
+              const roles = c.role_slugs ?? [];
+              const roleText = roles.map((r) => roleLabel[r] ?? titleCase(r)).join(" / ");
+              const tags = [
+                ...(c.style_slugs ?? []).map((s) => styleLabel[s] ?? titleCase(s)),
+                ...(c.level_slugs ?? []).map((l) => levelLabel[l] ?? titleCase(l)),
+              ].slice(0, 2);
+              // An editorial credit line, sourced from the admin-conferred
+              // honorifics already fetched above (e.g. "Founding Artist",
+              // "Master Teacher") — NOT founder_distinction ("Founding
+              // Professional"/"Founding 25"), which the roster_profiles view
+              // does not expose; adding it would need a schema change, out of
+              // scope for this visual-only pass.
+              const mark = (c.honorifics ?? [])[0] ?? null;
+              return (
+                <RosterProfileCard
+                  key={c.profile_id}
+                  slug={c.public_slug}
+                  displayName={c.display_name}
+                  headshotUrl={c.headshot_url}
+                  verified={c.verification_flag}
+                  roleText={roleText}
+                  location={location}
+                  tags={tags}
+                  mark={mark}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {total > ROSTER_PAGE_SIZE && (
+          <div className="mt-10 flex items-center justify-between pb-16">
+            {filters.page > 1 ? (
+              <Link href={href(filters, { page: String(filters.page - 1) })} className="text-sm font-medium text-[color:var(--rc-ink-soft)] underline">
+                ← Previous
+              </Link>
+            ) : (
+              <span />
+            )}
+            {filters.page < lastPage ? (
+              <Link href={href(filters, { page: String(filters.page + 1) })} className="text-sm font-medium text-[color:var(--rc-ink-soft)] underline">
+                Next →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </div>
+        )}
+        {total <= ROSTER_PAGE_SIZE && <div className="pb-16" />}
       </div>
     </div>
   );
