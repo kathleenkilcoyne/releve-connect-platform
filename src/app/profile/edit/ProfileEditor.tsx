@@ -148,12 +148,17 @@ export default function ProfileEditor({
       {/* Professional roles ---------------------------------------------
           Every active role that applies to you — not just one. This is what
           shows on your public profile and the Roster; check as many as fit. */}
-      <CheckGroup
-        title="Professional roles"
-        name="roles"
-        options={roleOptions}
-        selected={selectedRoles}
-      />
+      <div>
+        <CheckGroup
+          title="Professional roles"
+          name="roles"
+          options={roleOptions}
+          selected={selectedRoles}
+        />
+        <p className="mt-2 text-xs text-neutral-500">
+          Check at least one — this is required before your profile can be saved.
+        </p>
+      </div>
 
       {/* Basics --------------------------------------------------------- */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
