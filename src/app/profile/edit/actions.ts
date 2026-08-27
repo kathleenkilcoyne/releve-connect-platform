@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { getActiveProfessionalRoleSlugs, filterToActiveRoles } from "@/lib/professional/active-roles";
 
 export type SaveState = {
   ok: boolean;
@@ -42,7 +43,6 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   if (!displayName) return { ok: false, message: "Please enter your name." };
 
   const bio = String(formData.get("bio") ?? "").trim();
-  const primaryRole = String(formData.get("primary_role") ?? "").trim() || null;
   const city = String(formData.get("city") ?? "").trim() || null;
   const stateProvince = String(formData.get("state_province") ?? "").trim() || null;
   const country = String(formData.get("country") ?? "").trim() || null;
@@ -64,9 +64,22 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const levels = formData.getAll("levels").map(String).filter(Boolean);
   const focus = formData.getAll("focus").map(String).filter(Boolean);
   const certs = formData.getAll("certs").map(String).filter(Boolean);
-  // Both availability groups ("general" + "currently") post under one name, so
-  // they land here as a single list and save as one facet.
-  const availability = formData.getAll("availability").map(String).filter(Boolean);
+
+  // ---- Professional roles ---------------------------------------------------
+  // Validated against role_types LIVE (is_active = true) — the same source the
+  // editor's checkboxes were rendered from — rather than any hardcoded list, so
+  // a retired role (working_dancer, coach) or a tampered-with value can never
+  // be saved, and every currently-active role can, with no code change needed
+  // when the taxonomy grows.
+  const activeRoleSlugs = await getActiveProfessionalRoleSlugs(supabase);
+  const roles = filterToActiveRoles(formData.getAll("roles").map(String).filter(Boolean), activeRoleSlugs);
+  if (roles.length === 0) {
+    return { ok: false, message: "Please select at least one professional role." };
+  }
+  // The chosen "lead" role must be one you actually checked; otherwise fall
+  // back to the first one, exactly as the application form already does.
+  const requestedPrimary = String(formData.get("primary_role") ?? "").trim();
+  const primaryRole = roles.includes(requestedPrimary) ? requestedPrimary : roles[0];
 
   const social: Record<string, string> = {};
   // facebook + tiktok added 2026-07-24. A key missing from this list is silently
@@ -316,12 +329,17 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   // dependency between them), so running them concurrently instead of one
   // after another (2026-08-23 perf fix) cuts ~15 sequential round trips down
   // to ~3 — the internal delete-then-select-then-insert of the slowest one.
+  //
+  // profile_roles replaces profile_availability here (2026-08-26): the generic
+  // Availability facet was removed from this form, and a professional's full
+  // active role set — not just primary_role — now needs to be rewritten on
+  // every save the same way styles/levels/focus already are.
   await Promise.all([
     replaceJoin("profile_styles", "style_id", styles, "styles"),
     replaceJoin("profile_levels", "level_id", levels, "levels"),
     replaceJoin("profile_focus_areas", "focus_area_id", focus, "focus_areas"),
     replaceJoin("profile_certifications", "certification_id", certs, "certifications"),
-    replaceJoin("profile_availability", "availability_tag_id", availability, "availability_tags"),
+    replaceJoin("profile_roles", "role_id", roles, "role_types"),
   ]);
 
   // NOTE: the Swing tables (swing_availability / swing_styles / swing_levels)

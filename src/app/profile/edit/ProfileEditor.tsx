@@ -2,13 +2,12 @@
 
 // The interactive profile form. On submit it calls the saveProfile server
 // action; React shows "Saving…", then a success or error message. Checkbox
-// groups (styles / levels / focus) submit their checked values as arrays.
+// groups (roles / styles / levels / focus) submit their checked values as arrays.
 
 import { useActionState, useState } from "react";
 import { saveProfile, type SaveState } from "./actions";
 
 type Option = { slug: string; label: string };
-type AvailOption = Option & { kind: "general" | "currently" };
 
 type Initial = {
   display_name: string;
@@ -45,12 +44,11 @@ export default function ProfileEditor({
   focusOptions,
   roleOptions,
   certOptions,
-  availOptions,
   selectedStyles,
   selectedLevels,
   selectedFocus,
   selectedCerts,
-  selectedAvailability,
+  selectedRoles,
 }: {
   initial: Initial;
   styleOptions: Option[];
@@ -58,12 +56,11 @@ export default function ProfileEditor({
   focusOptions: Option[];
   roleOptions: Option[];
   certOptions: Option[];
-  availOptions: AvailOption[];
   selectedStyles: string[];
   selectedLevels: string[];
   selectedFocus: string[];
   selectedCerts: string[];
-  selectedAvailability: string[];
+  selectedRoles: string[];
 }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveProfile, {
     ok: false,
@@ -88,11 +85,6 @@ export default function ProfileEditor({
   const [resumePicked, setResumePicked] = useState<string>("");
 
   const social = initial?.social_links ?? {};
-
-  // Availability comes from one table in two flavours: when you can work, and
-  // what you're taking on right now. Rendered as two groups, saved as one facet.
-  const generalAvail = availOptions.filter((a) => a.kind === "general");
-  const currentlyAvail = availOptions.filter((a) => a.kind === "currently");
 
   return (
     <form action={formAction} className="mt-8 space-y-10">
@@ -153,6 +145,16 @@ export default function ProfileEditor({
         />
       </section>
 
+      {/* Professional roles ---------------------------------------------
+          Every active role that applies to you — not just one. This is what
+          shows on your public profile and the Roster; check as many as fit. */}
+      <CheckGroup
+        title="Professional roles"
+        name="roles"
+        options={roleOptions}
+        selected={selectedRoles}
+      />
+
       {/* Basics --------------------------------------------------------- */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -187,6 +189,10 @@ export default function ProfileEditor({
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-neutral-400">
+            Which of your checked roles to lead with. If you leave this blank or pick one you
+            didn&apos;t check above, we&apos;ll use the first one you checked instead.
+          </p>
         </div>
         <div>
           <label className={label}>Years of experience</label>
@@ -451,56 +457,34 @@ export default function ProfileEditor({
         </div>
       </section>
 
-      {/* Availability (revisions 2026-07-24 §9) --------------------------
-          Every checkbox here is a structured tag, not prose, because these are
-          exactly the things a studio searches on: "available weekends",
-          "accepting commissions". The two free-text lines are the exceptions —
-          where you teach is a fact about you, not a facet anyone filters by. */}
+      {/* Currently ------------------------------------------------------
+          Free text, not tags — where you teach or tour is a fact about you,
+          not a facet anyone filters the Roster by. The generic "Availability"
+          chip UI that used to live here (general availability / "I'm
+          currently accepting") is removed: it was a search filter for a
+          Roster facet the Roster no longer exposes, and Available This Week
+          (Swing-backed, below) is the real, dated answer to "when can I book
+          this person." Removed as UI only — the availability_tags table and
+          profile_availability join are untouched for reversibility. */}
       <section className="rounded-xl border border-neutral-200 p-5">
-        <h2 className="text-lg font-semibold text-neutral-900">Availability</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Optional — but this is how studios find you. Each of these is a search filter on the
-          Roster.
-        </p>
-
-        <div className="mt-5">
-          <AvailChipRow
-            title="General availability"
-            name="availability"
-            options={generalAvail}
-            selected={selectedAvailability}
-          />
-        </div>
-
-        <div className="mt-7 border-t border-neutral-200 pt-6">
-          <p className="text-sm font-medium text-neutral-800">Currently</p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Teaching at</label>
-              <input
-                name="teaching_at"
-                defaultValue={initial?.teaching_at}
-                placeholder="e.g. Broadway Dance Center"
-                className={input}
-              />
-            </div>
-            <div>
-              <label className={label}>Touring with</label>
-              <input
-                name="touring_with"
-                defaultValue={initial?.touring_with}
-                placeholder="e.g. Hamilton — National Tour"
-                className={input}
-              />
-            </div>
+        <p className="text-sm font-medium text-neutral-800">Currently</p>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className={label}>Teaching at</label>
+            <input
+              name="teaching_at"
+              defaultValue={initial?.teaching_at}
+              placeholder="e.g. Broadway Dance Center"
+              className={input}
+            />
           </div>
-
-          <div className="mt-5">
-            <AvailChipRow
-              title="I'm currently accepting"
-              name="availability"
-              options={currentlyAvail}
-              selected={selectedAvailability}
+          <div>
+            <label className={label}>Touring with</label>
+            <input
+              name="touring_with"
+              defaultValue={initial?.touring_with}
+              placeholder="e.g. Hamilton — National Tour"
+              className={input}
             />
           </div>
         </div>
@@ -602,43 +586,5 @@ function CheckGroup({
         ))}
       </div>
     </section>
-  );
-}
-
-// A lighter chip group (smaller heading) for fields nested inside a section —
-// used by the Availability groups, which sit under one shared heading.
-function AvailChipRow({
-  title,
-  name,
-  options,
-  selected,
-}: {
-  title: string;
-  name: string;
-  options: Option[];
-  selected: string[];
-}) {
-  const sel = new Set(selected);
-  return (
-    <div>
-      <p className="mb-2 text-xs font-medium uppercase tracking-[0.1em] text-neutral-500">{title}</p>
-      <div className="flex flex-wrap gap-2">
-        {options.map((o) => (
-          <label
-            key={o.slug}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white"
-          >
-            <input
-              type="checkbox"
-              name={name}
-              value={o.slug}
-              defaultChecked={sel.has(o.slug)}
-              className="sr-only"
-            />
-            {o.label}
-          </label>
-        ))}
-      </div>
-    </div>
   );
 }

@@ -40,8 +40,6 @@ type ProfileFields = {
   touring_with: string | null;
 };
 
-type AvailOption = { slug: string; label: string; kind: "general" | "currently" };
-
 export default async function ProfileEditPage() {
   const supabase = await createClient();
   // Memoized per-request (see server.ts) — AdminConsoleLink and ProfessionalNav
@@ -71,17 +69,12 @@ export default async function ProfileEditPage() {
   await activateProfessionalProfile(createAdminClient(), user.id);
 
   // Pick-lists (world-readable).
-  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
+  const [stylesRes, levelsRes, focusRes, rolesRes, certsRes] = await Promise.all([
     supabase.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("levels").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("focus_areas").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("role_types").select("slug, label").eq("is_active", true).order("sort_order"),
     supabase.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
-    supabase
-      .from("availability_tags")
-      .select("slug, label, kind")
-      .eq("is_active", true)
-      .order("sort_order"),
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
@@ -89,7 +82,6 @@ export default async function ProfileEditPage() {
   const focusOptions = (focusRes.data ?? []) as Option[];
   const roleOptions = (rolesRes.data ?? []) as Option[];
   const certOptions = (certsRes.data ?? []) as Option[];
-  const availOptions = (availRes.data ?? []) as AvailOption[];
 
   // My existing profile (own-row only via RLS).
   const { data: profile } = await supabase
@@ -126,15 +118,15 @@ export default async function ProfileEditPage() {
   let selectedLevels: string[] = [];
   let selectedFocus: string[] = [];
   let selectedCerts: string[] = [];
-  let selectedAvailability: string[] = [];
+  let selectedRoles: string[] = [];
   if (p) {
     const pid = p.profile_id;
-    const [ps, pl, pf, pc, pa] = await Promise.all([
+    const [ps, pl, pf, pc, pr] = await Promise.all([
       supabase.from("profile_styles").select("styles(slug)").eq("profile_id", pid),
       supabase.from("profile_levels").select("levels(slug)").eq("profile_id", pid),
       supabase.from("profile_focus_areas").select("focus_areas(slug)").eq("profile_id", pid),
       supabase.from("profile_certifications").select("certifications(slug)").eq("profile_id", pid),
-      supabase.from("profile_availability").select("availability_tags(slug)").eq("profile_id", pid),
+      supabase.from("profile_roles").select("role_types(slug)").eq("profile_id", pid),
     ]);
     const slugsOf = (rows: unknown, key: string): string[] =>
       ((rows as Array<Record<string, { slug: string } | { slug: string }[]>>) ?? [])
@@ -147,7 +139,15 @@ export default async function ProfileEditPage() {
     selectedLevels = slugsOf(pl.data, "levels");
     selectedFocus = slugsOf(pf.data, "focus_areas");
     selectedCerts = slugsOf(pc.data, "certifications");
-    selectedAvailability = slugsOf(pa.data, "availability_tags");
+    selectedRoles = slugsOf(pr.data, "role_types");
+    // Pre-Profile-V2 / never-saved-since-multi-role profiles have no
+    // profile_roles rows yet, only the legacy primary_role column. Fall back
+    // to it so the editor doesn't show an empty, unset-looking role list for
+    // someone who actually has one — the next save populates profile_roles
+    // properly from here on.
+    if (selectedRoles.length === 0 && p.primary_role) {
+      selectedRoles = [p.primary_role];
+    }
   }
 
   return (
@@ -213,12 +213,11 @@ export default async function ProfileEditPage() {
         focusOptions={focusOptions}
         roleOptions={roleOptions}
         certOptions={certOptions}
-        availOptions={availOptions}
         selectedStyles={selectedStyles}
         selectedLevels={selectedLevels}
         selectedFocus={selectedFocus}
         selectedCerts={selectedCerts}
-        selectedAvailability={selectedAvailability}
+        selectedRoles={selectedRoles}
       />
 
       <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
