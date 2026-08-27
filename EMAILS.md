@@ -23,6 +23,15 @@ trigger and current version. If an email isn't in this table, it must not be sen
 > than from the fee-paid webhook. That is still exactly one applicant confirmation and
 > one admin alert. The webhook branch remains wired with the approved fee wording
 > (`APPLICATION_FEE_NOTE`) for when payment is switched back on.
+>
+> **⚠️ Approval no longer auto-grants complimentary membership (2026-08-23).** For a
+> **public** applicant, `approve` in `/admin/applications` now sets Professional Roster
+> status ONLY (email #4 below still fires, but without the "your membership is
+> complimentary" line unless a comp was already granted). Complimentary founding
+> membership requires a second, explicit admin action — `grant_complimentary` in the
+> same route, with its own confirmation, no separate email. This does **not** apply to
+> the invited Founding Professional flow (`/admin/founding-professionals`), which grants
+> its own complimentary membership on invite/claim and is unchanged.
 
 ---
 
@@ -33,7 +42,7 @@ trigger and current version. If an email isn't in this table, it must not be sen
 | 1 | Application received (confirmation) | Applicant clicks **Submit** (free period). Reverts to the $30 fee-paid webhook when payment is on. | Applicant | `application-received.v3` | ✅ implemented |
 | 2 | New application alert | Same event as #1 | Admin (`ADMIN_ALERT_EMAIL`) | `admin-new-application.v1` | ✅ implemented |
 | 3 | Save-and-resume link | **Once**, and only when the applicant LEAVES (tab hidden/closed — the form flags that save). Never on a routine autosave, and never twice (guarded by `resume_email_sent_at`). | Applicant | `application-resume-link.v1` | ✅ implemented |
-| 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Free period: also grants the complimentary first year. | Applicant | `application-approved.v3` | ✅ implemented |
+| 4 | Approved — welcome | **Admin manually approves** (`/admin/applications` → Approve). Grants Professional Roster status only — does NOT grant membership. | Applicant | `application-approved.v3` | ✅ implemented |
 | 5 | Request more information | **Admin manually** requests more info | Applicant | `application-more-info.v2` | ✅ implemented |
 | 6 | Application declined | **Admin manually** declines (also auto-refunds the $30, if one was paid) | Applicant | `application-declined.v2` | ✅ implemented |
 | 7 | Membership active — you're live | Stripe webhook confirms a membership subscription (`checkout.session.completed`, `kind: membership`) | Member | `membership-active.v1` | ✅ implemented (dormant while free) |

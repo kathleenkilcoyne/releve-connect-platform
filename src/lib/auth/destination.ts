@@ -10,6 +10,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStudioForUser } from "@/lib/studio/access";
 import { claimFoundingProfessionalOnSignIn } from "@/lib/founding/founding-professional";
+import { claimPrivateInvitationOnSignIn } from "@/lib/invited-professional/invited-professional";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 
 /**
  * Cookie the family-join gate drops before sending a prospective parent to sign
@@ -55,7 +57,60 @@ export async function resolveSignedInDestination(
     }
   }
 
-  if (requestedNext && requestedNext.startsWith("/")) return requestedNext;
+  // ── Private invitation claim (best-effort, EVERY sign-in) ──
+  // Structurally separate from the Founding Professional claim above — its own
+  // table, its own module, no shared state. If this AUTHENTICATED email matches
+  // a pending private invitation, materialize the complimentary membership +
+  // stamp Verified Member ONLY (never founder_distinction) now, so an invited
+  // professional following their link arrives already activated. Must never
+  // throw into the sign-in path.
+  if (user?.email && admin) {
+    try {
+      await claimPrivateInvitationOnSignIn(admin, user.id, user.email);
+    } catch (err) {
+      console.error("[invited-professional] claim on sign-in failed (ignored):", err);
+    }
+  }
+
+  // ── PROFILE V2 — catch-up activation before an explicit `next` is honored ──
+  // An invite link's `?next=/profile/edit` used to return on the very next line
+  // below, before the draft-check/catch-up further down this function ever ran
+  // — so a first-time activation could be bypassed straight past the review
+  // screen. Worse: claimFoundingProfessionalOnSignIn (above) only ever
+  // activates a grant ONCE — it returns early forever once `claimed_at` is set
+  // (this is already true for grants.id 87d0feaa, dgmrx@yahoo.com, claimed
+  // 2026-08-18 23:24 UTC). Someone in that state, whose invite link always
+  // carries the SAME `next=/profile/edit`, would return from the very next
+  // line on every single sign-in and never reach a catch-up at all.
+  //
+  // Gated on an internal `requestedNext` being present — i.e. exactly the
+  // condition that is about to short-circuit below — so a sign-in with NO
+  // explicit destination keeps its EXISTING routing untouched. That matters:
+  // a family guardian who also happens to hold an eligible but not-yet-active
+  // professional application must NOT be auto-activated just for opening This
+  // Week (see "existing precedence is unchanged" in destination.test.ts) — that
+  // case has no `next` at all, so it is unaffected by this block and still
+  // resolved entirely by the draft-check/catch-up later in this function, in
+  // their original position after the family/org checks.
+  const nextIsInternal = Boolean(requestedNext && requestedNext.startsWith("/"));
+  if (nextIsInternal && user && admin) {
+    try {
+      await activateProfessionalProfile(admin, user.id);
+    } catch (err) {
+      console.error("[profile-activation] catch-up before `next` failed (ignored):", err);
+    }
+
+    const { data: draftCheck } = await admin
+      .from("talent_profiles")
+      .select("profile_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if ((draftCheck as { profile_status?: string } | null)?.profile_status === "draft") {
+      return "/profile/review";
+    }
+  }
+
+  if (nextIsInternal) return requestedNext as string;
 
   // ── Family-join intent (V1 three-paths) ──
   // A FIRST-TIME parent has no family rows yet at sign-in — those are created
@@ -94,9 +149,17 @@ export async function resolveSignedInDestination(
     // and can still open This Week directly.
     const { data: profileRow } = await admin
       .from("talent_profiles")
-      .select("profile_id")
+      .select("profile_id, profile_status")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    // PROFILE V2: a DRAFT means Relevé just created and seeded this profile and
+    // the member has not published it yet. Send them to the review screen —
+    // which explains what was carried across and what publishing means — rather
+    // than dropping them straight into the form.
+    if ((profileRow as { profile_status?: string } | null)?.profile_status === "draft") {
+      return "/profile/review";
+    }
 
     if (!profileRow) {
       // No professional profile — are they a family guardian? (owns a family
@@ -113,6 +176,35 @@ export async function resolveSignedInDestination(
       // professional default which would bounce them to /subscribe.
       const orgId = await resolveStudioForUser(user.id);
       if (orgId) return "/studio/schedule";
+
+      // ── PROFILE V2 — catch-up activation (2026-08-17) ──
+      //
+      // Found in the end-to-end browser test: an APPROVED professional with an
+      // ACTIVE membership but no profile row signed in and landed on /welcome,
+      // the cold-user gateway, asking how they were joining Relevé. They had
+      // already applied, been accepted, and activated.
+      //
+      // The cause: the draft check above has no row to read, and the checks
+      // below are all "who else might you be?". /profile/edit and
+      // /profile/review both run a catch-up activation on load; sign-in routing
+      // was the one door that did not, so whether someone got their profile
+      // depended on which URL they happened to open first.
+      //
+      // This calls the SAME service those pages call — no second creation path,
+      // and every Profile V2 rule stays where it lives:
+      //   · an application alone creates nothing
+      //   · approval alone is not enough without an active paid or authorized
+      //     complimentary membership
+      //   · the profile is seeded once from the accepted application
+      //   · it is always created as a DRAFT
+      //   · trust signals are stamped by activation, never by a member action
+      //
+      // Placed AFTER the family and org checks so their precedence is unchanged,
+      // and so the extra reads only happen for someone who would otherwise have
+      // hit the gateway. `created: false` (not eligible) simply falls through to
+      // the gateway exactly as before.
+      const activation = await activateProfessionalProfile(admin, user.id);
+      if (activation.created) return "/profile/review";
 
       // ── The onboarding gateway (2026-08-06) ──
       // A signed-in person with NO talent profile, NO family/guardianship, and NO

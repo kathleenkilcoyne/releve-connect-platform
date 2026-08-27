@@ -5,12 +5,31 @@
 //
 // PATCH /api/admin/applications/<applicationId>
 //   body: { action, tier?, honorifics?, note? }
-//     action = "approve"        → state=approved (optional `tier` for a choreographer)
-//            | "honorifics"      → set editorial honorifics[] (no state change)
-//            | "request_info"    → state=more-info (+ optional `note`)
-//            | "decline"         → state=declined  AND refund the $30 in full
+//     action = "approve"             → state=approved (optional `tier` for a choreographer).
+//                                       Grants Professional Roster status ONLY — does NOT
+//                                       touch membership/billing. See "grant_complimentary".
+//            | "grant_complimentary"  → a SEPARATE, explicit admin action that grants a
+//                                       complimentary founding membership to an already-
+//                                       approved public applicant. Requires state=approved.
+//            | "honorifics"           → set editorial honorifics[] (no state change)
+//            | "request_info"         → state=more-info (+ optional `note`)
+//            | "decline"              → state=declined  AND refund the $30 in full
 //
 // Emails #4/#5/#6 are MANUAL — they fire here (as seams), never automatically.
+//
+// ── Public applicant approval vs. complimentary membership (2026-08-23) ──
+// Approving a PUBLIC application used to also auto-grant a complimentary founding
+// membership in the same click (the "FREE FOUNDING PERIOD" launch decision,
+// 2026-07-20). That coupling is removed: "approve" now ONLY sets Professional
+// Roster status (state=approved, +tier for a choreographer). Complimentary
+// membership for a public applicant now requires a second, explicit admin
+// action — "grant_complimentary" — so the two decisions (are they vetted? / do
+// they get a free year?) can't be made by a single click ever again.
+//
+// This does NOT touch the invited Founding Professional flow
+// (`src/lib/founding/founding-professional.ts` + `/admin/founding-professionals`).
+// That flow never applies, never runs through this route, and materializes its own
+// complimentary membership directly on grant/claim — unchanged by this file.
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -33,7 +52,7 @@ const APPROVABLE_TIERS = ["emerging", "established", "signature"] as const;
 type ApprovableTier = (typeof APPROVABLE_TIERS)[number];
 
 type Body = {
-  action?: "approve" | "honorifics" | "request_info" | "decline";
+  action?: "approve" | "grant_complimentary" | "honorifics" | "request_info" | "decline";
   tier?: string;
   honorifics?: string[];
   note?: string;
@@ -108,42 +127,45 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const { error } = await db.from("applications").update(update).eq("application_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // FREE FOUNDING PERIOD: approval grants a complimentary first year outright.
-      // Without this the member is accepted but still locked out of the Roster and
-      // the profile builder, which are gated on an active membership.
-      let foundingUntil: string | null = null;
-      let comp: Awaited<ReturnType<typeof grantFoundingMembership>> | null = null;
-      if (app.user_id) {
-        comp = await grantFoundingMembership(db, app.user_id, app.roles);
-        if (comp.granted) {
-          foundingUntil = new Date(comp.renewalDate).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          });
-        } else if (comp.reason === "error") {
-          // Do not fail the approval — the decision is recorded and the comp can
-          // be granted again by re-approving. But make it loud.
-          console.error(
-            `[admin] approved ${id} but the founding membership was NOT granted:`,
-            comp.detail,
-          );
-        }
-      }
-
+      // Roster status ONLY — no membership/billing side effect. Complimentary
+      // access, if any, is a separate explicit "grant_complimentary" action below.
       await fireMailerLiteTag(app.email, "application_approved");
       await sendApplicationApproved({
         to: app.email,
         firstName: app.first_name,
         tierLabel,
-        foundingUntil,
       });
+      return NextResponse.json({ ok: true, state: "approved" });
+    }
+
+    // ---------------------------------------------------------------------
+    // A SEPARATE, explicit admin action — never bundled into "approve". Grants a
+    // complimentary founding membership to a public applicant who has already
+    // been approved for the Professional Roster. Idempotent (see
+    // grantFoundingMembership) — re-clicking on someone already comped/paid is a
+    // safe no-op, not a stacked membership.
+    case "grant_complimentary": {
+      if (app.state !== "approved") {
+        return NextResponse.json(
+          { error: "Only an already-approved applicant can be granted complimentary membership." },
+          { status: 409 },
+        );
+      }
+      if (!app.user_id) {
+        return NextResponse.json(
+          { error: "This applicant has no account yet — nothing to grant." },
+          { status: 409 },
+        );
+      }
+
+      const comp = await grantFoundingMembership(db, app.user_id, app.roles);
+      if (!comp.granted && comp.reason === "error") {
+        return NextResponse.json({ error: comp.detail ?? "Could not grant complimentary membership." }, { status: 500 });
+      }
+
       return NextResponse.json({
         ok: true,
-        state: "approved",
-        foundingMembership: comp?.granted
-          ? { tier: comp.tier, until: comp.renewalDate }
-          : (comp?.reason ?? null),
+        foundingMembership: comp.granted ? { tier: comp.tier, until: comp.renewalDate } : comp.reason,
       });
     }
 

@@ -5,7 +5,9 @@
 // Still uses the PUBLIC (anon) key — permissions are enforced by the database.
 
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -43,3 +45,26 @@ export async function createClient() {
     },
   });
 }
+
+/**
+ * The signed-in user, memoized for the lifetime of ONE request (React `cache`).
+ *
+ * `supabase.auth.getUser()` is a real network round-trip to GoTrue by design —
+ * that's the secure, non-spoofable check, and it must stay that way. The bug
+ * this fixes isn't that call; it's that AdminConsoleLink, ProfessionalNav, and
+ * a page itself each independently call `createClient()` + `.auth.getUser()`
+ * in the SAME render, on every single page — multiplying one request into
+ * several. React's `cache()` de-dupes calls with the same arguments within one
+ * request, so every caller here shares the one lookup instead of repeating it.
+ *
+ * Callers that also need the `supabase` client for further queries should
+ * still call `createClient()` themselves (cheap — no I/O until a query runs);
+ * this only dedupes the getUser() round-trip itself.
+ */
+export const getUser = cache(async (): Promise<User | null> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});

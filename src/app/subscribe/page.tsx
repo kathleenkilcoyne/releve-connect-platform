@@ -1,14 +1,21 @@
 // Membership page — the end of the spine (approved → member).
 //
-// FREE FOUNDING PERIOD (launch, 2026-07-20): membership is COMPLIMENTARY and is
-// granted automatically on acceptance (see grantFoundingMembership in the admin
-// approve route). There is no paid checkout here right now, so this page shows
+// FREE FOUNDING PERIOD (launch, 2026-07-20): when granted, membership is
+// COMPLIMENTARY. There is no paid checkout here right now, so this page shows
 // state, not a price list:
-//   · already a member       → complimentary founding membership + build profile
-//   · approved (edge case)    → welcome + build profile
-//   · applied, under review   → reassure
-//   · not applied             → invite to apply
-//   · declined                → gentle "not now"
+//   · already a member          → complimentary founding membership + build profile
+//   · approved, no membership   → welcome to the Roster; complimentary access comes separately
+//   · applied, under review     → reassure
+//   · not applied                → invite to apply
+//   · declined                   → gentle "not now"
+//
+// ── Approval no longer auto-grants membership (2026-08-23) ──
+// A public applicant's approval only sets Professional Roster status. A
+// complimentary membership is now a SEPARATE, explicit admin action
+// ("grant_complimentary" in /admin/applications) — so "approved, no membership
+// row yet" is the NORMAL state for a freshly-approved public applicant, not the
+// rare edge case it used to be. This page must not promise instant profile
+// access in that state — /profile/edit would just bounce them right back here.
 //
 // The paid-tier chooser, the $30-credit copy, and the Stripe manage/cancel
 // button were removed for the free period. The prior paid version is in git
@@ -122,17 +129,18 @@ export default async function SubscribePage() {
     );
   }
 
-  // Approved but no membership row yet (rare edge case — approval normally grants
-  // one). Reassure and point them onward rather than showing a paywall.
+  // Approved for the Professional Roster, but no membership row yet — the normal
+  // state right after approval now that granting complimentary access is a
+  // separate admin step. Welcome them without promising profile access they
+  // don't have yet; there is no "Build your profile" link here on purpose.
   if (appState === "approved") {
     return shell(
       <>
         <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re in — welcome 🎉</h1>
         <p className="mt-3 text-neutral-600">
-          During our founding period your membership is complimentary. You can start building your
-          profile right now.
+          You&apos;ve been accepted to the Relevé Connect Professional Roster. We&apos;ll follow up by
+          email as soon as your membership is set up — that&apos;s what opens the profile builder.
         </p>
-        {buildProfile}
       </>,
     );
   }
@@ -153,7 +161,7 @@ export default async function SubscribePage() {
           }
         : {
             h: "Your application is under review",
-            p: "Thanks for applying — we'll email you the moment there's a decision. Your complimentary founding membership opens as soon as you're accepted.",
+            p: "Thanks for applying — we'll email you the moment there's a decision.",
             cta: null,
           };
 

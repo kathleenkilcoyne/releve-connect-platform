@@ -6,8 +6,10 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { hasActiveProfileTier } from "@/lib/membership/access";
+import { activateProfessionalProfile } from "@/lib/profile/activate";
 import ProfileEditor from "./ProfileEditor";
 
 export const dynamic = "force-dynamic";
@@ -42,9 +44,10 @@ type AvailOption = { slug: string; label: string; kind: "general" | "currently" 
 
 export default async function ProfileEditPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Memoized per-request (see server.ts) — AdminConsoleLink and ProfessionalNav
+  // render on this same page load and ask for the same user; sharing one lookup
+  // instead of each doing its own getUser() round-trip.
+  const user = await getUser();
   if (!user) redirect("/login");
 
   // GATE (build spec §6 + §17): the profile builder is the Professional tier's
@@ -54,6 +57,18 @@ export default async function ProfileEditPage() {
   if (!(await hasActiveProfileTier(supabase, user.id))) {
     redirect("/subscribe?from=profile");
   }
+
+  // PROFILE V2 — catch-up activation.
+  //
+  // Profiles are created by the activation service, not by saving this form. Two
+  // groups of people can hold an active membership and still have no profile row:
+  // anyone activated BEFORE Profile V2 shipped, and anyone whose webhook or
+  // approve-time activation failed. Running it here means they simply arrive and
+  // find their profile waiting, instead of hitting an editor that cannot save.
+  //
+  // Idempotent and cheap: it returns immediately when a profile already exists,
+  // which is the case on every visit after the first.
+  await activateProfessionalProfile(createAdminClient(), user.id);
 
   // Pick-lists (world-readable).
   const [stylesRes, levelsRes, focusRes, rolesRes, certsRes, availRes] = await Promise.all([
@@ -89,6 +104,16 @@ export default async function ProfileEditPage() {
 
   // The untyped client returns a loose type; cast once to a known shape.
   const p = profile as unknown as ProfileFields | null;
+
+  // Still no profile after the catch-up above means this person holds an active
+  // membership but was never approved and holds no founding grant — so under the
+  // Profile V2 rule they are not a vetted professional and must not have a
+  // professional profile. Paying for a membership does not confer one. Send them
+  // to /subscribe, which explains where they stand, rather than to an editor that
+  // could not save anyway. This is also what stops an eligible Founding
+  // Professional or approved professional from ever landing here mid-activation:
+  // the catch-up above already created their draft by this point, so `p` is set.
+  if (!p) redirect("/subscribe?from=profile");
 
   // Which tags are currently selected.
   //
@@ -144,7 +169,13 @@ export default async function ProfileEditPage() {
       </div>
 
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">
-        {profile ? "Edit your profile" : "Welcome to the Relevé Roster"}
+        {/* `p` truthy is guaranteed by the `if (!p) redirect(...)` guard above —
+            this can never be "no profile", so it must ask what actually varies:
+            has this draft ever been reviewed/published? A brand-new activation
+            normally lands on /profile/review first (destination.ts); this only
+            fires for someone who reached the editor directly (a bookmark, or a
+            link from /profile/review) while still unpublished. */}
+        {p?.profile_status === "draft" ? "Welcome to the Relevé Roster" : "Edit your profile"}
       </h1>
       <p className="mt-3 text-neutral-600">
         This is your public page — what studios and fellow artists see. Fill in what you like now;

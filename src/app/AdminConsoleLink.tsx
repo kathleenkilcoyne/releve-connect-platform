@@ -8,16 +8,16 @@
 // weakens admin security.
 
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AdminConsoleLink() {
   let isAdmin = false;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Memoized per-request (see server.ts) — this renders on EVERY page, so
+    // without the shared cache it was one more redundant getUser() network
+    // call on top of ProfessionalNav's and the page's own.
+    const user = await getUser();
     if (user) {
       // Read the role with the service-role client (same as the admin gates), so
       // it can't drift with an RLS policy change elsewhere.

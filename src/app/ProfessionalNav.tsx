@@ -17,7 +17,7 @@
 // resolves today.
 
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProfessionalActor, type ProfessionalActor } from "@/lib/professional/actor";
 
@@ -26,10 +26,10 @@ const linkCls = "font-medium text-[var(--rc-ink,#17130d)] underline-offset-2 hov
 export default async function ProfessionalNav() {
   let actor: ProfessionalActor | null = null;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Memoized per-request (see server.ts) — this renders on EVERY page, so
+    // without the shared cache it was one more redundant getUser() network
+    // call on top of AdminConsoleLink's and the page's own.
+    const user = await getUser();
     if (user) {
       // Service-role read (same as AdminConsoleLink) so the gate can't drift with
       // an RLS change elsewhere.
