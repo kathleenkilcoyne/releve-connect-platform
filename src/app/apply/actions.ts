@@ -16,6 +16,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { STUDENT_COUNT_BANDS, parseEnum } from "@/lib/studio/profile";
+import { getActiveProfessionalRoleSlugs, filterToActiveRoles } from "./roles";
 import {
   sendAdminNewApplicationAlert,
   sendApplicationReceived,
@@ -29,8 +30,6 @@ export type ApplyState = { ok: boolean; message: string; applicationId?: string 
 // Counting words at someone describing their own life is the opposite of the
 // invitation this form is meant to be. The only requirement is that they wrote
 // something; length is theirs to choose.
-
-const VALID_ROLES = ["teacher", "studio_owner", "choreographer", "working_dancer"];
 
 /** The five Section-13 agreements + the Section-9 Code of Conduct — all required. */
 const REQUIRED_CONSENTS = [
@@ -59,7 +58,8 @@ export async function submitApplication(
   const firstName = str("first_name");
   const lastName = str("last_name");
   const email = str("email") || user.email || "";
-  const roles = list("roles").filter((r) => VALID_ROLES.includes(r));
+  const activeRoleSlugs = await getActiveProfessionalRoleSlugs(supabase);
+  const roles = filterToActiveRoles(list("roles"), activeRoleSlugs);
   let primaryRole = str("primary_role");
   const city = str("city") || null;
   const stateProvince = str("state_province") || null;
