@@ -92,14 +92,11 @@ async function loadProfile(handle: string) {
   }
 
   const pid = profile.profile_id;
-  const [styles, levels, focus, avail] = await Promise.all([
+  const [styles, levels, focus, roles] = await Promise.all([
     db.from("profile_styles").select("styles(label)").eq("profile_id", pid),
     db.from("profile_levels").select("levels(label)").eq("profile_id", pid),
     db.from("profile_focus_areas").select("focus_areas(label)").eq("profile_id", pid),
-    db
-      .from("profile_availability")
-      .select("availability_tags(label, kind, sort_order)")
-      .eq("profile_id", pid),
+    db.from("profile_roles").select("role_types(slug, label, sort_order)").eq("profile_id", pid),
   ]);
   const labelsOf = (rows: unknown, key: string): string[] =>
     ((rows as Array<Record<string, { label: string } | { label: string }[]>>) ?? [])
@@ -109,19 +106,39 @@ async function loadProfile(handle: string) {
       })
       .filter(Boolean) as string[];
 
-  // Availability, split back into its two kinds for display. A studio that
-  // filtered the Roster on "accepting choreography" has to SEE that here, or the
-  // filter looks broken the moment they click through.
-  // The embedded row comes back as either an object or a one-element array
-  // depending on how the client infers the relationship — same reason `labelsOf`
-  // above handles both. Cast through `unknown` and normalize.
-  type AvailTag = { label: string; kind: string; sort_order: number };
-  const availRows = ((avail.data ?? []) as unknown as Array<{
-    availability_tags: AvailTag | AvailTag[] | null;
+  // The full role identity (build spec §3), consistent with the Roster card,
+  // not just whichever one happens to be `primary_role`. The embedded row
+  // comes back as either an object or a one-element array depending on how
+  // the client infers the relationship — cast through `unknown` and normalize.
+  type RoleTag = { slug: string; label: string; sort_order: number };
+  let roleRows = ((roles.data ?? []) as unknown as Array<{
+    role_types: RoleTag | RoleTag[] | null;
   }>)
-    .map((r) => (Array.isArray(r.availability_tags) ? r.availability_tags[0] : r.availability_tags))
-    .filter((t): t is AvailTag => Boolean(t))
-    .sort((a, b) => a.sort_order - b.sort_order);
+    .map((r) => (Array.isArray(r.role_types) ? r.role_types[0] : r.role_types))
+    .filter((t): t is RoleTag => Boolean(t));
+
+  // A profile saved before multi-role editing existed has no profile_roles
+  // rows yet, only the legacy primary_role column — fall back to it rather
+  // than showing no role at all. Resolved by SLUG, never rendered raw: an
+  // inactive/renamed role_types row simply yields nothing here, same as it
+  // already does everywhere else.
+  if (roleRows.length === 0 && profile.primary_role) {
+    const { data: legacy } = await db
+      .from("role_types")
+      .select("slug, label, sort_order")
+      .eq("slug", profile.primary_role)
+      .maybeSingle();
+    if (legacy) roleRows = [legacy as RoleTag];
+  }
+
+  // Primary role first (if it's still one of their active roles), then the
+  // taxonomy's own order — deterministic, and never dependent on whatever
+  // order Postgres happened to return the join in.
+  roleRows.sort((a, b) => {
+    if (a.slug === profile.primary_role) return -1;
+    if (b.slug === profile.primary_role) return 1;
+    return a.sort_order - b.sort_order;
+  });
 
   return {
     profile,
@@ -129,8 +146,7 @@ async function loadProfile(handle: string) {
     styles: labelsOf(styles.data, "styles"),
     levels: labelsOf(levels.data, "levels"),
     focus: labelsOf(focus.data, "focus_areas"),
-    availGeneral: availRows.filter((t) => t.kind === "general").map((t) => t.label),
-    availCurrently: availRows.filter((t) => t.kind === "currently").map((t) => t.label),
+    roleLabels: roleRows.map((r) => r.label),
   };
 }
 
@@ -190,7 +206,8 @@ export default async function PublicProfilePage({
   const loaded = await loadProfile(handle);
   if (!loaded) notFound();
 
-  const { profile, styles, levels, focus, availGeneral, availCurrently, isDraftPreview } = loaded;
+  const { profile, styles, levels, focus, roleLabels, isDraftPreview } = loaded;
+  const roleText = roleLabels.join(" / ");
   const location = [profile.city, profile.state_province, profile.country]
     .filter(Boolean)
     .join(", ");
@@ -350,8 +367,8 @@ export default async function PublicProfilePage({
                 )}
               </div>
               <p className="mt-1 text-neutral-600">
-                {profile.primary_role ? titleCase(profile.primary_role) : ""}
-                {profile.primary_role && location ? " · " : ""}
+                {roleText}
+                {roleText && location ? " · " : ""}
                 {location}
               </p>
               {profile.years_experience && (
@@ -400,12 +417,15 @@ export default async function PublicProfilePage({
         </section>
       )}
 
-      {/* Tag rows */}
+      {/* Tag rows. Availability ("Availability" / "Currently accepting") is
+          removed (2026-08-26): a generic search-filter facet the Roster no
+          longer exposes; Available This Week / Swing is the real, dated
+          answer to "when can I book this person." UI-only removal — the
+          availability_tags table and profile_availability join are untouched
+          for reversibility, and this section is unrelated to The Swing. */}
       <TagRow title="Styles" items={styles} />
       <TagRow title="Teaching levels" items={levels} />
       <TagRow title="Focus" items={focus} />
-      <TagRow title="Availability" items={availGeneral} />
-      <TagRow title="Currently accepting" items={availCurrently} />
 
       {/* The "Currently" lines — where they are right now. Free text, so they
           render as a sentence rather than tags. */}
