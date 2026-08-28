@@ -15,6 +15,8 @@
 // for when payment is switched back on — do not delete it.
 
 import { body, emailSiteUrl, sendEmail, type SendResult } from "./email/send";
+import { orgCopy } from "./studio/org-copy";
+import { memberLabelOf } from "./studio/team-types";
 
 /**
  * The ONLY approved wording for the $30 fee (pricing SSOT + CLAUDE.md §4G):
@@ -479,14 +481,45 @@ export async function sendStudioInterestAlert(input: {
 // ===========================================================================
 
 /**
- * EMAILS.md #12 — "Founding Studio invitation". Sent when Kathleen creates an
- * invitation in /admin/studios. Carries the ONE secure setup link. The studio
- * signs in as the invited email (Email OTP) and lands directly in setup.
+ * EMAILS.md #12 — "Founding Studio invitation" (studio) / "Dance Team
+ * invitation" (dance_team). Sent when Kathleen creates an invitation in
+ * /admin/studios. Carries the ONE secure setup link; the invited email signs
+ * in (Email OTP) and lands directly in setup. Branches on `orgType` via the
+ * SAME `orgCopy()` helper the setup page/editor already use (2026-08-28), so
+ * studio and team wording can never drift from each other or from the rest of
+ * the product. The studio copy below is BYTE-IDENTICAL to before this
+ * branch — only the dance-team path is new.
+ *
+ * A dance-team invitation is a private invited pilot: it never mentions the
+ * $30 application fee, the public Professional application, or any vetting
+ * process — none of that applies to an org invite.
  */
 export async function sendStudioInvitation(input: {
   to: string;
   setupUrl: string;
+  orgType?: string | null;
+  memberLabel?: string | null;
 }): Promise<SendResult> {
+  const copy = orgCopy(input.orgType);
+
+  if (copy.isTeam) {
+    const members = memberLabelOf(input.memberLabel).toLowerCase();
+    return sendEmail({
+      to: input.to,
+      template: "dance-team-invitation.v1",
+      subject: "You're invited to bring your Dance Team to Relevé",
+      text: body(
+        `You've been personally invited to Relevé Connect as your Dance Team's ${copy.owner}.`,
+        `This link creates and claims your team's own Relevé page. From there, you'll build your ` +
+          `team's Relevé page, add your team information and branding, and invite your ${members} to join.`,
+        `Set up your team here — sign in with this email address (${input.to}) when asked:`,
+        input.setupUrl,
+        "This link is just for you. You can save your progress and come back any time; " +
+          "nothing is public until you're ready.",
+      ),
+    });
+  }
+
   return sendEmail({
     to: input.to,
     template: "studio-invitation.v1",

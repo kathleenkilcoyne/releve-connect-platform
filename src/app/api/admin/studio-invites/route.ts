@@ -112,7 +112,7 @@ export async function POST(req: Request) {
   }
 
   const setupUrl = `${emailSiteUrl()}/studio/setup?token=${token}`;
-  const send = await sendStudioInvitation({ to: email, setupUrl });
+  const send = await sendStudioInvitation({ to: email, setupUrl, orgType, memberLabel });
 
   return NextResponse.json({
     ok: true,
