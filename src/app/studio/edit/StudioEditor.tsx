@@ -61,6 +61,8 @@ type Initial = {
   brand_accent: string;
   brand_accent_2: string;
   team_motto: string;
+  hero_url: string;
+  gallery_urls: string[];
 } | null;
 
 const input =
@@ -102,25 +104,28 @@ export default function StudioEditor({
         <input name="name" required defaultValue={initial?.name ?? ""} className={input} />
       </section>
 
-      {/* ── 2 · Artistic Director ───────────────────────────────────────── */}
+      {/* ── 2 · Artistic Director / Coach · Team Director ───────────────── */}
       <section className="space-y-1">
-        <label className={label}>Artistic Director</label>
+        <label className={label}>{copy.isTeam ? "Coach / Team Director" : "Artistic Director"}</label>
         <input
           name="artistic_director"
-          placeholder="e.g., Roberta Mathes"
+          placeholder={copy.isTeam ? "e.g., Jordan Blake" : "e.g., Roberta Mathes"}
           defaultValue={initial?.artistic_director ?? ""}
           className={input}
         />
         <p className={help}>
-          The person behind the studio — teachers often know a name before they know a studio. Have
-          co-directors? Separate them with commas.
+          {copy.isTeam
+            ? "The person who leads your team. Have co-coaches or assistant directors? Separate them with commas."
+            : "The person behind the studio — teachers often know a name before they know a studio. Have co-directors? Separate them with commas."}
         </p>
       </section>
 
       {/* ── 3 · The story: culture · unique · mission (all optional) ─────── */}
       <section className="space-y-6">
         <div>
-          <label className={label}>What is special about teaching at your school?</label>
+          <label className={label}>
+            {copy.isTeam ? "What is special about being on your team?" : "What is special about teaching at your school?"}
+          </label>
           <textarea
             name="culture_note"
             rows={3}
@@ -128,8 +133,9 @@ export default function StudioEditor({
             className={input}
           />
           <p className={help}>
-            A few honest words about your culture — what you value, how your dancers treat one
-            another. This tells a teacher more than any statistic.
+            {copy.isTeam
+              ? "A few honest words about your culture — what you value, how your dancers treat one another. This tells a prospective dancer more than any statistic."
+              : "A few honest words about your culture — what you value, how your dancers treat one another. This tells a teacher more than any statistic."}
           </p>
         </div>
 
@@ -142,8 +148,9 @@ export default function StudioEditor({
             className={input}
           />
           <p className={help}>
-            One or two sentences. What would a dancer or teacher feel here that they wouldn&apos;t
-            feel anywhere else?
+            {copy.isTeam
+              ? "One or two sentences. What would a dancer or coach feel here that they wouldn't feel anywhere else?"
+              : "One or two sentences. What would a dancer or teacher feel here that they wouldn't feel anywhere else?"}
           </p>
         </div>
 
@@ -159,6 +166,9 @@ export default function StudioEditor({
 
       {/* ── 3b · Branding (logo/mascot · accents · motto) ───────────────── */}
       <BrandingSection initial={initial} />
+
+      {/* ── 3c · Photos (Hero/Cover image · up to 6 Additional Photos) ──── */}
+      <PhotosSection initial={initial} copy={copy} />
 
       {/* ── 4 · Location (REQUIRED: city + state) ───────────────────────── */}
       <section className="space-y-4">
@@ -211,13 +221,13 @@ export default function StudioEditor({
 
       {/* ── 5 · Styles / concentration ──────────────────────────────────── */}
       <CheckGroup
-        title="Styles offered"
+        title={copy.isTeam ? "Dance styles" : "Styles offered"}
         name="styles"
         options={styleOptions}
         selected={selectedStyles}
       />
       <CheckGroup
-        title="Concentration / focus"
+        title={copy.isTeam ? "Team focus" : "Concentration / focus"}
         name="concentrations"
         options={concentrationOptions}
         selected={selectedConcentrations}
@@ -226,9 +236,9 @@ export default function StudioEditor({
       {/* ── 6 · Scale ───────────────────────────────────────────────────── */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-neutral-900">{copy.Noun} scale</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-4 ${copy.isTeam ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           <div>
-            <label className={label}>Students</label>
+            <label className={label}>{copy.isTeam ? "Dancers" : "Students"}</label>
             <select
               name="student_count_band"
               defaultValue={initial?.student_count_band ?? ""}
@@ -243,7 +253,7 @@ export default function StudioEditor({
             </select>
           </div>
           <div>
-            <label className={label}>Staff (teachers)</label>
+            <label className={label}>{copy.isTeam ? "Coaches / Staff" : "Staff (teachers)"}</label>
             <input
               name="staff_count"
               inputMode="numeric"
@@ -251,15 +261,17 @@ export default function StudioEditor({
               className={input}
             />
           </div>
-          <div>
-            <label className={label}>Studios / rooms</label>
-            <input
-              name="room_count"
-              inputMode="numeric"
-              defaultValue={initial?.room_count ?? ""}
-              className={input}
-            />
-          </div>
+          {!copy.isTeam && (
+            <div>
+              <label className={label}>Studios / rooms</label>
+              <input
+                name="room_count"
+                inputMode="numeric"
+                defaultValue={initial?.room_count ?? ""}
+                className={input}
+              />
+            </div>
+          )}
         </div>
       </section>
 
@@ -276,20 +288,22 @@ export default function StudioEditor({
         </fieldset>
       </section>
 
-      {/* ── 8 · Certifications ──────────────────────────────────────────── */}
-      <CheckGroup
-        title="Certifications valued"
-        name="certs"
-        options={certOptions}
-        selected={selectedCerts}
-      />
+      {/* ── 8 · Certifications (studio only — not a fit for Dance Teams) ─── */}
+      {!copy.isTeam && (
+        <CheckGroup
+          title="Certifications valued"
+          name="certs"
+          options={certOptions}
+          selected={selectedCerts}
+        />
+      )}
 
       {/* ── 9 · Online & social ─────────────────────────────────────────── */}
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Online &amp; social</h2>
           <p className="mt-1 text-sm text-neutral-600">
-            Where dancers and teachers can find you. All optional.
+            {copy.isTeam ? "Where dancers and coaches can find you. All optional." : "Where dancers and teachers can find you. All optional."}
           </p>
         </div>
         <div>
@@ -307,7 +321,7 @@ export default function StudioEditor({
             <label className={label}>Instagram</label>
             <input
               name="instagram"
-              placeholder="@yourstudio"
+              placeholder={copy.isTeam ? "@yourteam" : "@yourstudio"}
               defaultValue={initial?.instagram ?? ""}
               className={input}
             />
@@ -316,7 +330,7 @@ export default function StudioEditor({
             <label className={label}>TikTok</label>
             <input
               name="tiktok"
-              placeholder="@yourstudio"
+              placeholder={copy.isTeam ? "@yourteam" : "@yourstudio"}
               defaultValue={initial?.tiktok ?? ""}
               className={input}
             />
@@ -325,7 +339,7 @@ export default function StudioEditor({
             <label className={label}>Facebook</label>
             <input
               name="facebook"
-              placeholder="facebook.com/yourstudio"
+              placeholder={copy.isTeam ? "facebook.com/yourteam" : "facebook.com/yourstudio"}
               defaultValue={initial?.facebook ?? ""}
               className={input}
             />
@@ -340,7 +354,11 @@ export default function StudioEditor({
             defaultValue={initial?.promo_video_url ?? ""}
             className={input}
           />
-          <p className={help}>Paste a YouTube or Vimeo link — a studio tour, a recital reel, whatever shows you best.</p>
+          <p className={help}>
+            {copy.isTeam
+              ? "Paste a YouTube or Vimeo link — a performance reel, competition footage, game-day highlights, or a team introduction, whatever shows you best."
+              : "Paste a YouTube or Vimeo link — a studio tour, a recital reel, whatever shows you best."}
+          </p>
         </div>
       </section>
 
@@ -521,6 +539,192 @@ function BrandingSection({ initial }: { initial: Initial }) {
         <p className={help}>
           {motto.trim().length}/{MOTTO_MAX} characters.
         </p>
+      </div>
+
+      {notice && (
+        <p className={`text-sm ${notice.ok ? "text-green-700" : "text-red-600"}`}>{notice.text}</p>
+      )}
+    </section>
+  );
+}
+
+const MAX_GALLERY_IMAGES = 6;
+
+// Hero/Cover image (one slot, replace-in-place) + Additional Photos gallery
+// (up to 6, add/remove individually). Separate from BrandingSection (which
+// keeps the pre-existing logo/accents/motto UI exactly as it was) — these are
+// real photographs, not the small mark used for the logo. Same org-branding
+// storage the logo already uses; each upload/remove hits its own dedicated
+// route (hero or gallery) rather than the main profile-save form action.
+function PhotosSection({ initial, copy }: { initial: Initial; copy: ReturnType<typeof orgCopy> }) {
+  const [heroUrl, setHeroUrl] = useState(initial?.hero_url ?? "");
+  const [gallery, setGallery] = useState<string[]>(initial?.gallery_urls ?? []);
+  const [heroBusy, setHeroBusy] = useState(false);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function onHeroChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHeroBusy(true);
+    setNotice(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/studio/branding/hero", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setNotice({ ok: false, text: data.error ?? "Upload failed." });
+      else {
+        setHeroUrl(data.url);
+        setNotice({ ok: true, text: "Hero image uploaded." });
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong uploading your hero image." });
+    } finally {
+      setHeroBusy(false);
+      e.target.value = "";
+    }
+  }
+
+  async function removeHero() {
+    setHeroBusy(true);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/studio/branding/hero", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setNotice({ ok: false, text: data.error ?? "Couldn't remove the hero image." });
+      } else {
+        setHeroUrl("");
+        setNotice({ ok: true, text: "Hero image removed." });
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong removing the hero image." });
+    } finally {
+      setHeroBusy(false);
+    }
+  }
+
+  async function onGalleryAdd(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setGalleryBusy(true);
+    setNotice(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/studio/branding/gallery", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setNotice({ ok: false, text: data.error ?? "Upload failed." });
+      else {
+        setGallery(data.gallery_urls ?? []);
+        setNotice({ ok: true, text: "Photo added." });
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong uploading that photo." });
+    } finally {
+      setGalleryBusy(false);
+      e.target.value = "";
+    }
+  }
+
+  async function removeGalleryPhoto(url: string) {
+    setGalleryBusy(true);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/studio/branding/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setNotice({ ok: false, text: data.error ?? "Couldn't remove that photo." });
+      else {
+        setGallery(data.gallery_urls ?? []);
+        setNotice({ ok: true, text: "Photo removed." });
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong removing that photo." });
+    } finally {
+      setGalleryBusy(false);
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900">Photos</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          A Hero image for the top of your public {copy.noun} page, and up to {MAX_GALLERY_IMAGES} additional
+          photos below it. All optional — real photos, PNG or JPEG.
+        </p>
+      </div>
+
+      <div>
+        <label className={label}>Hero / cover image</label>
+        {heroUrl && (
+          <div className="mb-2 overflow-hidden rounded-xl border border-neutral-200">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={heroUrl} alt="" className="aspect-[21/9] w-full object-cover" />
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={onHeroChange}
+            disabled={heroBusy}
+            className="block flex-1 text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+          />
+          {heroUrl && (
+            <button
+              type="button"
+              onClick={removeHero}
+              disabled={heroBusy}
+              className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-700 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+        <p className={help}>PNG or JPEG, up to 5 MB. Wide photos (landscape) work best.</p>
+      </div>
+
+      <div>
+        <label className={label}>
+          Additional photos ({gallery.length}/{MAX_GALLERY_IMAGES})
+        </label>
+        {gallery.length > 0 && (
+          <div className="mb-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {gallery.map((url) => (
+              <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border border-neutral-200">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeGalleryPhoto(url)}
+                  disabled={galleryBusy}
+                  aria-label="Remove photo"
+                  className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {gallery.length < MAX_GALLERY_IMAGES ? (
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={onGalleryAdd}
+            disabled={galleryBusy}
+            className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+          />
+        ) : (
+          <p className={help}>You&apos;ve added the maximum of {MAX_GALLERY_IMAGES} photos. Remove one to add another.</p>
+        )}
+        <p className={help}>PNG or JPEG, up to 5 MB each.</p>
       </div>
 
       {notice && (

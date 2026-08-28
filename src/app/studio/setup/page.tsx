@@ -65,6 +65,8 @@ type EmployerFields = {
   brand_accent: string | null;
   brand_accent_2: string | null;
   team_motto: string | null;
+  hero_url: string | null;
+  gallery_urls: string[] | null;
 };
 
 type Invite = {
@@ -81,7 +83,7 @@ const PROFILE_COLUMNS =
   "tiktok, facebook, promo_video_url, address_line1, address_line2, city, state_province, " +
   "postal_code, country, year_founded, student_count_band, staff_count, room_count, " +
   "accessible_by_train, accessible_by_bus, car_required, culture_note, bio, " +
-  "logo_url, brand_accent, brand_accent_2, team_motto";
+  "logo_url, brand_accent, brand_accent_2, team_motto, hero_url, gallery_urls";
 
 /** A plain, form-less notice page (used for every "can't proceed" case). */
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -245,7 +247,7 @@ export default async function StudioSetupPage({
     admin.from("styles").select("slug, label").eq("is_active", true).order("sort_order"),
     admin
       .from("studio_concentrations")
-      .select("slug, label")
+      .select("slug, label, applies_to")
       .eq("is_active", true)
       .order("sort_order"),
     admin.from("certifications").select("slug, label").eq("is_active", true).order("sort_order"),
@@ -253,10 +255,15 @@ export default async function StudioSetupPage({
   ]);
 
   const styleOptions = (stylesRes.data ?? []) as Option[];
-  const concentrationOptions = (concRes.data ?? []) as Option[];
-  const certOptions = (certsRes.data ?? []) as Option[];
   const e = profRes.data as unknown as EmployerFields | null;
   const copy = orgCopy(e?.org_type);
+  // Dance Teams see a small, team-appropriate Concentration/Focus set instead
+  // of the studio-focused one (Kathleen, 2026-08-28) — same table/join, just
+  // filtered by the `applies_to` tag added for this.
+  const concentrationOptions = ((concRes.data ?? []) as Array<Option & { applies_to: string }>).filter(
+    (o) => o.applies_to === (copy.isTeam ? "dance_team" : "studio"),
+  );
+  const certOptions = (certsRes.data ?? []) as Option[];
 
   const [es, ec, ce] = await Promise.all([
     admin.from("employer_styles").select("styles(slug)").eq("employer_id", employerId),
@@ -293,11 +300,11 @@ export default async function StudioSetupPage({
     },
     approved: {
       tone: "border-sky-200 bg-sky-50 text-sky-800",
-      text: "Approved. Relevé will publish your studio page shortly.",
+      text: `Approved. Relevé will publish your ${copy.noun} page shortly.`,
     },
     live: {
       tone: "border-green-200 bg-green-50 text-green-800",
-      text: "Live — your studio page is public.",
+      text: `Live — your ${copy.noun} page is public.`,
     },
   };
   const banner = statusBanner[status] ?? statusBanner.in_progress;
@@ -369,6 +376,8 @@ export default async function StudioSetupPage({
           brand_accent: e?.brand_accent ?? "",
           brand_accent_2: e?.brand_accent_2 ?? "",
           team_motto: e?.team_motto ?? "",
+          hero_url: e?.hero_url ?? "",
+          gallery_urls: e?.gallery_urls ?? [],
         }}
         styleOptions={styleOptions}
         concentrationOptions={concentrationOptions}

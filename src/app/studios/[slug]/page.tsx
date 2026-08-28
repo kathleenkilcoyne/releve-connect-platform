@@ -42,6 +42,8 @@ type ProfileRow = {
   facebook: string | null;
   promo_video_url: string | null;
   bio: string | null;
+  hero_url: string | null;
+  gallery_urls: string[] | null;
 };
 
 const STUDENT_BAND_LABEL: Record<string, string> = {
@@ -55,7 +57,7 @@ const SELECT =
   "employer_id, name, artistic_director, culture_note, unique_note, mission, address_line1, " +
   "address_line2, city, state_province, postal_code, country, year_founded, student_count_band, " +
   "staff_count, room_count, accessible_by_train, accessible_by_bus, car_required, website, " +
-  "instagram, tiktok, facebook, promo_video_url, bio";
+  "instagram, tiktok, facebook, promo_video_url, bio, hero_url, gallery_urls";
 
 async function loadLiveStudio(slug: string) {
   const db = createAdminClient();
@@ -141,6 +143,24 @@ function TagRow({ items }: { items: string[] }) {
   );
 }
 
+/** The public photo grid — 2 columns on mobile, 3 from tablet up. */
+function PhotoGallery({ urls }: { urls: string[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {urls.map((url) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={url}
+          src={url}
+          alt=""
+          loading="lazy"
+          className="aspect-square w-full rounded-lg object-cover"
+        />
+      ))}
+    </div>
+  );
+}
+
 export default async function PublicStudioProfile({
   params,
 }: {
@@ -182,11 +202,22 @@ export default async function PublicStudioProfile({
     { label: "Facebook", kind: "facebook", raw: p.facebook },
   ].filter((s) => has(s.raw)) as typeof socials;
 
+  const gallery = (p.gallery_urls ?? []).filter(Boolean);
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link href="/studios" className="text-sm text-neutral-500 underline">
         ← All studios
       </Link>
+
+      {has(p.hero_url) && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={p.hero_url!}
+          alt=""
+          className="mt-4 aspect-[21/9] w-full rounded-2xl object-cover sm:aspect-[3/1]"
+        />
+      )}
 
       <h1 className="mt-4 text-4xl font-semibold leading-tight text-neutral-900">{p.name}</h1>
       {location && <p className="mt-1 text-neutral-600">{location}</p>}
@@ -270,6 +301,12 @@ export default async function PublicStudioProfile({
               </a>
             ))}
           </div>
+        </Section>
+      )}
+
+      {gallery.length > 0 && (
+        <Section title="Photos">
+          <PhotoGallery urls={gallery} />
         </Section>
       )}
 
