@@ -85,17 +85,37 @@ const PROFILE_COLUMNS =
   "accessible_by_train, accessible_by_bus, car_required, culture_note, bio, " +
   "logo_url, brand_accent, brand_accent_2, team_motto, hero_url, gallery_urls";
 
-/** A plain, form-less notice page (used for every "can't proceed" case). */
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
+/**
+ * A plain, form-less notice page (used for every "can't proceed" case).
+ * Pass `orgType` whenever it's known (from the invite/profile already loaded)
+ * so a Dance Team invitee never sees Studio-only wording, even on an error
+ * screen. When it's genuinely unknown (e.g. the token itself doesn't resolve
+ * to anything), this falls back to neutral "Relevé Connect" copy rather than
+ * defaulting to Studio wording.
+ */
+function Notice({
+  title,
+  children,
+  orgType,
+}: {
+  title: string;
+  children: React.ReactNode;
+  orgType?: string | null;
+}) {
+  const known = orgType != null;
+  const copy = orgCopy(orgType);
   return (
     <main className="mx-auto max-w-lg flex-1 px-6 py-24 text-center">
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-        Relevé Connect · For Studios
+        {known ? copy.noticeEyebrow : "Relevé Connect"}
       </p>
       <h1 className="mt-2 text-2xl font-semibold text-neutral-900">{title}</h1>
       <div className="mt-4 text-neutral-600">{children}</div>
-      <Link href="/studios" className="mt-8 inline-block text-sm text-neutral-500 underline">
-        ← About Founding Studios
+      <Link
+        href={known ? copy.backLink.href : "/"}
+        className="mt-8 inline-block text-sm text-neutral-500 underline"
+      >
+        {known ? copy.backLink.label : "← Back to Relevé"}
       </Link>
     </main>
   );
@@ -172,9 +192,22 @@ export default async function StudioSetupPage({
       .maybeSingle();
     const invite = inviteRow as Invite | null;
 
+    // Known as soon as the invite itself resolves — used so every notice below
+    // (including the error screens) speaks Studio or Dance Team correctly,
+    // never defaulting to Studio wording for a team invitee.
+    let inviteOrgType: string | null = null;
+    if (invite) {
+      const { data: orgRow } = await admin
+        .from("employer_profiles")
+        .select("org_type")
+        .eq("employer_id", invite.employer_id)
+        .maybeSingle();
+      inviteOrgType = (orgRow as { org_type: string | null } | null)?.org_type ?? null;
+    }
+
     if (!invite || (invite.expires_at && new Date(invite.expires_at) < new Date())) {
       return (
-        <Notice title="This invitation isn’t valid">
+        <Notice title="This invitation isn’t valid" orgType={inviteOrgType}>
           <p>
             This link may have expired or already been used. If you believe it should work, reply
             to your invitation email and we&apos;ll sort it out.
@@ -191,7 +224,7 @@ export default async function StudioSetupPage({
     // Already claimed by someone else → refuse.
     if (invite.redeemed_by && invite.redeemed_by !== user.id) {
       return (
-        <Notice title="This invitation has already been claimed">
+        <Notice title="This invitation has already been claimed" orgType={inviteOrgType}>
           <p>It&apos;s bound to a different account. Please contact Relevé Connect for help.</p>
         </Notice>
       );
@@ -200,7 +233,7 @@ export default async function StudioSetupPage({
     // The gate: the signed-in email must match the invited email.
     if ((user.email ?? "").toLowerCase() !== invite.email.toLowerCase()) {
       return (
-        <Notice title="This invitation was sent to a different email">
+        <Notice title="This invitation was sent to a different email" orgType={inviteOrgType}>
           <p>
             It was sent to <span className="font-medium">{invite.email}</span>, but you&apos;re
             signed in as <span className="font-medium">{user.email}</span>.

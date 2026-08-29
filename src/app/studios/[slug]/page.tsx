@@ -13,12 +13,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { orgCopy } from "@/lib/studio/org-copy";
+import { memberLabelOf } from "@/lib/studio/team-types";
+import { STUDENT_COUNT_LABELS, type StudentCountBand } from "@/lib/studio/profile";
 
 export const dynamic = "force-dynamic";
 
 type ProfileRow = {
   employer_id: string;
   name: string | null;
+  org_type: string | null;
+  member_label: string | null;
   artistic_director: string[] | null;
   culture_note: string | null;
   unique_note: string | null;
@@ -46,15 +51,18 @@ type ProfileRow = {
   gallery_urls: string[] | null;
 };
 
-const STUDENT_BAND_LABEL: Record<string, string> = {
-  under_50: "Under 50 students",
-  "50_99": "50–99 students",
-  "100_199": "100–199 students",
-  "200_plus": "200+ students",
-};
+/** "Under 50 dancers" / "50–99 students" — the shared, org-neutral count
+ *  labels (`STUDENT_COUNT_LABELS`) plus the right noun for this org type, so
+ *  a Dance Team's public page never says "students". */
+function scaleLabel(band: string | null, isTeam: boolean, memberLabel: string | null): string | null {
+  const base = band ? STUDENT_COUNT_LABELS[band as StudentCountBand] ?? null : null;
+  if (!base) return null;
+  const noun = isTeam ? memberLabelOf(memberLabel).toLowerCase() : "students";
+  return `${base} ${noun}`;
+}
 
 const SELECT =
-  "employer_id, name, artistic_director, culture_note, unique_note, mission, address_line1, " +
+  "employer_id, name, org_type, member_label, artistic_director, culture_note, unique_note, mission, address_line1, " +
   "address_line2, city, state_province, postal_code, country, year_founded, student_count_band, " +
   "staff_count, room_count, accessible_by_train, accessible_by_bus, car_required, website, " +
   "instagram, tiktok, facebook, promo_video_url, bio, hero_url, gallery_urls";
@@ -98,9 +106,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const loaded = await loadLiveStudio(slug);
-  if (!loaded) return { title: "Studio · Relevé Connect" };
+  if (!loaded) return { title: "Relevé Connect" };
+  const copy = orgCopy(loaded.p.org_type);
   return {
-    title: `${loaded.p.name ?? "Studio"} · Relevé Connect`,
+    title: `${loaded.p.name ?? copy.Noun} · Relevé Connect`,
     description: loaded.p.mission?.slice(0, 160) ?? undefined,
   };
 }
@@ -170,6 +179,7 @@ export default async function PublicStudioProfile({
   const loaded = await loadLiveStudio(slug);
   if (!loaded) notFound();
   const { p, styles, concentrations, certs } = loaded;
+  const copy = orgCopy(p.org_type);
 
   const has = (v: string | null | undefined) => Boolean(v && v.trim());
   const directors = (p.artistic_director ?? []).filter(Boolean);
@@ -183,10 +193,12 @@ export default async function PublicStudioProfile({
     .filter((line) => line && String(line).trim())
     .join("\n");
 
+  // Room count is Studio-only (a Dance Team has no rooms of its own — mirrors
+  // the same rule already applied in the editor's "Studios / rooms" field).
   const scale = [
-    p.student_count_band ? STUDENT_BAND_LABEL[p.student_count_band] ?? p.student_count_band : null,
-    p.staff_count != null ? `${p.staff_count} teachers` : null,
-    p.room_count != null ? `${p.room_count} studios` : null,
+    scaleLabel(p.student_count_band, copy.isTeam, p.member_label),
+    p.staff_count != null ? copy.staffCountLabel(p.staff_count) : null,
+    !copy.isTeam && p.room_count != null ? `${p.room_count} studios` : null,
   ].filter(Boolean) as string[];
 
   const accessibleBy = [
@@ -207,7 +219,7 @@ export default async function PublicStudioProfile({
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link href="/studios" className="text-sm text-neutral-500 underline">
-        ← All studios
+        ← Back to directory
       </Link>
 
       {has(p.hero_url) && (
@@ -226,17 +238,17 @@ export default async function PublicStudioProfile({
       )}
 
       {directors.length > 0 && (
-        <Section title="Artistic Director">{directors.join(", ")}</Section>
+        <Section title={copy.directorTitle}>{directors.join(", ")}</Section>
       )}
 
       {has(p.culture_note) && (
-        <Section title="What is special about teaching here">
+        <Section title={copy.cultureSectionTitle}>
           <p className="whitespace-pre-line leading-relaxed">{p.culture_note}</p>
         </Section>
       )}
 
       {has(p.unique_note) && (
-        <Section title="What makes this studio unique">
+        <Section title={copy.uniqueSectionTitle}>
           <p className="whitespace-pre-line leading-relaxed">{p.unique_note}</p>
         </Section>
       )}
@@ -247,7 +259,7 @@ export default async function PublicStudioProfile({
         </Section>
       )}
       {concentrations.length > 0 && (
-        <Section title="Concentration">
+        <Section title={copy.isTeam ? "Team focus" : "Concentration"}>
           <TagRow items={concentrations} />
         </Section>
       )}
@@ -257,7 +269,7 @@ export default async function PublicStudioProfile({
         </Section>
       )}
 
-      {scale.length > 0 && <Section title="Teaching staff">{scale.join(" · ")}</Section>}
+      {scale.length > 0 && <Section title={copy.staffScaleTitle}>{scale.join(" · ")}</Section>}
       {p.year_founded != null && <Section title="Founded">{p.year_founded}</Section>}
       {accessibleBy.length > 0 && <Section title="Accessible by">{accessibleBy.join(" · ")}</Section>}
 
@@ -268,7 +280,7 @@ export default async function PublicStudioProfile({
       )}
 
       {has(p.bio) && (
-        <Section title="More about the studio">
+        <Section title={copy.aboutSectionTitle}>
           <p className="whitespace-pre-line leading-relaxed">{p.bio}</p>
         </Section>
       )}

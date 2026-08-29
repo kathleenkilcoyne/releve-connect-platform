@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmployerProfileRow, addressChanged, type StudioRow } from "@/lib/studio/profile";
 import { emailSiteUrl } from "@/lib/email/send";
 import { sendStudioSubmittedAlert } from "@/lib/notifications";
+import { orgCopy } from "@/lib/studio/org-copy";
 
 export type SaveState = {
   ok: boolean;
@@ -28,6 +29,32 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Your session expired — please sign in again." };
+
+  // ---- Find MY existing employer profile (fetched early so its org_type can
+  // drive Studio/Team wording in the validation messages below too) ----------
+  // Invite-only: a studio/team profile is only ever created by an admin
+  // invitation (which also binds the owner). There is no create-from-nothing
+  // path here — if the signed-in user owns no profile, they haven't been
+  // invited, so refuse rather than mint a public-side profile outside the gate.
+  const { data: existing } = await supabase
+    .from("employer_profiles")
+    .select(
+      "employer_id, status, org_type, address_line1, address_line2, city, state_province, postal_code, country",
+    )
+    .eq("owner_user_id", user.id)
+    .maybeSingle();
+
+  const prevAddress = existing as unknown as
+    | (Partial<StudioRow> & { employer_id: string; status: string | null; org_type: string | null })
+    | null;
+  const copy = orgCopy(prevAddress?.org_type);
+
+  if (!prevAddress?.employer_id) {
+    return {
+      ok: false,
+      message: `We couldn't find your ${copy.noun}. Setup is by invitation — open your invitation link to begin.`,
+    };
+  }
 
   // ---- Normalize + validate the form (pure, tested) ------------------------
   const parsed = buildEmployerProfileRow({
@@ -58,7 +85,7 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     brandAccent: String(formData.get("brand_accent") ?? ""),
     brandAccent2: String(formData.get("brand_accent_2") ?? ""),
     teamMotto: String(formData.get("team_motto") ?? ""),
-  });
+  }, new Date(), copy.isTeam);
   if (!parsed.ok) return { ok: false, message: parsed.message };
   const row = parsed.row;
 
@@ -89,31 +116,6 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
     },
     { onConflict: "user_id" },
   );
-
-  // ---- Find MY existing employer profile -----------------------------------
-  // Invite-only: a studio profile is only ever created by an admin invitation
-  // (which also binds the owner). There is no create-from-nothing path here — if
-  // the signed-in user owns no profile, they haven't been invited, so refuse
-  // rather than mint a public-side profile outside the gate.
-  const { data: existing } = await supabase
-    .from("employer_profiles")
-    .select(
-      "employer_id, status, address_line1, address_line2, city, state_province, postal_code, country",
-    )
-    .eq("owner_user_id", user.id)
-    .maybeSingle();
-
-  const prevAddress = existing as unknown as
-    | (Partial<StudioRow> & { employer_id: string; status: string | null })
-    | null;
-
-  if (!prevAddress?.employer_id) {
-    return {
-      ok: false,
-      message:
-        "We couldn't find your studio. Studio setup is by invitation — open your invitation link to begin.",
-    };
-  }
 
   // ---- Assemble the row to write -------------------------------------------
   // Loose record shape so a conditional map-pin reset doesn't fight the client's
@@ -193,7 +195,7 @@ export async function saveStudioProfile(_prev: SaveState, formData: FormData): P
   );
 
   revalidatePath("/studio/setup");
-  return { ok: true, message: "Saved. Your studio profile is up to date." };
+  return { ok: true, message: `Saved. Your ${copy.noun} profile is up to date.` };
 }
 
 /**
@@ -214,24 +216,32 @@ export async function submitStudioForReview(_prev: SaveState, _formData: FormDat
 
   const { data: mine } = await supabase
     .from("employer_profiles")
-    .select("employer_id, name, status, city, state_province")
+    .select("employer_id, name, status, org_type, city, state_province")
     .eq("owner_user_id", user.id)
     .maybeSingle();
   const prof = mine as
-    | { employer_id: string; name: string | null; status: string | null; city: string | null; state_province: string | null }
+    | {
+        employer_id: string;
+        name: string | null;
+        status: string | null;
+        org_type: string | null;
+        city: string | null;
+        state_province: string | null;
+      }
     | null;
+  const copy = orgCopy(prof?.org_type);
 
   if (!prof?.employer_id) {
-    return { ok: false, message: "We couldn't find your studio to submit." };
+    return { ok: false, message: `We couldn't find your ${copy.noun} to submit.` };
   }
   if (!prof.city || !prof.state_province || !(prof.name ?? "").trim()) {
     return {
       ok: false,
-      message: "Please save your studio name and location before submitting for review.",
+      message: `Please save your ${copy.nameLabel.toLowerCase()} and location before submitting for review.`,
     };
   }
   if (prof.status === "approved" || prof.status === "live") {
-    return { ok: true, message: "Your studio has already been reviewed." };
+    return { ok: true, message: `Your ${copy.noun} has already been reviewed.` };
   }
 
   const now = new Date().toISOString();

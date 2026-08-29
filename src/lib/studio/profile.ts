@@ -194,9 +194,11 @@ export type StudioParseResult =
 export function buildEmployerProfileRow(
   input: StudioInput,
   now: Date = new Date(),
+  isTeam: boolean = false,
 ): StudioParseResult {
+  const noun = isTeam ? "team" : "studio";
   const name = (input.name ?? "").trim();
-  if (!name) return { ok: false, message: "Please enter your studio's name." };
+  if (!name) return { ok: false, message: `Please enter your ${noun}'s name.` };
 
   const city = (input.city ?? "").trim();
   const stateProvince = (input.stateProvince ?? "").trim();
@@ -204,7 +206,7 @@ export function buildEmployerProfileRow(
     return {
       ok: false,
       message:
-        "Please enter your studio's city and state — location is required so we can match you " +
+        `Please enter your ${noun}'s city and state — location is required so we can match you ` +
         "with nearby teachers and subs.",
     };
   }

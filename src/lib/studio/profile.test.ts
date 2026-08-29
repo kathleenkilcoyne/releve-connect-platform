@@ -147,6 +147,22 @@ describe("buildEmployerProfileRow", () => {
     if (!noState.ok) expect(noState.message).toMatch(/location|city|state/i);
   });
 
+  it("speaks Team, never Studio, for a Dance Team's validation errors", () => {
+    const noName = buildEmployerProfileRow({ ...blank, name: "   " }, now, true);
+    expect(noName.ok).toBe(false);
+    if (!noName.ok) {
+      expect(noName.message).toMatch(/team/i);
+      expect(noName.message).not.toMatch(/studio/i);
+    }
+
+    const noCity = buildEmployerProfileRow({ ...blank, city: "" }, now, true);
+    expect(noCity.ok).toBe(false);
+    if (!noCity.ok) {
+      expect(noCity.message).toMatch(/team/i);
+      expect(noCity.message).not.toMatch(/studio/i);
+    }
+  });
+
   it("accepts a studio with name + location, everything else optional (light onboarding)", () => {
     const res = buildEmployerProfileRow(
       { ...blank, name: "Elevate Dance", city: "Newark", stateProvince: "NJ" },

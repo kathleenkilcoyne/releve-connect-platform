@@ -22,6 +22,19 @@ export interface OrgCopy {
   returningTitle: string;
   /** The eyebrow line over the setup page. */
   eyebrow: string;
+  /** The wider "Relevé Connect · For X" eyebrow used on notice/error screens. */
+  noticeEyebrow: string;
+  /** "Coach / Team Director" | "Artistic Director" (public profile section title). */
+  directorTitle: string;
+  /** Public-profile section titles. */
+  cultureSectionTitle: string;
+  uniqueSectionTitle: string;
+  aboutSectionTitle: string;
+  staffScaleTitle: string;
+  /** e.g. "3 coaches/staff" | "3 teachers". */
+  staffCountLabel: (count: number) => string;
+  /** Footer "back" link on a notice/error screen. */
+  backLink: { href: string; label: string };
 }
 
 export function orgCopy(orgType: string | null | undefined): OrgCopy {
@@ -38,5 +51,15 @@ export function orgCopy(orgType: string | null | undefined): OrgCopy {
     setupTitle: `Set up your ${noun}`,
     returningTitle: `Your ${noun}`,
     eyebrow: isTeam ? "Relevé · Team setup" : "Relevé · Founding Studio setup",
+    noticeEyebrow: isTeam ? "Relevé Connect · For Dance Teams" : "Relevé Connect · For Studios",
+    directorTitle: isTeam ? "Coach / Team Director" : "Artistic Director",
+    cultureSectionTitle: isTeam ? "What's special about this team" : "What is special about teaching here",
+    uniqueSectionTitle: isTeam ? "What makes this team unique" : "What makes this studio unique",
+    aboutSectionTitle: isTeam ? "More about the team" : "More about the studio",
+    staffScaleTitle: isTeam ? "Coaches & staff" : "Teaching staff",
+    staffCountLabel: (count: number) => `${count} ${isTeam ? "coaches/staff" : "teachers"}`,
+    backLink: isTeam
+      ? { href: "/", label: "← Back to Relevé" }
+      : { href: "/studios", label: "← About Founding Studios" },
   };
 }

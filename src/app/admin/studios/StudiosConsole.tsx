@@ -28,6 +28,7 @@ const STATUS_TONE: Record<string, string> = {
 export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [orgType, setOrgType] = useState<"studio" | "dance_team">("studio");
   const [teamType, setTeamType] = useState<TeamType>("college");
   const [memberLabel, setMemberLabel] = useState("");
@@ -46,6 +47,7 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           org_type: orgType,
+          org_name: orgName.trim() || null,
           ...(isTeam
             ? { team_type: teamType, member_label: memberLabel.trim() || null }
             : {}),
@@ -63,6 +65,52 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
             (data.email_sent === false ? " (email vendor not configured — link logged server-side)." : "."),
         });
         setEmail("");
+        setOrgName("");
+        router.refresh();
+      }
+    } catch {
+      setNotice({ ok: false, text: "Something went wrong. Please try again." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Inline "Edit details" — corrects name / complimentary-pilot status on an
+  // ALREADY-CREATED org, at any lifecycle stage, without touching its invite
+  // token or sending any email. Separate from resend() on purpose.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPilot, setEditPilot] = useState(false);
+  const [editNote, setEditNote] = useState("");
+
+  function startEdit(s: StudioRow) {
+    setEditingId(s.employer_id);
+    setEditName(s.name ?? "");
+    setEditPilot(s.pilot_status === "complimentary");
+    setEditNote(s.pilot_note ?? "");
+    setNotice(null);
+  }
+
+  async function saveDetails(employerId: string) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/admin/studios/${employerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_details",
+          name: editName,
+          pilot_status: editPilot ? "complimentary" : null,
+          pilot_note: editNote.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice({ ok: false, text: data.error ?? "Could not save." });
+      } else {
+        setNotice({ ok: true, text: "Saved — no email sent." });
+        setEditingId(null);
         router.refresh();
       }
     } catch {
@@ -103,7 +151,9 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
         </label>
         <p className="mt-1 text-xs text-neutral-500">
           Enter the {isTeam ? "Team Director" : "studio owner"}&apos;s email. We create their private
-          profile and email them a secure setup link. Re-entering an email re-sends the same link.
+          profile and email them a secure setup link. Re-entering an email re-sends the same link. If
+          you already know the organization&apos;s name, add it too — it pre-fills their setup form so
+          they&apos;re never asked to re-identify it.
         </p>
         <div className="mt-3 flex flex-wrap gap-3">
           <select
@@ -120,6 +170,15 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
             value={email}
             onChange={(ev) => setEmail(ev.target.value)}
             placeholder={isTeam ? "director@team.org" : "owner@studio.com"}
+            className="min-w-[16rem] flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={orgName}
+            onChange={(ev) => setOrgName(ev.target.value)}
+            placeholder={
+              isTeam ? "Organization name (e.g. Manhattan College Dance Team)" : "Studio name (optional)"
+            }
             className="min-w-[16rem] flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none"
           />
           <button
@@ -178,6 +237,7 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                 <th className="py-2 pr-3">Email</th>
                 <th className="py-2 pr-3">Location</th>
                 <th className="py-2 pr-3">Status</th>
+                <th className="py-2 pr-3">Pilot</th>
                 <th className="py-2 pr-3">Actions</th>
               </tr>
             </thead>
@@ -199,6 +259,18 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                       >
                         {STATUS_LABEL[s.status] ?? s.status}
                       </span>
+                    </td>
+                    <td className="py-3 pr-3">
+                      {s.pilot_status === "complimentary" ? (
+                        <span
+                          className="inline-block rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800"
+                          title={s.pilot_note ?? undefined}
+                        >
+                          Complimentary
+                        </span>
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 pr-3">
                       <div className="flex flex-wrap items-center gap-2">
@@ -227,6 +299,17 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                             View public profile ↗
                           </a>
                         )}
+                        {/* Correct the name / set complimentary-pilot status on
+                            an EXISTING org — at any stage, no email sent. This
+                            is how a blank/wrong org name from invite time gets
+                            repaired without touching the invite or its token. */}
+                        <button
+                          onClick={() => (editingId === s.employer_id ? setEditingId(null) : startEdit(s))}
+                          disabled={busy}
+                          className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-600 disabled:opacity-40"
+                        >
+                          {editingId === s.employer_id ? "Cancel" : "Edit details"}
+                        </button>
                         <button
                           onClick={() => resend(s.email)}
                           disabled={busy}
@@ -239,6 +322,48 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                   </tr>
                 );
               })}
+              {studios.map((s) =>
+                editingId === s.employer_id ? (
+                  <tr key={`${s.employer_id}-edit`} className="border-b border-neutral-100 bg-neutral-50">
+                    <td colSpan={6} className="px-3 py-4">
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="flex flex-col text-xs font-medium text-neutral-600">
+                          Organization name
+                          <input
+                            value={editName}
+                            onChange={(ev) => setEditName(ev.target.value)}
+                            className="mt-1 min-w-[16rem] rounded-lg border border-neutral-300 px-3 py-2 text-sm font-normal focus:border-neutral-500 focus:outline-none"
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-neutral-600">
+                          <input
+                            type="checkbox"
+                            checked={editPilot}
+                            onChange={(ev) => setEditPilot(ev.target.checked)}
+                          />
+                          Complimentary pilot
+                        </label>
+                        <label className="flex flex-1 flex-col text-xs font-medium text-neutral-600">
+                          Note (internal only — never shown publicly)
+                          <input
+                            value={editNote}
+                            onChange={(ev) => setEditNote(ev.target.value)}
+                            placeholder="e.g. Founding pilot cohort, approved by Kathleen"
+                            className="mt-1 min-w-[16rem] rounded-lg border border-neutral-300 px-3 py-2 text-sm font-normal focus:border-neutral-500 focus:outline-none"
+                          />
+                        </label>
+                        <button
+                          onClick={() => saveDetails(s.employer_id)}
+                          disabled={busy || !editName.trim()}
+                          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                        >
+                          Save (no email sent)
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null,
+              )}
             </tbody>
           </table>
         )}

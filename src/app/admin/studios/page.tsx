@@ -18,6 +18,7 @@ export type StudioRow = {
   employer_id: string;
   email: string;
   name: string | null;
+  org_type: string | null;
   status: string; // invited | in_progress | submitted | approved | live
   city: string | null;
   state_province: string | null;
@@ -25,6 +26,8 @@ export type StudioRow = {
   redeemed_at: string | null;
   submitted_at: string | null;
   created_at: string;
+  pilot_status: string | null;
+  pilot_note: string | null;
 };
 
 export default async function AdminStudiosPage() {
@@ -46,21 +49,36 @@ export default async function AdminStudiosPage() {
   const employerIds = invites.map((i) => i.employer_id);
   const profileByEmployer = new Map<
     string,
-    { name: string | null; status: string; city: string | null; state_province: string | null; public_slug: string | null; submitted_at: string | null }
-  >();
-  if (employerIds.length) {
-    const { data: profData } = await db
-      .from("employer_profiles")
-      .select("employer_id, name, status, city, state_province, public_slug, submitted_at")
-      .in("employer_id", employerIds);
-    for (const p of (profData ?? []) as Array<{
-      employer_id: string;
+    {
       name: string | null;
+      org_type: string | null;
       status: string;
       city: string | null;
       state_province: string | null;
       public_slug: string | null;
       submitted_at: string | null;
+      pilot_status: string | null;
+      pilot_note: string | null;
+    }
+  >();
+  if (employerIds.length) {
+    const { data: profData } = await db
+      .from("employer_profiles")
+      .select(
+        "employer_id, name, org_type, status, city, state_province, public_slug, submitted_at, pilot_status, pilot_note",
+      )
+      .in("employer_id", employerIds);
+    for (const p of (profData ?? []) as Array<{
+      employer_id: string;
+      name: string | null;
+      org_type: string | null;
+      status: string;
+      city: string | null;
+      state_province: string | null;
+      public_slug: string | null;
+      submitted_at: string | null;
+      pilot_status: string | null;
+      pilot_note: string | null;
     }>) {
       profileByEmployer.set(p.employer_id, p);
     }
@@ -72,6 +90,7 @@ export default async function AdminStudiosPage() {
       employer_id: i.employer_id,
       email: i.email,
       name: p?.name ?? null,
+      org_type: p?.org_type ?? null,
       status: p?.status ?? "invited",
       city: p?.city ?? null,
       state_province: p?.state_province ?? null,
@@ -79,6 +98,8 @@ export default async function AdminStudiosPage() {
       redeemed_at: i.redeemed_at,
       submitted_at: p?.submitted_at ?? null,
       created_at: i.created_at,
+      pilot_status: p?.pilot_status ?? null,
+      pilot_note: p?.pilot_note ?? null,
     };
   });
 
