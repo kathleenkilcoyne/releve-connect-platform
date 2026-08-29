@@ -15,6 +15,10 @@ describe("orgCopy", () => {
     expect(c.saveLabel).toBe("Save team profile");
     expect(c.setupTitle).toBe("Set up your team");
     expect(c.returningTitle).toBe("Your team");
+    expect(c.noticeEyebrow).toBe("Relevé Connect · For Dance Teams");
+    expect(c.directorTitle).toBe("Coach / Team Director");
+    expect(c.staffCountLabel(3)).toBe("3 coaches/staff");
+    expect(c.backLink).toEqual({ href: "/", label: "← Back to Relevé" });
   });
 
   it("uses studio language for a studio (and any non-team / null)", () => {
@@ -25,6 +29,10 @@ describe("orgCopy", () => {
       expect(c.owner).toBe("studio owner");
       expect(c.nameLabel).toBe("Studio name");
       expect(c.saveLabel).toBe("Save studio profile");
+      expect(c.noticeEyebrow).toBe("Relevé Connect · For Studios");
+      expect(c.directorTitle).toBe("Artistic Director");
+      expect(c.staffCountLabel(3)).toBe("3 teachers");
+      expect(c.backLink).toEqual({ href: "/studios", label: "← About Founding Studios" });
     }
   });
 });

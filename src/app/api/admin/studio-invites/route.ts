@@ -28,7 +28,13 @@ export async function POST(req: Request) {
   const gate = await requireAdmin(req);
   if (!gate.ok) return gate.response;
 
-  let body: { email?: string; org_type?: string; team_type?: string; member_label?: string | null };
+  let body: {
+    email?: string;
+    org_type?: string;
+    team_type?: string;
+    member_label?: string | null;
+    org_name?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -49,6 +55,12 @@ export async function POST(req: Request) {
     orgType === "dance_team"
       ? (String(body.member_label ?? "").trim() || null)
       : null;
+  // Optional — when Kathleen already knows the org's name at invite time (e.g.
+  // "Manhattan College Dance Team"), it's carried straight into the profile so
+  // the invitee's setup form is pre-filled and never blank. Previously this had
+  // no field at all, so every invite created an empty `name` (required NOT NULL
+  // column) that only got filled if/when the invitee typed it in themselves.
+  const orgName = String(body.org_name ?? "").trim() || null;
 
   const db = createAdminClient();
 
@@ -80,7 +92,7 @@ export async function POST(req: Request) {
       .from("employer_profiles")
       .insert({
         owner_user_id: null,
-        name: "",
+        name: orgName ?? "",
         status: "invited",
         org_type: orgType,
         team_type: teamType,

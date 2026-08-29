@@ -23,12 +23,17 @@ import { memberLabelOf } from "@/lib/studio/team-types";
 
 export const dynamic = "force-dynamic";
 
-/** A form-less notice (used when the signed-in user administers no studio). */
+/**
+ * A form-less notice (used when the signed-in user administers no org). At
+ * this point we don't yet know whether they're a studio owner or a Team
+ * Director (that's what failed to resolve), so this stays neutral rather than
+ * defaulting to Studio wording.
+ */
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="mx-auto max-w-lg flex-1 px-6 py-24 text-center">
       <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-        Relevé Connect · For Studios
+        Relevé Connect
       </p>
       <h1 className="mt-2 text-2xl font-semibold text-neutral-900">{title}</h1>
       <div className="mt-4 text-neutral-600">{children}</div>
@@ -49,11 +54,11 @@ export default async function StudioSchedulePage() {
   const employerId = await resolveStudioForUser(user.id);
   if (!employerId) {
     return (
-      <Notice title="This is your studio's schedule">
+      <Notice title="This is your organization's schedule">
         <p>
-          Only a studio&apos;s own owner or staff can manage its schedule. If you run a Founding
-          Studio and expected to land here, make sure you&apos;re signed in with the email your
-          studio was set up under.
+          Only a studio&apos;s owner/staff or a dance team&apos;s Director can manage its schedule.
+          If you run one and expected to land here, make sure you&apos;re signed in with the email
+          it was set up under.
         </p>
       </Notice>
     );

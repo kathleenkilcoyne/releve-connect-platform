@@ -64,7 +64,7 @@ export default async function StudiosDirectoryPage() {
                     <p className="mt-2 text-sm leading-relaxed text-neutral-600">{s.mission}</p>
                   )}
                   <span className="mt-3 inline-block text-sm font-medium text-neutral-900 underline">
-                    View studio →
+                    View profile →
                   </span>
                 </Link>
               </li>

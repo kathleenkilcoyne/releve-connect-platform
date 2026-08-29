@@ -68,10 +68,10 @@ export async function requireStudioAccess(req: Request): Promise<StudioCheck> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return deny(401, "Sign in to manage your studio.");
+  if (!user) return deny(401, "Sign in to manage your organization.");
 
   const employerId = await resolveStudioForUser(user.id);
-  if (!employerId) return deny(403, "You don't manage a studio.");
+  if (!employerId) return deny(403, "You don't manage a studio or dance team.");
 
   return { ok: true, userId: user.id, employerId };
 }

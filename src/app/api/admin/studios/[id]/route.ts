@@ -6,6 +6,11 @@
 //     action = "approve"   → status submitted → approved   (accepts the content)
 //            | "publish"    → status approved  → live        (makes it PUBLIC)
 //            | "unpublish"  → status live      → approved    (pull it back private)
+//            | "set_details" → correct name / pilot status directly, at ANY
+//                              lifecycle stage — no status transition, no
+//                              email. For fixing a bad invite (e.g. a blank
+//                              org name) or recording a complimentary pilot
+//                              without disturbing the org's own invite/token.
 //
 // `approve` and `publish` are two DISTINCT steps, both admin-only — nothing
 // auto-publishes (spec rule 9). The profile's `status` is the source of truth for
@@ -22,7 +27,12 @@ import { sendStudioLive } from "@/lib/notifications";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Body = { action?: "approve" | "publish" | "unpublish" };
+type Body = {
+  action?: "approve" | "publish" | "unpublish" | "set_details";
+  name?: string;
+  pilot_status?: "complimentary" | null;
+  pilot_note?: string | null;
+};
 
 /** A clean URL slug from a studio name (for /studios/<slug>). "join" is a
  *  reserved sub-path, so it's never allowed to win. */
@@ -147,9 +157,34 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return NextResponse.json({ ok: true, status: "approved" });
     }
 
+    case "set_details": {
+      const patch: Record<string, unknown> = { updated_at: now };
+      if (body.name !== undefined) {
+        const trimmed = body.name.trim();
+        if (!trimmed) {
+          return NextResponse.json({ error: "Organization name can't be blank." }, { status: 400 });
+        }
+        patch.name = trimmed;
+      }
+      if (body.pilot_status !== undefined) {
+        if (body.pilot_status !== null && body.pilot_status !== "complimentary") {
+          return NextResponse.json({ error: "pilot_status must be null or 'complimentary'." }, { status: 400 });
+        }
+        patch.pilot_status = body.pilot_status;
+        patch.pilot_granted_by = body.pilot_status ? gate.userId : null;
+        patch.pilot_granted_at = body.pilot_status ? now : null;
+      }
+      if (body.pilot_note !== undefined) {
+        patch.pilot_note = body.pilot_note?.trim() || null;
+      }
+      const { error } = await db.from("employer_profiles").update(patch).eq("employer_id", id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true });
+    }
+
     default:
       return NextResponse.json(
-        { error: "action must be one of: approve, publish, unpublish." },
+        { error: "action must be one of: approve, publish, unpublish, set_details." },
         { status: 400 },
       );
   }
