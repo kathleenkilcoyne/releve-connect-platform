@@ -37,7 +37,6 @@ type ProfileFields = {
   social_links: Record<string, string> | null;
   profile_status: string | null;
   teaching_at: string | null;
-  touring_with: string | null;
 };
 
 export default async function ProfileEditPage() {
@@ -89,7 +88,7 @@ export default async function ProfileEditPage() {
     .select(
       "profile_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, age_range, headshot_url, teaching_reel_url, " +
-        "gallery_urls, resume_url, social_links, profile_status, teaching_at, touring_with",
+        "gallery_urls, resume_url, social_links, profile_status, teaching_at",
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -204,7 +203,6 @@ export default async function ProfileEditPage() {
                 social_links: p.social_links ?? {},
                 profile_status: p.profile_status ?? "draft",
                 teaching_at: p.teaching_at ?? "",
-                touring_with: p.touring_with ?? "",
               }
             : null
         }

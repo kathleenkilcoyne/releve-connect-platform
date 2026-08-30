@@ -27,7 +27,6 @@ type Initial = {
   social_links: Record<string, string>;
   profile_status: string;
   teaching_at: string;
-  touring_with: string;
 } | null;
 
 const YEARS = ["0-2", "3-5", "6-10", "11-20", "20+"];
@@ -463,35 +462,29 @@ export default function ProfileEditor({
       </section>
 
       {/* Currently ------------------------------------------------------
-          Free text, not tags — where you teach or tour is a fact about you,
+          Free text, not tags — where you teach right now is a fact about you,
           not a facet anyone filters the Roster by. The generic "Availability"
           chip UI that used to live here (general availability / "I'm
           currently accepting") is removed: it was a search filter for a
           Roster facet the Roster no longer exposes, and Available This Week
           (Swing-backed, below) is the real, dated answer to "when can I book
           this person." Removed as UI only — the availability_tags table and
-          profile_availability join are untouched for reversibility. */}
+          profile_availability join are untouched for reversibility.
+          "Touring with" was removed the same way (2026-08-29, founder
+          decision — a since-superseded profile-builder field): the
+          touring_with column and any value already saved in it (e.g. an
+          existing member's own profile) are untouched, this is UI-only, and
+          the public profile no longer reads or renders it either. */}
       <section className="rounded-xl border border-neutral-200 p-5">
         <p className="text-sm font-medium text-neutral-800">Currently</p>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className={label}>Teaching at</label>
-            <input
-              name="teaching_at"
-              defaultValue={initial?.teaching_at}
-              placeholder="e.g. Broadway Dance Center"
-              className={input}
-            />
-          </div>
-          <div>
-            <label className={label}>Touring with</label>
-            <input
-              name="touring_with"
-              defaultValue={initial?.touring_with}
-              placeholder="e.g. Hamilton — National Tour"
-              className={input}
-            />
-          </div>
+        <div className="mt-3">
+          <label className={label}>Teaching at</label>
+          <input
+            name="teaching_at"
+            defaultValue={initial?.teaching_at}
+            placeholder="e.g. Broadway Dance Center"
+            className={input}
+          />
         </div>
       </section>
 

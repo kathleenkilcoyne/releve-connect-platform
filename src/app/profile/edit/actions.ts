@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { getActiveProfessionalRoleSlugs, filterToActiveRoles } from "@/lib/professional/active-roles";
+import { normalizeSocialLink } from "@/lib/profile/links";
 
 export type SaveState = {
   ok: boolean;
@@ -55,10 +56,13 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const teachingReelUrl = String(formData.get("teaching_reel_url") ?? "").trim() || null;
   const publish = formData.get("publish") === "on";
 
-  // The "Currently" lines. Free text on purpose — a specific employer name is a
+  // The "Currently" line. Free text on purpose — a specific employer name is a
   // fact about one person, not a facet anyone would filter the Roster by.
+  // "touring_with" is deliberately no longer read here (2026-08-29): the field
+  // was removed from the form above, and any value already saved to that
+  // column for an existing member is left completely alone by never touching
+  // it in this update payload — not read, not cleared.
   const teachingAt = String(formData.get("teaching_at") ?? "").trim() || null;
-  const touringWith = String(formData.get("touring_with") ?? "").trim() || null;
 
   const styles = formData.getAll("styles").map(String).filter(Boolean);
   const levels = formData.getAll("levels").map(String).filter(Boolean);
@@ -84,6 +88,13 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
   const social: Record<string, string> = {};
   // facebook + tiktok added 2026-07-24. A key missing from this list is silently
   // dropped on save no matter what the form shows, so the two must stay in step.
+  //
+  // Normalized here (2026-08-29) with the same normalizeSocialLink used at
+  // render time — so a newly-typed bare domain ("toddshanks.com") or bare
+  // Instagram handle ("toddshanks") is stored ALREADY as a proper external
+  // URL, not just fixed-up on the way out. A value that fails to normalize
+  // (empty, or genuinely unusable) is simply not stored, exactly as an
+  // already-stored bad value is simply not rendered.
   for (const k of [
     "website",
     "instagram",
@@ -93,7 +104,7 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     "youtube",
     "linkedin",
   ] as const) {
-    const v = String(formData.get(k) ?? "").trim();
+    const v = normalizeSocialLink(k, String(formData.get(k) ?? ""));
     if (v) social[k] = v;
   }
 
@@ -236,7 +247,6 @@ export async function saveProfile(_prev: SaveState, formData: FormData): Promise
     age_range: ageRange,
     teaching_reel_url: teachingReelUrl,
     teaching_at: teachingAt,
-    touring_with: touringWith,
     gallery_urls: galleryUrls,
     social_links: social,
     profile_status: publish ? "published" : "draft",
