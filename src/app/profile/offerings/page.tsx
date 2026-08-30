@@ -72,6 +72,12 @@ export default async function OfferingsWorkspacePage() {
         Your Relevé profile is more than a résumé. It’s a place to show what you do, what you
         create, and what you’re ready to offer.
       </p>
+      <p className="mt-2 max-w-2xl text-sm text-neutral-500">
+        Your roles (Teacher, Choreographer, Adjudicator…) say who you are. This is a separate,
+        additional step — where you say what you&apos;re available to be hired for: guest
+        teaching, private coaching, adjudication, licensed work, a master class, a product. Each
+        one becomes its own card on your public profile.
+      </p>
 
       {profileId ? (
         <OfferingsWorkspace initialOfferings={offerings} />

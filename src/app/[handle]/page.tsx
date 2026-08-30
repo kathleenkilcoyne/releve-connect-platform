@@ -298,6 +298,10 @@ export default async function PublicProfilePage({
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
+      <Link href="/roster" className="mb-8 inline-block text-sm text-neutral-500 underline">
+        ← Back to the Roster
+      </Link>
+
       {isDraftPreview && (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm text-amber-800">
