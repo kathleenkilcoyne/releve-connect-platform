@@ -20,6 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { isReservedSlug } from "@/lib/reserved-slugs";
 import { toReelEmbed } from "@/lib/profile/reel";
+import { normalizeSocialLink, normalizeExternalLink } from "@/lib/profile/links";
 import { hasAnyActiveMembership } from "@/lib/membership/access";
 import { canConnect } from "@/lib/connections/messages";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
@@ -51,8 +52,15 @@ type ProfileRow = {
   profile_status: string;
   visibility: string;
   teaching_at: string | null;
-  touring_with: string | null;
+  video_reels: VideoReel[] | null;
 };
+
+// Mirrors src/lib/profile/activation.ts's SeedReel shape — additional reels
+// (choreography / performance / work) beyond the single Featured Video
+// (teaching_reel_url). Populated today only when an approved application
+// supplied one; there is currently no Profile Editor UI to add or edit these
+// after activation (see the "Media / Work" section below).
+type VideoReel = { label: string; url: string; kind: string; order: number };
 
 async function loadProfile(handle: string) {
   if (isReservedSlug(handle)) return null;
@@ -64,7 +72,7 @@ async function loadProfile(handle: string) {
       "profile_id, user_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, headshot_url, teaching_reel_url, gallery_urls, resume_url, " +
         "honorifics, verification_flag, founder_distinction, social_links, profile_status, visibility, " +
-        "teaching_at, touring_with",
+        "teaching_at, video_reels",
     )
     .eq("public_slug", handle)
     .maybeSingle();
@@ -211,11 +219,36 @@ export default async function PublicProfilePage({
   const location = [profile.city, profile.state_province, profile.country]
     .filter(Boolean)
     .join(", ");
-  const social = profile.social_links ?? {};
+  // Every stored social value normalized to a safe external URL, keyed by its
+  // original key; anything that can't be turned into one (a bare domain like
+  // "toddshanks.com", a malformed value, garbage) is dropped here — once, not
+  // re-derived in JSX — so it is never rendered as a broken or same-site href.
+  const social = Object.fromEntries(
+    Object.entries(profile.social_links ?? {})
+      .map(([k, v]) => [k, normalizeSocialLink(k, v)] as const)
+      .filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
   const gallery = (profile.gallery_urls ?? []).filter(Boolean);
   const honorifics = (profile.honorifics ?? []).filter(Boolean);
   const reel = toReelEmbed(profile.teaching_reel_url);
   const firstName = profile.display_name.split(/\s+/)[0] || profile.display_name;
+
+  // Media / Work — additional reels (choreography, performance, work links)
+  // beyond the single Featured Video above. Empty for everyone today (no
+  // profile currently has any), but the column already exists and is
+  // populated for an approved applicant who supplied one — this was captured
+  // and then silently never rendered. Each entry needs a label and a URL that
+  // resolves to SOMETHING (an embed, or at minimum a safe external link);
+  // anything else is dropped rather than shown broken.
+  const mediaReels = (profile.video_reels ?? [])
+    .filter((r) => r && r.url && r.url.trim())
+    .sort((a, b) => a.order - b.order)
+    .map((r) => ({
+      label: r.label || titleCase(r.kind),
+      embed: toReelEmbed(r.url),
+      href: normalizeExternalLink(r.url),
+    }))
+    .filter((r) => r.embed || r.href);
 
   // Professional Offerings (Slice 3) — only queried when the flag is on, so with
   // it OFF this page issues no extra query and renders exactly as before.
@@ -427,22 +460,18 @@ export default async function PublicProfilePage({
       <TagRow title="Teaching levels" items={levels} />
       <TagRow title="Focus" items={focus} />
 
-      {/* The "Currently" lines — where they are right now. Free text, so they
-          render as a sentence rather than tags. */}
-      {(profile.teaching_at || profile.touring_with) && (
+      {/* The "Currently" line — where they are right now. Free text, so it
+          renders as a sentence rather than a tag. "Touring with" was removed
+          from here (2026-08-29, founder decision) as a since-superseded
+          profile-builder field — UI-only removal, its column and any existing
+          data are untouched for reversibility, same pattern as the generic
+          Availability removal above. */}
+      {profile.teaching_at && (
         <section className="mt-8 space-y-1 text-sm text-neutral-600">
-          {profile.teaching_at && (
-            <p>
-              <span className="font-medium text-neutral-800">Teaching at</span> ·{" "}
-              {profile.teaching_at}
-            </p>
-          )}
-          {profile.touring_with && (
-            <p>
-              <span className="font-medium text-neutral-800">Touring with</span> ·{" "}
-              {profile.touring_with}
-            </p>
-          )}
+          <p>
+            <span className="font-medium text-neutral-800">Teaching at</span> ·{" "}
+            {profile.teaching_at}
+          </p>
         </section>
       )}
 
@@ -458,6 +487,49 @@ export default async function PublicProfilePage({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="" className="h-full w-full object-cover" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Media / Work — choreography / performance / other reels beyond the
+          Featured Video. Embeds Vimeo/YouTube the same way the hero does;
+          anything else that survived normalizeExternalLink renders as a plain
+          link instead. Entirely absent (not an empty heading) when there is
+          nothing to show — most profiles today, since there is no Profile
+          Editor UI yet to add these after activation. */}
+      {mediaReels.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-neutral-500">
+            Media &amp; Work
+          </h2>
+          <div className="mt-3 grid gap-6 sm:grid-cols-2">
+            {mediaReels.map((m, i) => (
+              <div key={i}>
+                {m.embed ? (
+                  <div className="relative aspect-video overflow-hidden rounded-xl bg-neutral-900 ring-1 ring-neutral-200">
+                    <iframe
+                      src={m.embed.src}
+                      title={m.label}
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                      className="absolute inset-0 h-full w-full"
+                    />
+                  </div>
+                ) : (
+                  m.href && (
+                    <a
+                      href={m.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex aspect-video items-center justify-center rounded-xl border border-neutral-300 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+                    >
+                      {m.label} ↗
+                    </a>
+                  )
+                )}
+                <p className="mt-2 text-sm font-medium text-neutral-700">{m.label}</p>
               </div>
             ))}
           </div>
@@ -503,7 +575,11 @@ export default async function PublicProfilePage({
           )}
           {/* Ordered by SOCIAL_LABELS, not by whatever order the keys happen to
               sit in the JSON — otherwise the row reshuffles itself every time a
-              member edits their links. Anything unrecognised still renders, last. */}
+              member edits their links. Anything unrecognised still renders,
+              last. `social` (above) is already normalized-and-filtered, so
+              every href here is a safe, absolute external URL — never a
+              same-site or broken link, fixing the exact bug that sent visitors
+              to releveconnect.com/toddshanks.com. */}
           {Object.entries(social)
             .sort(([a], [b]) => {
               const keys = Object.keys(SOCIAL_LABELS);
@@ -511,10 +587,10 @@ export default async function PublicProfilePage({
               const ib = keys.indexOf(b);
               return (ia < 0 ? keys.length : ia) - (ib < 0 ? keys.length : ib);
             })
-            .map(([k, v]) => (
+            .map(([k, href]) => (
             <a
               key={k}
-              href={v}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
