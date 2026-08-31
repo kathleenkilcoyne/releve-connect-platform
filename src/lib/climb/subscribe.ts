@@ -167,11 +167,18 @@ export async function subscribeToClimb(
     return { ok: true, message: successMessage };
   }
 
-  const groups =
+  const groupIds =
     list === "licensing" && licensingGroupId ? [groupId, licensingGroupId] : [groupId];
 
   try {
-    const res = await fetch(MAILERLITE_ENDPOINT, {
+    // ── Step 1: create/update the subscriber — WITHOUT a `groups` field. ──
+    // MailerLite group IDs are 18-digit numbers, which exceed JavaScript's
+    // safe integer range (Number.MAX_SAFE_INTEGER is ~16 digits) — sending
+    // one as a JSON number would silently corrupt it, and sending it as a
+    // JSON string is what produced "The groups.0 field must be a number."
+    // Group membership is assigned separately in step 2 below, where both
+    // IDs travel as opaque strings in a URL path instead of a JSON value.
+    const subscriberRes = await fetch(MAILERLITE_ENDPOINT, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -181,31 +188,18 @@ export async function subscribeToClimb(
       body: JSON.stringify({
         email,
         fields: { name: firstName },
-        groups,
         status: "active",
       }),
     });
 
-    if (res.ok) {
-      const body = (await res.json().catch(() => null)) as { data?: { id?: string } } | null;
-      const mailerliteId = body?.data?.id ?? existing?.mailerlite_subscriber_id ?? null;
-      await db
-        .from("newsletter_subscribers")
-        .update({
-          mailerlite_subscriber_id: mailerliteId,
-          mailerlite_synced_at: nowIso,
-        })
-        .eq("subscriber_id", subscriberId);
-    } else {
-      const detail = await res.text().catch(() => "");
+    if (!subscriberRes.ok) {
+      const detail = await subscriberRes.text().catch(() => "");
 
       // A 422 from MailerLite is a generic "validation failed" status — it
-      // does NOT always mean "already subscribed" (it can also mean a bad
-      // group ID, a malformed field, etc). Only treat it as "already
-      // subscribed" if the error body actually says so; anything else is a
-      // real failure and must be logged, not silently marked synced.
+      // does NOT always mean "already subscribed". Only treat it as such if
+      // the error body actually says so; anything else is a real failure.
       let alreadySubscribed = false;
-      if (res.status === 422) {
+      if (subscriberRes.status === 422) {
         try {
           const parsed = JSON.parse(detail) as {
             message?: string;
@@ -218,23 +212,69 @@ export async function subscribeToClimb(
           alreadySubscribed =
             text.includes("already") || text.includes("exists") || text.includes("taken");
         } catch {
-          // Non-JSON body — can't confirm it means "already subscribed",
-          // so fall through and treat it as a real failure below.
+          // Non-JSON body — can't confirm it means "already subscribed".
         }
       }
 
-      if (alreadySubscribed) {
-        await db
-          .from("newsletter_subscribers")
-          .update({ mailerlite_synced_at: nowIso })
-          .eq("subscriber_id", subscriberId);
-      } else {
+      if (!alreadySubscribed) {
         console.error(
-          "[climb] MailerLite sync failed (recorded in Supabase; will need a resync):",
-          res.status,
+          "[climb] MailerLite subscriber upsert failed (recorded in Supabase; will need a resync):",
+          subscriberRes.status,
           detail,
         );
       }
+      // Either way, we have no confirmed subscriber id to assign groups to
+      // (an "already subscribed" response here carries no body to trust)
+      // — leave the row unsynced rather than guess.
+      return { ok: true, message: successMessage };
+    }
+
+    const subscriberBody = (await subscriberRes.json().catch(() => null)) as {
+      data?: { id?: string };
+    } | null;
+    const mailerliteId: string | null =
+      subscriberBody?.data?.id ?? existing?.mailerlite_subscriber_id ?? null;
+
+    if (!mailerliteId) {
+      console.error(
+        "[climb] MailerLite subscriber upsert succeeded but returned no id — cannot assign groups.",
+      );
+      return { ok: true, message: successMessage };
+    }
+
+    // ── Step 2: assign each intended group via MailerLite's dedicated ──
+    // group-assignment endpoint, one request per group. Both ids are kept
+    // as plain strings interpolated into the URL — never parsed as numbers.
+    let allGroupsAssigned = true;
+    for (const gid of groupIds) {
+      const groupRes = await fetch(`${MAILERLITE_ENDPOINT}/${mailerliteId}/groups/${gid}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!groupRes.ok) {
+        allGroupsAssigned = false;
+        const detail = await groupRes.text().catch(() => "");
+        console.error(
+          "[climb] MailerLite group assignment failed (recorded in Supabase; will need a resync):",
+          gid,
+          groupRes.status,
+          detail,
+        );
+      }
+    }
+
+    if (allGroupsAssigned) {
+      await db
+        .from("newsletter_subscribers")
+        .update({
+          mailerlite_subscriber_id: mailerliteId,
+          mailerlite_synced_at: nowIso,
+        })
+        .eq("subscriber_id", subscriberId);
     }
   } catch (err) {
     console.error(
