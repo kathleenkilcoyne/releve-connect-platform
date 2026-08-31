@@ -196,20 +196,45 @@ export async function subscribeToClimb(
           mailerlite_synced_at: nowIso,
         })
         .eq("subscriber_id", subscriberId);
-    } else if (res.status === 422) {
-      // MailerLite's "already subscribed" — nothing new to sync, but it
-      // confirms the record exists there, so stamp synced_at.
-      await db
-        .from("newsletter_subscribers")
-        .update({ mailerlite_synced_at: nowIso })
-        .eq("subscriber_id", subscriberId);
     } else {
       const detail = await res.text().catch(() => "");
-      console.error(
-        "[climb] MailerLite sync failed (recorded in Supabase; will need a resync):",
-        res.status,
-        detail,
-      );
+
+      // A 422 from MailerLite is a generic "validation failed" status — it
+      // does NOT always mean "already subscribed" (it can also mean a bad
+      // group ID, a malformed field, etc). Only treat it as "already
+      // subscribed" if the error body actually says so; anything else is a
+      // real failure and must be logged, not silently marked synced.
+      let alreadySubscribed = false;
+      if (res.status === 422) {
+        try {
+          const parsed = JSON.parse(detail) as {
+            message?: string;
+            errors?: Record<string, string[]>;
+          };
+          const text = [parsed.message, ...Object.values(parsed.errors ?? {}).flat()]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          alreadySubscribed =
+            text.includes("already") || text.includes("exists") || text.includes("taken");
+        } catch {
+          // Non-JSON body — can't confirm it means "already subscribed",
+          // so fall through and treat it as a real failure below.
+        }
+      }
+
+      if (alreadySubscribed) {
+        await db
+          .from("newsletter_subscribers")
+          .update({ mailerlite_synced_at: nowIso })
+          .eq("subscriber_id", subscriberId);
+      } else {
+        console.error(
+          "[climb] MailerLite sync failed (recorded in Supabase; will need a resync):",
+          res.status,
+          detail,
+        );
+      }
     }
   } catch (err) {
     console.error(
