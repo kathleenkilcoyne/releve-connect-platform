@@ -16,8 +16,25 @@
 //   · every email carries MailerLite's unsubscribe link (its own footer), and
 //     the form says so before they sign up.
 //
-// No account is required and nothing else is created — this writes to MailerLite
-// and to nothing else. Someone joining the newsletter is not becoming a member.
+// No account is required — this doesn't create a user, only a subscriber row.
+//
+// ── DB-first architecture (2026-08-30 reconciliation) ──
+// newsletter_subscribers in Supabase is the source of truth (see its table
+// comment). A signup is recorded there FIRST, via the service-role client —
+// RLS on that table has no INSERT/UPDATE policy at all, so this is the only
+// path in; the anon/authenticated keys cannot write to it directly.
+// MailerLite is synced SECOND, best-effort: if that call fails, the person is
+// still safely subscribed in our own database (mailerlite_synced_at stays
+// null, which is exactly what newsletter_subscribers_unsynced_idx exists to
+// surface for a future resync pass — none exists yet by deliberate choice,
+// since nothing has ever needed it).
+//
+// The unique index is on lower(email), not the raw column, so matching is
+// done as an explicit select-then-write rather than relying on Postgres
+// ON CONFLICT (which only matches a plain-column constraint).
+
+import { headers } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const MAILERLITE_ENDPOINT = "https://connect.mailerlite.com/api/subscribers";
 
@@ -67,22 +84,89 @@ export async function subscribeToClimb(
     };
   }
 
+  // ── 1. Record the signup in Supabase first. This is the source of truth. ──
+  const db = createAdminClient();
+  const forwardedFor = (await headers()).get("x-forwarded-for");
+  const consentIp = forwardedFor?.split(",")[0]?.trim() || null;
+  const nowIso = new Date().toISOString();
+
+  const { data: existing, error: lookupError } = await db
+    .from("newsletter_subscribers")
+    .select("subscriber_id, status, mailerlite_subscriber_id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (lookupError) {
+    console.error("[climb] Supabase lookup failed:", lookupError);
+    return { ok: false, message: "Something went wrong signing you up. Please try again." };
+  }
+
+  const wasAlreadyActive = existing?.status === "active";
+  let subscriberId: string;
+
+  if (existing) {
+    // Repeat signup: refresh consent (a real, fresh opt-in event) and
+    // reactivate if they'd previously unsubscribed. Never create a second row.
+    const { error: updateError } = await db
+      .from("newsletter_subscribers")
+      .update({
+        name: firstName,
+        status: "active",
+        consent_source: "site_form",
+        consent_at: nowIso,
+        consent_ip: consentIp,
+        unsubscribed_at: null,
+      })
+      .eq("subscriber_id", existing.subscriber_id);
+
+    if (updateError) {
+      console.error("[climb] Supabase update failed:", updateError);
+      return { ok: false, message: "Something went wrong signing you up. Please try again." };
+    }
+    subscriberId = existing.subscriber_id;
+  } else {
+    const { data: inserted, error: insertError } = await db
+      .from("newsletter_subscribers")
+      .insert({
+        email,
+        name: firstName,
+        status: "active",
+        consent_source: "site_form",
+        consent_at: nowIso,
+        consent_ip: consentIp,
+      })
+      .select("subscriber_id")
+      .single();
+
+    if (insertError || !inserted) {
+      console.error("[climb] Supabase insert failed:", insertError);
+      return { ok: false, message: "Something went wrong signing you up. Please try again." };
+    }
+    subscriberId = inserted.subscriber_id;
+  }
+
+  const successMessage =
+    wasAlreadyActive
+      ? list === "licensing"
+        ? "You're already on the list — we'll write the moment licensing opens."
+        : "You're already on the list — see you on the 1st."
+      : list === "licensing"
+        ? "You're in. We'll write the moment licensing opens."
+        : "You're in. Look for The Climb on the 1st.";
+
+  // ── 2. Sync to MailerLite second, best-effort. ──
+  // A failure here does not fail the signup — they're already safely
+  // recorded above, and the row's null mailerlite_synced_at marks it for a
+  // future resync pass.
   const apiKey = process.env.MAILERLITE_API_KEY;
   const groupId = process.env.MAILERLITE_CLIMB_GROUP_ID;
   const licensingGroupId = process.env.MAILERLITE_LICENSING_GROUP_ID;
 
   if (!apiKey || !groupId) {
-    // Not configured yet. Say something true rather than pretending it worked —
-    // a false "you're subscribed!" is worse than an honest "not yet".
-    console.warn("[climb] MailerLite not configured — would subscribe:", { email, firstName });
-    return {
-      ok: false,
-      message: "Sign-ups aren't switched on quite yet. Please try again shortly.",
-    };
+    console.warn("[climb] MailerLite not configured — recorded in Supabase only:", { email });
+    return { ok: true, message: successMessage };
   }
 
-  // The Climb group always. The licensing group only as an ADDITION, and only if
-  // one has been configured.
   const groups =
     list === "licensing" && licensingGroupId ? [groupId, licensingGroupId] : [groupId];
 
@@ -98,39 +182,41 @@ export async function subscribeToClimb(
         email,
         fields: { name: firstName },
         groups,
-        // Records that this person opted in, and when — the audit trail behind
-        // the checkbox.
         status: "active",
       }),
     });
 
-    if (!res.ok) {
+    if (res.ok) {
+      const body = (await res.json().catch(() => null)) as { data?: { id?: string } } | null;
+      const mailerliteId = body?.data?.id ?? existing?.mailerlite_subscriber_id ?? null;
+      await db
+        .from("newsletter_subscribers")
+        .update({
+          mailerlite_subscriber_id: mailerliteId,
+          mailerlite_synced_at: nowIso,
+        })
+        .eq("subscriber_id", subscriberId);
+    } else if (res.status === 422) {
+      // MailerLite's "already subscribed" — nothing new to sync, but it
+      // confirms the record exists there, so stamp synced_at.
+      await db
+        .from("newsletter_subscribers")
+        .update({ mailerlite_synced_at: nowIso })
+        .eq("subscriber_id", subscriberId);
+    } else {
       const detail = await res.text().catch(() => "");
-      console.error("[climb] MailerLite subscribe failed:", res.status, detail);
-      // 422 is MailerLite's "already subscribed" among other things. Treat a
-      // repeat sign-up as success — telling someone "you're already on the list"
-      // is fine, but making it look like a failure is not.
-      if (res.status === 422) {
-        return {
-          ok: true,
-          message:
-            list === "licensing"
-              ? "You're already on the list — we'll write the moment licensing opens."
-              : "You're already on the list — see you on the 1st.",
-        };
-      }
-      return { ok: false, message: "Something went wrong signing you up. Please try again." };
+      console.error(
+        "[climb] MailerLite sync failed (recorded in Supabase; will need a resync):",
+        res.status,
+        detail,
+      );
     }
-
-    return {
-      ok: true,
-      message:
-        list === "licensing"
-          ? "You're in. We'll write the moment licensing opens."
-          : "You're in. Look for The Climb on the 1st.",
-    };
   } catch (err) {
-    console.error("[climb] MailerLite subscribe error:", err);
-    return { ok: false, message: "Couldn't reach the mailing list just now. Please try again." };
+    console.error(
+      "[climb] MailerLite sync error (recorded in Supabase; will need a resync):",
+      err,
+    );
   }
+
+  return { ok: true, message: successMessage };
 }
