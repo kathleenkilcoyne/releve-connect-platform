@@ -53,6 +53,20 @@ export type CtaType = (typeof CTA_TYPES)[number];
 export const OFFERING_STATUSES = ["active", "inactive"] as const;
 export type OfferingStatus = (typeof OFFERING_STATUSES)[number];
 
+/**
+ * Which offering types can go through the on-Relevé booking rail (Phase 1 of
+ * the Professional Services transaction rail, 2026-09-01). Deliberately NOT
+ * product/license/event/other — those keep their existing external-link /
+ * Inquire / licensing behavior untouched. Widening this list is how a future
+ * phase (e.g. Pop-Up Classes reusing this same rail) opts in — never a second
+ * booking system.
+ */
+export const BOOKABLE_OFFERING_TYPES: OfferingType[] = ["service", "session"];
+
+export function isBookableOfferingType(type: OfferingType): boolean {
+  return BOOKABLE_OFFERING_TYPES.includes(type);
+}
+
 // ---- Display labels --------------------------------------------------------
 
 export const OFFERING_TYPE_LABEL: Record<OfferingType, string> = {
@@ -487,16 +501,19 @@ export function formatPriceDisplay(pricingType: PricingType, dollars: number): s
 }
 
 export type ResolvedPricing =
-  | { ok: true; pricingType: PricingType | null; priceDisplay: string | null }
+  | { ok: true; pricingType: PricingType | null; priceDisplay: string | null; priceCents: number | null }
   | { ok: false; error: string };
 
 /**
  * Turn the builder's pricing picker (a type + an optional amount string) into a
- * validated `{ pricingType, priceDisplay }` pair. Pure.
- *   - no pricing type chosen → both null (nothing shown; never forces a price).
+ * validated `{ pricingType, priceDisplay, priceCents }` triple. Pure.
+ *   - no pricing type chosen → all null (nothing shown; never forces a price).
  *   - an amount type (fixed/hourly/daily/project/starting_at) requires a positive
- *     amount and composes the display string.
- *   - free/contact/hidden carry no amount; their copy is derived at render.
+ *     amount, composes the display string, AND rounds the amount to whole cents —
+ *     `priceCents` is what a future booking actually charges; `priceDisplay`
+ *     stays purely cosmetic (2026-09-01: price_cents becomes canonical).
+ *   - free/contact/hidden carry no amount; their copy is derived at render, and
+ *     they are never bookable (see isOfferingBookable).
  * The professional is NEVER forced into an hourly rate — that is one option of many.
  */
 export function resolvePricing(input: {
@@ -504,7 +521,7 @@ export function resolvePricing(input: {
   amount?: string | null;
 }): ResolvedPricing {
   const typeRaw = clean(input.pricingType);
-  if (!typeRaw) return { ok: true, pricingType: null, priceDisplay: null };
+  if (!typeRaw) return { ok: true, pricingType: null, priceDisplay: null, priceCents: null };
   if (!isPricingType(typeRaw)) return { ok: false, error: "Choose how you price this." };
 
   if ((AMOUNT_PRICING_TYPES as string[]).includes(typeRaw)) {
@@ -517,11 +534,70 @@ export function resolvePricing(input: {
       ok: true,
       pricingType: typeRaw,
       priceDisplay: formatPriceDisplay(typeRaw, n),
+      priceCents: Math.round(n * 100),
     };
   }
 
   // free / contact / hidden / external — no amount; copy derived at render.
-  return { ok: true, pricingType: typeRaw, priceDisplay: null };
+  return { ok: true, pricingType: typeRaw, priceDisplay: null, priceCents: null };
+}
+
+// ---- Bookability + the 3% buyer-side service fee ---------------------------
+//
+// Phase 1 of the Professional Services transaction rail (2026-09-01). The
+// Professional's price never changes: the buyer pays price + fee, the fee is
+// Stripe's `application_fee_amount` on a destination charge, and the
+// Professional's `transfer_data.destination` receives exactly their stated
+// price — Stripe's own processing fee then comes out of THEIR settlement via
+// `on_behalf_of`, matching the existing Signature Experience pattern. Relevé
+// never takes a percentage of the Professional's price itself.
+
+/**
+ * Is this offering eligible for the on-Relevé booking rail at all? Requires a
+ * bookable type (service/session) and a real, positive price_cents — "Contact
+ * for pricing", Free, and unpriced offerings stay Inquire-only. No separate
+ * "bookable" flag on the row: bookability is a fact derivable from the data,
+ * not a second switch that can drift out of sync with it.
+ */
+export function isOfferingBookable(input: { type: OfferingType; priceCents: number | null }): boolean {
+  return isBookableOfferingType(input.type) && input.priceCents != null && input.priceCents > 0;
+}
+
+export type ServiceFeeBreakdown = {
+  /** The Professional's own stated price — unchanged, never split. */
+  priceCents: number;
+  /** The buyer-side addition, rounded to whole cents. */
+  buyerFeeCents: number;
+  /** What the buyer is actually charged: priceCents + buyerFeeCents. */
+  buyerTotalCents: number;
+  /** What settles to the Professional's connected account before Stripe's own
+   *  processing fee (deducted by Stripe via `on_behalf_of`, not by Relevé). */
+  professionalTransferCents: number;
+};
+
+/**
+ * Compute the buyer-side fee split for a service booking. `feeBps` MUST come
+ * from the live platform-fee config (service_platform_fee_bps() in Postgres,
+ * mirroring the Swing $/hr pattern) — this function never assumes a default,
+ * so a caller that hasn't read the real rate cannot silently charge the wrong
+ * one. Returns null when the rate isn't configured or the price is invalid —
+ * the guardrail the original schema comment names: "refuse to charge when the
+ * fee is NULL," not assume zero or any other number.
+ */
+export function computeServiceFeeBreakdown(input: {
+  priceCents: number;
+  feeBps: number | null;
+}): ServiceFeeBreakdown | null {
+  if (!Number.isInteger(input.priceCents) || input.priceCents <= 0) return null;
+  if (input.feeBps == null || !Number.isInteger(input.feeBps) || input.feeBps < 0) return null;
+
+  const buyerFeeCents = Math.round((input.priceCents * input.feeBps) / 10_000);
+  return {
+    priceCents: input.priceCents,
+    buyerFeeCents,
+    buyerTotalCents: input.priceCents + buyerFeeCents,
+    professionalTransferCents: input.priceCents,
+  };
 }
 
 /** The persisted Offering row shape (what the builder + cards render from). */
@@ -534,6 +610,10 @@ export type OfferingRow = {
   image_url: string | null;
   pricing_type: PricingType | null;
   price_display: string | null;
+  /** Canonical monetary value (2026-09-01) — what a booking actually charges.
+   *  Null for non-amount pricing types (free/contact/hidden/external) and for
+   *  any pre-existing offering not yet re-saved through the updated builder. */
+  price_cents: number | null;
   location_mode: LocationMode | null;
   location_note: string | null;
   external_url: string | null;

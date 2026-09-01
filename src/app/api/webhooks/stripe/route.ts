@@ -6,10 +6,16 @@
 // Events handled:
 //   • checkout.session.completed      → purchase paid; create/attach the buyer's
 //                                        Access account; grant access; notify.
+//                                        Also routes a service booking (Professional
+//                                        Services rail, Phase 1, 2026-09-01) to its
+//                                        own confirm-and-notify handler.
+//   • checkout.session.expired        → an abandoned service booking releases its
+//                                        held availability window (Phase 1).
 //   • account.updated                 → flip talent_profiles.payouts_enabled once
 //                                        Stripe says the artist can be paid (Flow A).
 //   • payment_intent.payment_failed   → mark the purchase failed.
-//   • charge.refunded                 → mark refunded and revoke access.
+//   • charge.refunded                 → mark refunded and revoke access; also
+//                                        reopens a refunded booking's window.
 //
 // Signature is verified with STRIPE_WEBHOOK_SIGNING_SECRET over the RAW body.
 // Every branch is idempotent — Stripe may deliver an event more than once.
@@ -25,6 +31,8 @@ import {
   sendAdminNewApplicationAlert,
   sendMembershipActive,
   sendRenewalReminder,
+  sendServiceBookingConfirmedToBuyer,
+  sendServiceBookingConfirmedToProfessional,
   APPLICATION_FEE_NOTE,
 } from "@/lib/notifications";
 import { siteUrl } from "@/lib/stripe/config";
@@ -72,6 +80,9 @@ export async function POST(req: Request) {
     switch (event.type) {
       case "checkout.session.completed":
         await handleCheckoutCompleted(stripe, event.data.object as Stripe.Checkout.Session);
+        break;
+      case "checkout.session.expired":
+        await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
         break;
       case "account.updated":
         await handleAccountUpdated(event.data.object as Stripe.Account);
@@ -125,6 +136,10 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
   }
   if (session.metadata?.kind === "membership") {
     await handleMembershipCheckout(stripe, session);
+    return;
+  }
+  if (session.metadata?.kind === "service_booking") {
+    await handleServiceBookingPaid(session);
     return;
   }
 
@@ -356,6 +371,155 @@ async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout
   }
 }
 
+// ---------------------------------------------------------------------------
+// checkout.session.completed — a Professional Service booking (kind: 'service_booking')
+// Professional Services transaction rail, Phase 1 (2026-09-01).
+// ---------------------------------------------------------------------------
+async function handleServiceBookingPaid(session: Stripe.Checkout.Session) {
+  const db = createAdminClient();
+  const bookingId =
+    (session.metadata?.booking_id as string | undefined) ??
+    (session.client_reference_id ?? undefined);
+
+  const query = db.from("service_bookings").select("*").limit(1);
+  const { data: found } = bookingId
+    ? await query.eq("id", bookingId)
+    : await query.eq("stripe_checkout_session_id", session.id);
+  const booking = found?.[0];
+
+  if (!booking) {
+    console.error("[stripe webhook] no service_booking for session", session.id);
+    return;
+  }
+  if (booking.status === "confirmed") return; // idempotent: already handled
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+  const buyerEmail =
+    session.customer_details?.email ?? session.customer_email ?? booking.buyer_email ?? null;
+  const now = new Date().toISOString();
+
+  // 1) Confirm the booking.
+  await db
+    .from("service_bookings")
+    .update({
+      status: "confirmed",
+      payment_status: "paid",
+      stripe_payment_intent_id: paymentIntentId,
+      buyer_email: buyerEmail,
+      confirmed_at: now,
+      updated_at: now,
+    })
+    .eq("id", booking.id);
+
+  // 2) Turn the held window into a booked one.
+  const { data: windowRow } = await db
+    .from("service_availability")
+    .select("id, profile_id, offering_id, starts_at, ends_at, timezone, booked_count")
+    .eq("id", booking.availability_id)
+    .maybeSingle();
+  if (windowRow) {
+    await db
+      .from("service_availability")
+      .update({
+        status: "booked",
+        booked_count: (windowRow.booked_count as number) + 1,
+        updated_at: now,
+      })
+      .eq("id", windowRow.id);
+  }
+
+  // 3) Notify both parties (best-effort — never fail the webhook).
+  const [{ data: offering }, { data: artist }] = await Promise.all([
+    db.from("professional_offerings").select("title").eq("id", booking.offering_id).maybeSingle(),
+    db
+      .from("talent_profiles")
+      .select("display_name, public_slug, user_id")
+      .eq("profile_id", booking.profile_id)
+      .maybeSingle(),
+  ]);
+  const offeringTitle = (offering as { title: string } | null)?.title ?? "Your session";
+  const artistRow = artist as { display_name: string | null; public_slug: string | null; user_id: string } | null;
+  const whenLabel =
+    windowRow && "starts_at" in windowRow
+      ? new Date(windowRow.starts_at as string).toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: (windowRow.timezone as string) ?? undefined,
+        })
+      : "the scheduled time";
+
+  if (buyerEmail) {
+    await sendServiceBookingConfirmedToBuyer({
+      to: buyerEmail,
+      offeringTitle,
+      professionalName: artistRow?.display_name ?? "your Relevé professional",
+      whenLabel,
+      amountCents: booking.amount_cents as number,
+      feeCents: booking.application_fee_cents as number,
+      profileUrl: artistRow?.public_slug ? `${siteUrl()}/${artistRow.public_slug}` : siteUrl(),
+    });
+  }
+  if (artistRow?.user_id) {
+    const { data: artistUser } = await db
+      .from("users")
+      .select("email")
+      .eq("user_id", artistRow.user_id)
+      .maybeSingle();
+    const artistEmail = (artistUser as { email: string | null } | null)?.email;
+    if (artistEmail) {
+      await sendServiceBookingConfirmedToProfessional({
+        to: artistEmail,
+        offeringTitle,
+        whenLabel,
+        buyerEmail: buyerEmail ?? "a Relevé member",
+        transferCents: booking.professional_transfer_cents as number,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// checkout.session.expired — an abandoned service booking releases its window
+// Professional Services transaction rail, Phase 1 (2026-09-01).
+// ---------------------------------------------------------------------------
+async function handleCheckoutExpired(session: Stripe.Checkout.Session) {
+  if (session.metadata?.kind !== "service_booking") return;
+
+  const db = createAdminClient();
+  const bookingId =
+    (session.metadata?.booking_id as string | undefined) ??
+    (session.client_reference_id ?? undefined);
+  if (!bookingId) return;
+
+  const { data: booking } = await db
+    .from("service_bookings")
+    .select("id, availability_id, status, payment_status")
+    .eq("id", bookingId)
+    .maybeSingle();
+  // Idempotent: only release a booking still genuinely pending — a booking the
+  // buyer already paid for (a real race against this event) is never touched.
+  if (!booking || booking.status !== "pending" || booking.payment_status !== "unpaid") return;
+
+  const now = new Date().toISOString();
+  await db
+    .from("service_bookings")
+    .update({ status: "cancelled", cancelled_at: now, cancelled_by: "buyer", updated_at: now })
+    .eq("id", booking.id)
+    .eq("status", "pending");
+
+  await db
+    .from("service_availability")
+    .update({ status: "open", updated_at: now })
+    .eq("id", booking.availability_id)
+    .eq("status", "held");
+}
+
 // customer.subscription.deleted → membership canceled ------------------------
 async function handleSubscriptionCanceled(sub: Stripe.Subscription) {
   const db = createAdminClient();
@@ -518,4 +682,28 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
     })
     .eq("stripe_payment_intent_id", paymentIntentId)
     .eq("status", "paid");
+
+  // Also cover a Professional Service booking (Phase 1, 2026-09-01): mark it
+  // refunded and reopen its window so the slot becomes bookable again. Only
+  // touches a booking that was actually paid — never a still-pending one (that
+  // case is checkout.session.expired's job, not a refund).
+  const { data: booking } = await db
+    .from("service_bookings")
+    .select("id, availability_id, status")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .eq("payment_status", "paid")
+    .maybeSingle();
+  if (booking) {
+    const now = new Date().toISOString();
+    await db
+      .from("service_bookings")
+      .update({ payment_status: "refunded", status: "cancelled", cancelled_at: now, updated_at: now })
+      .eq("id", booking.id)
+      .eq("payment_status", "paid");
+    await db
+      .from("service_availability")
+      .update({ status: "open", updated_at: now })
+      .eq("id", booking.availability_id)
+      .eq("status", "booked");
+  }
 }

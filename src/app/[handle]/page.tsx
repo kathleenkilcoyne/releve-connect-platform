@@ -26,6 +26,7 @@ import { canConnect } from "@/lib/connections/messages";
 import { isProfessionalOfferingsEnabled } from "@/lib/offerings";
 import ConnectActions from "./ConnectActions";
 import OfferingsSection, { type PublicOffering } from "./OfferingsSection";
+import type { BookableWindow } from "./BookOffering";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,11 @@ type ProfileRow = {
   visibility: string;
   teaching_at: string | null;
   video_reels: VideoReel[] | null;
+  /** Whether this Professional has finished Stripe Connect onboarding — the
+   *  same gate the checkout route itself enforces (Services transaction rail,
+   *  Phase 1, 2026-09-01). Checked here too so a visitor is never shown a
+   *  "Book" button that would just fail at checkout time. */
+  payouts_enabled: boolean;
 };
 
 // Mirrors src/lib/profile/activation.ts's SeedReel shape — additional reels
@@ -72,7 +78,7 @@ async function loadProfile(handle: string) {
       "profile_id, user_id, display_name, public_slug, primary_role, city, state_province, country, " +
         "bio, years_experience, credentials, headshot_url, teaching_reel_url, gallery_urls, resume_url, " +
         "honorifics, verification_flag, founder_distinction, social_links, profile_status, visibility, " +
-        "teaching_at, video_reels",
+        "teaching_at, video_reels, payouts_enabled",
     )
     .eq("public_slug", handle)
     .maybeSingle();
@@ -162,18 +168,61 @@ async function loadProfile(handle: string) {
 // The admin client bypasses RLS, so we filter to status = 'active' EXPLICITLY —
 // draft/hidden offerings must never leak onto the public profile. Ordered by the
 // member's own sort_order. Only called when the feature flag is on.
+//
+// Also loads, per offering, its currently OPEN service_availability windows
+// (Professional Services transaction rail, Phase 1, 2026-09-01) — the fact that
+// decides whether OfferingsSection renders a real "Book" action instead of
+// Inquire. Zero rows for product/license/event/other (they never carry
+// offering_id-linked windows in practice) and zero for a service/session that
+// simply has none published yet — both fall back to today's Inquire unchanged.
 async function loadPublicOfferings(profileId: string): Promise<PublicOffering[]> {
   const db = createAdminClient();
   const { data } = await db
     .from("professional_offerings")
     .select(
-      "id, type, title, short_description, image_url, pricing_type, price_display, location_mode, " +
-        "cta_type, external_url, signature_work_id",
+      "id, type, title, short_description, image_url, pricing_type, price_display, price_cents, " +
+        "location_mode, cta_type, external_url, signature_work_id",
     )
     .eq("profile_id", profileId)
     .eq("status", "active")
     .order("sort_order", { ascending: true });
-  return (data as PublicOffering[] | null) ?? [];
+  const offerings = (data as Omit<PublicOffering, "open_windows">[] | null) ?? [];
+  if (offerings.length === 0) return [];
+
+  const windowsByOffering = await loadOpenWindowsByOffering(
+    db,
+    offerings.map((o) => o.id),
+  );
+  return offerings.map((o) => ({ ...o, open_windows: windowsByOffering.get(o.id) ?? [] }));
+}
+
+/** Currently open, upcoming windows for a set of offerings, grouped by offering
+ *  id. Only queried for offerings that exist — the whole feature stays a no-op
+ *  when nothing published one. */
+async function loadOpenWindowsByOffering(
+  db: ReturnType<typeof createAdminClient>,
+  offeringIds: string[],
+): Promise<Map<string, BookableWindow[]>> {
+  const { data, error } = await db
+    .from("service_availability")
+    .select("id, offering_id, starts_at, ends_at, timezone")
+    .in("offering_id", offeringIds)
+    .eq("status", "open")
+    .gt("ends_at", new Date().toISOString())
+    .order("starts_at", { ascending: true });
+  if (error) {
+    console.error("[public profile] open windows read failed:", error.message);
+    return new Map();
+  }
+
+  type Row = { id: string; offering_id: string; starts_at: string; ends_at: string; timezone: string };
+  const byOffering = new Map<string, BookableWindow[]>();
+  for (const r of (data ?? []) as Row[]) {
+    const list = byOffering.get(r.offering_id) ?? [];
+    list.push({ id: r.id, startsAt: r.starts_at, endsAt: r.ends_at, timezone: r.timezone });
+    byOffering.set(r.offering_id, list);
+  }
+  return byOffering;
 }
 
 export async function generateMetadata({
@@ -252,9 +301,16 @@ export default async function PublicProfilePage({
 
   // Professional Offerings (Slice 3) — only queried when the flag is on, so with
   // it OFF this page issues no extra query and renders exactly as before.
-  const offerings = isProfessionalOfferingsEnabled()
+  let offerings = isProfessionalOfferingsEnabled()
     ? await loadPublicOfferings(profile.profile_id)
     : [];
+  // A visitor is never shown "Book" for a Professional who hasn't finished
+  // connecting Stripe payouts — the checkout route enforces this too, but the
+  // UI shouldn't offer an action that would just fail (Services transaction
+  // rail, Phase 1, 2026-09-01). Falls back to the existing Inquire CTA.
+  if (!profile.payouts_enabled) {
+    offerings = offerings.map((o) => ({ ...o, open_windows: [] }));
+  }
 
   // ---- Viewer state: can this visitor save / request an intro? ------------
   // Any signed-in active member (not the owner) may connect (§5 + founder

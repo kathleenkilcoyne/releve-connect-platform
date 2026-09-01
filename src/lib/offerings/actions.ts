@@ -148,6 +148,9 @@ export async function saveOffering(
     short_description: v.shortDescription,
     pricing_type: v.pricingType,
     price_display: v.priceDisplay,
+    // price_cents is canonical (2026-09-01, Services transaction rail Phase 1)
+    // — what a booking actually charges. price_display stays purely cosmetic.
+    price_cents: pricing.priceCents,
     location_mode: v.locationMode,
     external_url: v.externalUrl,
     status: v.status,

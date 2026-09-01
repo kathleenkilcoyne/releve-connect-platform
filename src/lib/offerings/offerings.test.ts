@@ -23,6 +23,10 @@ import {
   formatPriceDisplay,
   resolvePricing,
   introPrefillMessage,
+  BOOKABLE_OFFERING_TYPES,
+  isBookableOfferingType,
+  isOfferingBookable,
+  computeServiceFeeBreakdown,
   type OfferingInput,
 } from "./offerings";
 import { INTRO_MIN_LEN } from "../connections/messages";
@@ -292,11 +296,12 @@ describe("formatPriceDisplay", () => {
 });
 
 describe("resolvePricing", () => {
-  it("no pricing type → both null (never forces a price)", () => {
+  it("no pricing type → all null (never forces a price)", () => {
     expect(resolvePricing({ pricingType: "", amount: "" })).toEqual({
       ok: true,
       pricingType: null,
       priceDisplay: null,
+      priceCents: null,
     });
   });
 
@@ -305,6 +310,7 @@ describe("resolvePricing", () => {
       ok: true,
       pricingType: "hourly",
       priceDisplay: "$85 / hour",
+      priceCents: 8_500,
     });
   });
 
@@ -313,6 +319,7 @@ describe("resolvePricing", () => {
       ok: true,
       pricingType: "daily",
       priceDisplay: "$600 / day",
+      priceCents: 60_000,
     });
   });
 
@@ -321,19 +328,27 @@ describe("resolvePricing", () => {
       ok: true,
       pricingType: "project",
       priceDisplay: "$175 / project",
+      priceCents: 17_500,
     });
   });
 
-  it("free / contact carry no amount and no composed string", () => {
+  it("rounds a fractional dollar amount to whole cents", () => {
+    const r = resolvePricing({ pricingType: "fixed", amount: "85.5" });
+    expect(r).toEqual({ ok: true, pricingType: "fixed", priceDisplay: "$85.50", priceCents: 8_550 });
+  });
+
+  it("free / contact carry no amount, no composed string, and no price_cents", () => {
     expect(resolvePricing({ pricingType: "free" })).toEqual({
       ok: true,
       pricingType: "free",
       priceDisplay: null,
+      priceCents: null,
     });
     expect(resolvePricing({ pricingType: "contact" })).toEqual({
       ok: true,
       pricingType: "contact",
       priceDisplay: null,
+      priceCents: null,
     });
   });
 
@@ -345,6 +360,82 @@ describe("resolvePricing", () => {
 
   it("rejects an unknown pricing type", () => {
     expect(resolvePricing({ pricingType: "weekly", amount: "5" }).ok).toBe(false);
+  });
+});
+
+// The Professional Services transaction rail, Phase 1 (2026-09-01) — bookability
+// and the buyer-side fee split. Pure, so the money math can be proven without a
+// database or a real Stripe call.
+describe("isBookableOfferingType / BOOKABLE_OFFERING_TYPES", () => {
+  it("only service and session are bookable — product/license/event/other are not", () => {
+    expect([...BOOKABLE_OFFERING_TYPES].sort()).toEqual(["service", "session"]);
+    expect(isBookableOfferingType("service")).toBe(true);
+    expect(isBookableOfferingType("session")).toBe(true);
+    for (const t of ["product", "license", "event", "other"] as const) {
+      expect(isBookableOfferingType(t)).toBe(false);
+    }
+  });
+});
+
+describe("isOfferingBookable", () => {
+  it("requires a bookable type AND a real positive price", () => {
+    expect(isOfferingBookable({ type: "service", priceCents: 8_500 })).toBe(true);
+    expect(isOfferingBookable({ type: "session", priceCents: 1 })).toBe(true);
+  });
+
+  it("Contact for pricing / Free / unpriced offerings are never bookable", () => {
+    expect(isOfferingBookable({ type: "service", priceCents: null })).toBe(false);
+    expect(isOfferingBookable({ type: "service", priceCents: 0 })).toBe(false);
+  });
+
+  it("Product/License/Event/Other are never bookable even with a price", () => {
+    for (const t of ["product", "license", "event", "other"] as const) {
+      expect(isOfferingBookable({ type: t, priceCents: 8_500 })).toBe(false);
+    }
+  });
+});
+
+describe("computeServiceFeeBreakdown", () => {
+  it("adds the fee on top of price — the Professional's price never changes", () => {
+    // $85 service, 300 bps (3%) → buyer pays $87.55, professional's transfer is
+    // still the full $85 (Stripe's own processing fee comes out of THAT via
+    // on_behalf_of, not out of Relevé's cut).
+    expect(computeServiceFeeBreakdown({ priceCents: 8_500, feeBps: 300 })).toEqual({
+      priceCents: 8_500,
+      buyerFeeCents: 255,
+      buyerTotalCents: 8_755,
+      professionalTransferCents: 8_500,
+    });
+  });
+
+  it("rounds the fee to the nearest whole cent", () => {
+    // $60 * 3% = $1.80 exactly — pick a case that actually needs rounding.
+    const r = computeServiceFeeBreakdown({ priceCents: 8_333, feeBps: 300 });
+    expect(r?.buyerFeeCents).toBe(250); // 8333 * 0.03 = 249.99 → 250
+    expect(r?.buyerTotalCents).toBe(8_583);
+  });
+
+  it("refuses to charge when the fee rate is unset — never assumes a default", () => {
+    expect(computeServiceFeeBreakdown({ priceCents: 8_500, feeBps: null })).toBeNull();
+  });
+
+  it("refuses on a non-positive or non-integer price", () => {
+    expect(computeServiceFeeBreakdown({ priceCents: 0, feeBps: 300 })).toBeNull();
+    expect(computeServiceFeeBreakdown({ priceCents: -100, feeBps: 300 })).toBeNull();
+    expect(computeServiceFeeBreakdown({ priceCents: 85.5, feeBps: 300 })).toBeNull();
+  });
+
+  it("refuses on a negative fee rate", () => {
+    expect(computeServiceFeeBreakdown({ priceCents: 8_500, feeBps: -1 })).toBeNull();
+  });
+
+  it("a 0 bps rate is a valid (if unusual) configured rate — zero fee, not refused", () => {
+    expect(computeServiceFeeBreakdown({ priceCents: 8_500, feeBps: 0 })).toEqual({
+      priceCents: 8_500,
+      buyerFeeCents: 0,
+      buyerTotalCents: 8_500,
+      professionalTransferCents: 8_500,
+    });
   });
 });
 

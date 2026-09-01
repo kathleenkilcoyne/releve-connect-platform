@@ -16,12 +16,14 @@ import {
   LOCATION_MODE_LABEL,
   pricingDisplay,
   deriveCta,
+  isOfferingBookable,
   type OfferingType,
   type PricingType,
   type LocationMode,
   type CtaType,
 } from "@/lib/offerings";
 import OfferingCta from "./OfferingCta";
+import BookOffering, { type BookableWindow } from "./BookOffering";
 
 /** The subset of an offering row the public card renders (+ CTA derivation). */
 export type PublicOffering = {
@@ -36,6 +38,16 @@ export type PublicOffering = {
   cta_type: CtaType | null;
   external_url: string | null;
   signature_work_id: string | null;
+  /** Canonical price (2026-09-01, Services transaction rail Phase 1) — drives
+   *  bookability together with `open_windows`. Independent of `price_display`,
+   *  which stays purely cosmetic. */
+  price_cents: number | null;
+  /** This offering's currently open, bookable windows — empty for every
+   *  offering type except service/session, and empty until the professional
+   *  both connects Stripe payouts and publishes a window (see page.tsx's
+   *  loadOpenWindowsByOffering). Booking is offered ONLY when this is
+   *  non-empty; otherwise the card falls back to the existing Inquire CTA. */
+  open_windows: BookableWindow[];
 };
 
 type ViewerContext = {
@@ -75,6 +87,15 @@ function OfferingCard({ offering: o, viewer }: { offering: PublicOffering; viewe
     signatureWorkId: o.signature_work_id,
   });
 
+  // Bookable on Relevé (Services transaction rail, Phase 1, 2026-09-01): a
+  // service/session offering with a real price AND at least one open window.
+  // This REPLACES the Inquire CTA for exactly this case — every other offering
+  // (product/license/event/other, or a service/session not yet priced or with
+  // no published time) renders <OfferingCta> exactly as it did before this
+  // rail existed.
+  const bookable =
+    isOfferingBookable({ type: o.type, priceCents: o.price_cents }) && o.open_windows.length > 0;
+
   return (
     <article className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 sm:p-6">
       {/* 1 · Title — the primary line. */}
@@ -108,17 +129,30 @@ function OfferingCard({ offering: o, viewer }: { offering: PublicOffering; viewe
       )}
 
       {/* Action — reuses existing Relevé rails (Slice 4); read-only content above
-          is unchanged from the approved Slice 3 design. */}
+          is unchanged from the approved Slice 3 design. Bookable service/session
+          offerings (Phase 1, 2026-09-01) get real on-Relevé checkout instead of
+          Inquire; every other offering is completely unaffected. */}
       <div className="mt-5">
-        <OfferingCta
-          cta={cta}
-          offeringTitle={o.title}
-          profileId={viewer.profileId}
-          firstName={viewer.firstName}
-          handle={viewer.handle}
-          canAct={viewer.canAct}
-          isOwner={viewer.isOwner}
-        />
+        {bookable ? (
+          <BookOffering
+            offeringTitle={o.title}
+            priceCents={o.price_cents as number}
+            windows={o.open_windows}
+            handle={viewer.handle}
+            canAct={viewer.canAct}
+            isOwner={viewer.isOwner}
+          />
+        ) : (
+          <OfferingCta
+            cta={cta}
+            offeringTitle={o.title}
+            profileId={viewer.profileId}
+            firstName={viewer.firstName}
+            handle={viewer.handle}
+            canAct={viewer.canAct}
+            isOwner={viewer.isOwner}
+          />
+        )}
       </div>
     </article>
   );

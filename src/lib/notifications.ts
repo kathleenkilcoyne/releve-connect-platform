@@ -17,6 +17,7 @@
 import { body, emailSiteUrl, sendEmail, type SendResult } from "./email/send";
 import { orgCopy } from "./studio/org-copy";
 import { memberLabelOf } from "./studio/team-types";
+import { dollars } from "./membership/tiers";
 
 /**
  * The ONLY approved wording for the $30 fee (pricing SSOT + CLAUDE.md §4G):
@@ -58,6 +59,72 @@ export async function sendBuyerExperienceConfirmation(
       links.join("\n"),
       "An account has been created for you with this email address. Sign in any " +
         `time at ${emailSiteUrl()}/login to return to your experience.`,
+    ),
+  });
+}
+
+// ===========================================================================
+// Professional Services transaction rail, Phase 1 (2026-09-01). Two confirmation
+// emails from ONE booking payment — buyer and Professional each see only their
+// own side of the money (the buyer's total, the Professional's own transfer —
+// never the other party's number, and never Relevé's cut named as a line item
+// to either party beyond what the buyer's own receipt already shows).
+// ===========================================================================
+
+/**
+ * EMAILS.md #17 — "Booking confirmed" (buyer). Fires from the
+ * checkout.session.completed webhook once a service booking is paid.
+ */
+export async function sendServiceBookingConfirmedToBuyer(input: {
+  to: string;
+  offeringTitle: string;
+  professionalName: string;
+  whenLabel: string;
+  /** The Professional's stated price, in cents — what the buyer sees as "for". */
+  amountCents: number;
+  /** The Relevé booking fee, in cents — shown as its own line, per policy
+   *  (never folded silently into the Professional's price). */
+  feeCents: number;
+  profileUrl: string;
+}): Promise<void> {
+  const total = input.amountCents + input.feeCents;
+  await sendEmail({
+    to: input.to,
+    template: "service-booking-confirmed-buyer.v1",
+    subject: `Booked — ${input.offeringTitle} with ${input.professionalName}`,
+    text: body(
+      `You're confirmed for "${input.offeringTitle}" with ${input.professionalName}.`,
+      `When: ${input.whenLabel}`,
+      `Charged: ${dollars(total)} (${dollars(input.amountCents)} + ${dollars(input.feeCents)} Relevé booking fee)`,
+      `View ${input.professionalName}'s profile: ${input.profileUrl}`,
+      "Need to reschedule or cancel? Reply to this email or reach out through Relevé.",
+    ),
+  });
+}
+
+/**
+ * EMAILS.md #18 — "New booking" (Professional). Fires from the same webhook
+ * event, to the Professional whose service was just booked and paid.
+ */
+export async function sendServiceBookingConfirmedToProfessional(input: {
+  to: string;
+  offeringTitle: string;
+  whenLabel: string;
+  buyerEmail: string;
+  /** What settles to the Professional (their full stated price — Stripe's own
+   *  processing fee comes out of this at settlement, per existing policy). */
+  transferCents: number;
+}): Promise<void> {
+  await sendEmail({
+    to: input.to,
+    template: "service-booking-confirmed-professional.v1",
+    subject: `New booking — ${input.offeringTitle}`,
+    text: body(
+      `You have a new paid booking for "${input.offeringTitle}".`,
+      `When: ${input.whenLabel}`,
+      `Booked by: ${input.buyerEmail}`,
+      `Your payout: ${dollars(input.transferCents)} (before Stripe's own processing fee).`,
+      "Manage your bookings any time by signing in to Relevé.",
     ),
   });
 }
