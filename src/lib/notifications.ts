@@ -569,20 +569,25 @@ export async function sendStudioSubmittedAlert(input: {
 
 /**
  * EMAILS.md #14 — "Your studio is live" (optional). Sent when Kathleen publishes
- * a studio (`approved` → `live`).
+ * a studio (`approved` → `live`). Branches on `orgType` via the SAME `orgCopy()`
+ * helper `sendStudioInvitation` above already uses (fix, 2026-09-01): this
+ * template previously said "studio page" unconditionally, including to Dance
+ * Teams — inconsistent with every other Dance-Team-reachable surface.
  */
 export async function sendStudioLive(input: {
   to: string;
   studioName: string;
   profileUrl: string;
+  orgType?: string | null;
 }): Promise<void> {
+  const { noun } = orgCopy(input.orgType);
   await sendEmail({
     to: input.to,
     template: "studio-live.v1",
     subject: `${input.studioName} is live on Relevé`,
     text: body(
       `Congratulations — ${input.studioName} is now live on Relevé Connect.`,
-      `Your studio page: ${input.profileUrl}`,
+      `Your ${noun} page: ${input.profileUrl}`,
       "You can keep your details current any time by signing in with this email address.",
     ),
   });
