@@ -31,10 +31,18 @@ export function hasActiveProfileTierFromRows(rows: MembershipRow[]): boolean {
 }
 
 /**
- * Pure predicate: does the member hold ANY active membership (any tier)? This is
- * the Roster-access gate — browsing the directory is a paid benefit that starts
- * at Live Pass (§5), so any active tier (Live Pass, Professional, or a studio
- * tier) qualifies. Extracted for unit tests (guardrail #6).
+ * Pure predicate: does the member hold ANY active membership (any tier)?
+ *
+ * NOT a Roster-view gate — the Roster and public professional profiles are
+ * PUBLIC DISCOVERY, open to anyone, no login or membership required (the
+ * auth-free gate was removed from /roster on 2026-08-25; confirmed again
+ * 2026-09-01, founder decision, superseding the earlier §5 design where
+ * browsing was itself a paid benefit). This predicate gates only PRIVATE
+ * PARTICIPATION actions on a profile — saving / requesting an intro (see
+ * `canConnect` in src/lib/connections/messages.ts and its callers in
+ * src/lib/connections/actions.ts) — where any active tier (Live Pass,
+ * Professional, or a studio tier) still qualifies. Extracted for unit tests
+ * (guardrail #6).
  */
 export function hasAnyActiveMembershipFromRows(rows: MembershipRow[]): boolean {
   return rows.some((m) => m.membership_status === "active");
@@ -66,8 +74,10 @@ export async function hasActiveProfileTier(
 }
 
 /**
- * Does this user hold ANY active membership? Gates Roster access (§5). Pass a
- * request-scoped Supabase client; reads only this user's own membership rows.
+ * Does this user hold ANY active membership? Gates PRIVATE PARTICIPATION on a
+ * profile (save / intro-request) — NOT Roster viewing, which is public (see
+ * hasAnyActiveMembershipFromRows above). Pass a request-scoped Supabase client;
+ * reads only this user's own membership rows.
  */
 export async function hasAnyActiveMembership(
   db: SupabaseLike,

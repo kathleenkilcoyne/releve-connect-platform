@@ -63,7 +63,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const { data: profRow, error: loadErr } = await db
     .from("employer_profiles")
-    .select("employer_id, name, status, owner_user_id, public_slug")
+    .select("employer_id, name, status, owner_user_id, public_slug, org_type")
     .eq("employer_id", id)
     .single();
   if (loadErr || !profRow) {
@@ -75,6 +75,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     status: string;
     owner_user_id: string | null;
     public_slug: string | null;
+    org_type: string | null;
   };
   const now = new Date().toISOString();
 
@@ -145,6 +146,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
             to: ownerEmail,
             studioName: prof.name || "Your studio",
             profileUrl: slug ? `${emailSiteUrl()}/studios/${slug}` : `${emailSiteUrl()}/studios`,
+            orgType: prof.org_type,
           });
         }
       }

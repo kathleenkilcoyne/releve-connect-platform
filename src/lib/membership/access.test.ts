@@ -62,8 +62,9 @@ describe("hasActiveProfileTierFromRows", () => {
   });
 });
 
-// The Roster-access gate (§5): browsing the directory is open to ANY active tier,
-// including Live Pass and studios — not just the profile-bearing tiers.
+// The private-participation gate (save / intro-request on a profile — NOT
+// Roster viewing, which is public): any active tier qualifies, including Live
+// Pass and studios — not just the profile-bearing tiers.
 describe("hasAnyActiveMembershipFromRows", () => {
   it("grants access on any active tier — Live Pass and studios included", () => {
     for (const tier of ["live_pass", "professional", "professional_full", "studio_connect", "studio_accelerator"]) {
