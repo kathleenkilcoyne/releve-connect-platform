@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { StudioRow } from "./page";
 import { TEAM_TYPES, TEAM_TYPE_OPTION_LABELS, type TeamType } from "@/lib/studio/team-types";
+import { orgCopy } from "@/lib/studio/org-copy";
 
 const STATUS_LABEL: Record<string, string> = {
   invited: "Invited",
@@ -284,7 +285,7 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                             href={`/admin/studios/${s.employer_id}`}
                             className="rounded-md border border-sky-400 bg-sky-600 px-2.5 py-1 text-xs font-medium text-white"
                           >
-                            Manage studio
+                            Manage {orgCopy(s.org_type).noun}
                           </Link>
                         )}
                         {/* Separate from Manage — only a LIVE studio has a public

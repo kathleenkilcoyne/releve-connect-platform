@@ -1,17 +1,24 @@
-// Admin — generate / regenerate a FAMILY join code for one studio (Brick B1).
+// Admin — generate / regenerate the ORG's join code (Brick B1), for a studio's
+// competition families OR — fix, 2026-09-01 — a Dance Team's adult members.
 //
-// Concierge only: the ADMIN mints the code that a studio hands to its competition
-// families. The code is a row in the EXISTING family `studio_invites` table,
-// validated exactly as-is by /join (joinThroughStudio). This route only CREATES
-// codes — it never changes /join, and it never touches `founding_studio_invites`
-// (that is the separate studio-OWNER onboarding invite).
+// Concierge only: the ADMIN mints the code the org hands out. `kind` is derived
+// from the org's OWN `org_type`, never passed by the caller: `family` for a
+// studio (validated as-is by /join → joinThroughStudio), `team` for a dance team
+// (validated as-is by /team-join → joinDanceTeam, the EXISTING adult team-join
+// system — this route does not invent a second one, it just mints into the same
+// `studio_invites` table the self-serve /api/studio/schedule/team-code route
+// already writes to, so an admin-minted team code and a Director-minted one are
+// indistinguishable). This route only CREATES codes — it never changes /join or
+// /team-join, and it never touches `founding_studio_invites` (the separate
+// org-OWNER onboarding invite).
 //
 // POST /api/admin/studios/<employerId>/family-code
 //   body: { action: "generate" | "regenerate" }
-//     generate   → if an active code already exists, return it unchanged (never
-//                  spawn a duplicate); otherwise mint one.
-//     regenerate → deliberately replace: disable the existing active code(s),
-//                  then mint a fresh one. The old code stops working at once.
+//     generate   → if an active code of THIS org's kind already exists, return
+//                  it unchanged (never spawn a duplicate); otherwise mint one.
+//     regenerate → deliberately replace: disable the existing active code(s) of
+//                  this org's kind, then mint a fresh one. The old code stops
+//                  working at once.
 
 import { NextResponse } from "next/server";
 import { randomInt } from "crypto";
@@ -59,21 +66,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const db = createAdminClient();
 
-  // The studio must exist.
+  // The org must exist. org_type decides which join system this code belongs to.
   const { data: prof, error: profErr } = await db
     .from("employer_profiles")
-    .select("employer_id, name")
+    .select("employer_id, name, org_type")
     .eq("employer_id", id)
     .maybeSingle();
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
-  if (!prof) return NextResponse.json({ error: "Studio not found." }, { status: 404 });
-  const studioName = (prof as { name: string | null }).name;
+  if (!prof) return NextResponse.json({ error: "Organization not found." }, { status: 404 });
+  const org = prof as { name: string | null; org_type: string | null };
+  const isTeam = org.org_type === "dance_team";
+  const kind = isTeam ? "team" : "family";
+  const label = isTeam ? "Team join code" : "Family join code";
 
-  // Existing active code(s) for THIS studio.
+  // Existing active code(s) of THIS org's kind — scoped by kind so a studio's
+  // family codes and a team's team codes (both in the same table) never collide.
   const { data: activeRows, error: activeErr } = await db
     .from("studio_invites")
     .select("invite_id, code")
     .eq("employer_id", id)
+    .eq("kind", kind)
     .eq("status", "active");
   if (activeErr) return NextResponse.json({ error: activeErr.message }, { status: 500 });
   const active = (activeRows ?? []) as Array<{ invite_id: string; code: string }>;
@@ -83,21 +95,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ ok: true, code: active[0].code, reused: true });
   }
 
-  // regenerate: retire the current active code(s) first, deliberately, so a
-  // studio can never be left with two live codes.
+  // regenerate: retire the current active code(s) first, deliberately, so the
+  // org can never be left with two live codes of the same kind.
   if (action === "regenerate" && active.length > 0) {
     const { error: disErr } = await db
       .from("studio_invites")
       .update({ status: "disabled" })
       .eq("employer_id", id)
+      .eq("kind", kind)
       .eq("status", "active");
     if (disErr) return NextResponse.json({ error: disErr.message }, { status: 500 });
   }
 
   // Mint a globally-unique code. There is no DB unique index on `code` (the table
-  // is reused as-is), so we check for a clash and retry. /join matches the code
-  // case-insensitively, so uniqueness is checked the same way.
-  const prefix = prefixFrom(studioName);
+  // is reused as-is), so we check for a clash and retry. /join and /team-join
+  // both match the code case-insensitively, so uniqueness is checked the same way.
+  const prefix = prefixFrom(org.name);
   let code = "";
   for (let attempt = 0; attempt < 6; attempt++) {
     const candidate = `${prefix}-${randomChars(4)}`;
@@ -122,9 +135,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { error: insErr } = await db.from("studio_invites").insert({
     employer_id: id,
     code,
-    label: "Family join code",
+    label,
+    kind,
     status: "active",
-    max_uses: null, // unlimited for the pilot — a family is never turned away mid-code
+    max_uses: null, // unlimited for the pilot — nobody is turned away mid-code
     use_count: 0,
     // expires_at left open (null) per spec.
   });

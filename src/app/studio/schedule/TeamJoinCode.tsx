@@ -1,6 +1,9 @@
 "use client";
 
-// Dance team — the Team Director's own Team join code panel.
+// Dance team — the Team join code panel. Used by the Team Director's own
+// /studio/schedule (self-serve, default endpoint) AND reused verbatim by the
+// admin org-review page (fix, 2026-09-01 — passes `endpoint` to point at the
+// admin-gated mint route instead; same table, same copy, same component).
 //
 // This is SEPARATE from the competition-studio family join code. A team code is
 // shared with ADULT members, who redeem it through the adult dance-team pathway
@@ -16,9 +19,14 @@ export type TeamCode = { code: string; use_count: number };
 export default function TeamJoinCode({
   code,
   memberLabel = "Team Members",
+  endpoint = "/api/studio/schedule/team-code",
 }: {
   code: TeamCode | null;
   memberLabel?: string;
+  /** Which gated route mints/regenerates this code. Defaults to the Team
+   *  Director's own self-serve route; the admin review page passes its own
+   *  admin-gated route instead — same `studio_invites` row shape either way. */
+  endpoint?: string;
 }) {
   const membersLower = memberLabel.toLowerCase();
   const router = useRouter();
@@ -38,7 +46,7 @@ export default function TeamJoinCode({
     setBusy(true);
     setNotice(null);
     try {
-      const res = await fetch("/api/studio/schedule/team-code", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
