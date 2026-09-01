@@ -1,21 +1,27 @@
 "use client";
 
-// The decision controls for one studio, on its review page. Approve and Publish
-// are two DISTINCT steps (same as before) — they just live here now, AFTER the
-// admin has read the submission, instead of blind in the list. Each hits the
-// existing gated /api/admin/studios/[id] PATCH route, then refreshes so the page
-// reflects the new status (Approve → the Publish button appears).
+// The decision controls for one org's review page (studio or Dance Team).
+// Approve and Publish are two DISTINCT steps (same as before) — they just live
+// here now, AFTER the admin has read the submission, instead of blind in the
+// list. Each hits the existing gated /api/admin/studios/[id] PATCH route, then
+// refreshes so the page reflects the new status (Approve → the Publish button
+// appears). Notice/help copy branches on `orgType` via the shared `orgCopy()`
+// helper (fix, 2026-09-01) — never a second copy system.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { orgCopy } from "@/lib/studio/org-copy";
 
 export default function ReviewActions({
   employerId,
   status,
+  orgType,
 }: {
   employerId: string;
   status: string;
+  orgType?: string | null;
 }) {
+  const copy = orgCopy(orgType);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -33,7 +39,7 @@ export default function ReviewActions({
       if (!res.ok) {
         setNotice({ ok: false, text: data.error ?? `Could not ${action}.` });
       } else {
-        setNotice({ ok: true, text: `Studio is now "${data.status}".` });
+        setNotice({ ok: true, text: `${copy.Noun} is now "${data.status}".` });
         router.refresh();
       }
     } catch {
@@ -77,7 +83,7 @@ export default function ReviewActions({
       {status === "approved" && (
         <p className="mt-2 text-xs text-neutral-500">
           Approved. Publishing is a separate, deliberate step — it&apos;s the only thing that makes
-          the studio public.
+          the {copy.noun} public.
         </p>
       )}
       {notice && (

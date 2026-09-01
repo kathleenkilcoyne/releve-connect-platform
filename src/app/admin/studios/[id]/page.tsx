@@ -1,9 +1,12 @@
-// Admin — read-only review of ONE studio's submission, then Approve / Publish.
+// Admin — read-only review of ONE org's submission (studio or Dance Team), then
+// Approve / Publish.
 //
 // The admin reads the full submitted profile here BEFORE deciding — no approving
 // blind from the list. Everything is display-only (no editable inputs). The
-// decision controls (ReviewActions) and a plain "Back to studios" link let the
-// admin act OR leave without acting.
+// decision controls (ReviewActions) and a plain "Back to studios/teams" link let
+// the admin act OR leave without acting. Wording branches on `org_type` via the
+// shared `orgCopy()` helper (fix, 2026-09-01) — see the join-code section below
+// for the one functional (not just copy) branch on this page.
 //
 // Service-role read (the profile isn't public until live, and it may be unowned/
 // mid-review), gated on a signed-in admin.
@@ -14,9 +17,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
 import ReviewActions from "./ReviewActions";
 import FamilyJoinCode, { type FamilyCode } from "./FamilyJoinCode";
+import TeamJoinCode, { type TeamCode } from "@/app/studio/schedule/TeamJoinCode";
 import ScheduleEditor from "./ScheduleEditor";
 import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
 import { countStudioFamilies } from "@/lib/studio/roster";
+import { orgCopy } from "@/lib/studio/org-copy";
+import { memberLabelOf } from "@/lib/studio/team-types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +37,8 @@ const STATUS_LABEL: Record<string, string> = {
 type ProfileRow = {
   employer_id: string;
   name: string | null;
+  org_type: string | null;
+  member_label: string | null;
   artistic_director: string[] | null;
   culture_note: string | null;
   unique_note: string | null;
@@ -142,7 +150,7 @@ export default async function StudioReviewPage({
   const { data: profRow } = await db
     .from("employer_profiles")
     .select(
-      "employer_id, name, artistic_director, culture_note, unique_note, mission, address_line1, " +
+      "employer_id, name, org_type, member_label, artistic_director, culture_note, unique_note, mission, address_line1, " +
         "address_line2, city, state_province, postal_code, country, year_founded, student_count_band, " +
         "staff_count, room_count, accessible_by_train, accessible_by_bus, car_required, website, " +
         "instagram, tiktok, facebook, promo_video_url, bio, status, submitted_at",
@@ -151,6 +159,13 @@ export default async function StudioReviewPage({
     .maybeSingle();
   const p = profRow as ProfileRow | null;
   if (!p) notFound();
+
+  // Org-type-aware copy — the SAME single source of truth the setup page, the
+  // editor, and the org's own screens already use (fix, 2026-09-01: this admin
+  // review page was the one Dance-Team-reachable surface still hardcoded to
+  // "studio" wording). Never a second copy system.
+  const copy = orgCopy(p.org_type);
+  const backLabel = copy.isTeam ? "← Back to teams" : "← Back to studios";
 
   // The invited owner's email + the vocab joins (styles / concentration / certs).
   const [{ data: inviteRow }, styleRes, concRes, certRes] = await Promise.all([
@@ -171,21 +186,41 @@ export default async function StudioReviewPage({
   const concentrations = labelsOf(concRes.data, "studio_concentrations");
   const certs = labelsOf(certRes.data, "certifications");
 
-  // Active FAMILY join code(s) for this studio (Brick B1). Reads the EXISTING
-  // family `studio_invites` table; the code is minted/replaced via the gated
-  // /family-code route and validated as-is by /join.
-  const { data: familyCodeRows } = await db
-    .from("studio_invites")
-    .select("code, use_count, max_uses, expires_at, created_at")
-    .eq("employer_id", id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
-  const familyCodes = (familyCodeRows ?? []) as FamilyCode[];
+  // The org's join code — which KIND depends on org_type (Brick B1 for studios;
+  // the existing Dance Teams adult join code for teams — never a second system).
+  // Both kinds live in the SAME `studio_invites` table, distinguished by `kind`.
+  let familyCodes: FamilyCode[] = [];
+  let familiesJoined = 0;
+  let teamCode: TeamCode | null = null;
+  if (copy.isTeam) {
+    const { data: teamCodeRows } = await db
+      .from("studio_invites")
+      .select("code, use_count")
+      .eq("employer_id", id)
+      .eq("kind", "team")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const row = (teamCodeRows as TeamCode[] | null)?.[0] ?? null;
+    teamCode = row;
+  } else {
+    // Reads the EXISTING family `studio_invites` table; the code is minted/
+    // replaced via the gated /family-code route and validated as-is by /join.
+    const { data: familyCodeRows } = await db
+      .from("studio_invites")
+      .select("code, use_count, max_uses, expires_at, created_at")
+      .eq("employer_id", id)
+      .eq("kind", "family")
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+    familyCodes = (familyCodeRows ?? []) as FamilyCode[];
 
-  // "Families joined" — sourced from `affiliations` (the source of truth the roster
-  // and the family "This Week" view read), NOT the join code's `use_count`, which
-  // resets to 0 when the code is regenerated even though families stay affiliated.
-  const familiesJoined = await countStudioFamilies(db, id);
+    // "Families joined" — sourced from `affiliations` (the source of truth the
+    // roster and the family "This Week" view read), NOT the join code's
+    // `use_count`, which resets to 0 when the code is regenerated even though
+    // families stay affiliated.
+    familiesJoined = await countStudioFamilies(db, id);
+  }
 
   // ── Schedule (Smart Calendar) ──────────────────────────────────────────────
   // Kathleen's assist editor uses the same type-driven flow + targeting as the
@@ -219,12 +254,12 @@ export default async function StudioReviewPage({
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
       <Link href="/admin/studios" className="text-sm text-neutral-500 underline">
-        ← Back to studios
+        {backLabel}
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Relevé · Studio review
+          Relevé · {copy.Noun} review
         </p>
         <span className="inline-block rounded-full bg-neutral-100 px-3 py-0.5 text-xs font-medium text-neutral-700">
           {STATUS_LABEL[p.status] ?? p.status}
@@ -241,7 +276,7 @@ export default async function StudioReviewPage({
       {/* ── The submission, read-only ── */}
       <dl className="mt-8">
         <Field label="Owner email">{val(ownerEmail)}</Field>
-        <Field label="Studio name">{val(p.name)}</Field>
+        <Field label={copy.nameLabel}>{val(p.name)}</Field>
         <Field label="Artistic Director">
           {p.artistic_director && p.artistic_director.length ? p.artistic_director.join(", ") : val(null)}
         </Field>
@@ -284,23 +319,36 @@ export default async function StudioReviewPage({
       <div className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Decision</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Approve accepts the content; Publish is the separate step that makes the studio public.
+          Approve accepts the content; Publish is the separate step that makes the {copy.noun} public.
           You can also just go back without deciding.
         </p>
         <div className="mt-4">
-          <ReviewActions employerId={p.employer_id} status={p.status} />
+          <ReviewActions employerId={p.employer_id} status={p.status} orgType={p.org_type} />
         </div>
       </div>
 
-      {/* ── Family join code (Brick B1 · concierge) ── */}
-      <div className="mt-10 border-t border-neutral-200 pt-6">
-        <h2 className="text-lg font-semibold text-neutral-900">Family join code</h2>
-        <FamilyJoinCode
-          employerId={p.employer_id}
-          codes={familyCodes}
-          familiesJoined={familiesJoined}
+      {/* ── Join code (Brick B1 · concierge) — org_type-aware, same shared
+          `studio_invites` table either way. A studio gets its competition-family
+          code; a Dance Team gets its existing adult team-join code (TeamJoinCode,
+          already built for the self-serve /studio/schedule page — reused here
+          verbatim, just pointed at the admin-gated mint endpoint). Never a second
+          join system. ── */}
+      {copy.isTeam ? (
+        <TeamJoinCode
+          code={teamCode}
+          memberLabel={memberLabelOf(p.member_label)}
+          endpoint={`/api/admin/studios/${p.employer_id}/family-code`}
         />
-      </div>
+      ) : (
+        <div className="mt-10 border-t border-neutral-200 pt-6">
+          <h2 className="text-lg font-semibold text-neutral-900">Family join code</h2>
+          <FamilyJoinCode
+            employerId={p.employer_id}
+            codes={familyCodes}
+            familiesJoined={familiesJoined}
+          />
+        </div>
+      )}
 
       {/* ── Schedule (Brick B2 · concierge) ── */}
       <div className="mt-10 border-t border-neutral-200 pt-6">
@@ -315,7 +363,7 @@ export default async function StudioReviewPage({
       </div>
 
       <Link href="/admin/studios" className="mt-10 inline-block text-sm text-neutral-500 underline">
-        ← Back to studios
+        {backLabel}
       </Link>
     </main>
   );
