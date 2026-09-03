@@ -19,6 +19,13 @@ describe("orgCopy", () => {
     expect(c.directorTitle).toBe("Coach / Team Director");
     expect(c.staffCountLabel(3)).toBe("3 coaches/staff");
     expect(c.backLink).toEqual({ href: "/", label: "← Back to Relevé" });
+    // Admin review page (/admin/studios/[id]) field labels.
+    expect(c.cultureQuestionLabel).toBe("What's special about this team?");
+    expect(c.uniqueQuestionLabel).toBe("What makes this team unique?");
+    expect(c.taglineLabel).toBe("Team tagline");
+    expect(c.scaleBandLabel).toBe("Team size");
+    expect(c.staffFieldLabel).toBe("Coaching staff");
+    expect(c.bioFieldLabel).toBe("More about the team");
   });
 
   it("uses studio language for a studio (and any non-team / null)", () => {
@@ -33,6 +40,14 @@ describe("orgCopy", () => {
       expect(c.directorTitle).toBe("Artistic Director");
       expect(c.staffCountLabel(3)).toBe("3 teachers");
       expect(c.backLink).toEqual({ href: "/studios", label: "← About Founding Studios" });
+      // Admin review page (/admin/studios/[id]) field labels — verbatim
+      // Studio wording, unchanged from before this page was made org-aware.
+      expect(c.cultureQuestionLabel).toBe("What is special about teaching at your school?");
+      expect(c.uniqueQuestionLabel).toBe("What makes your studio unique?");
+      expect(c.taglineLabel).toBe("Your studio in one line (tagline)");
+      expect(c.scaleBandLabel).toBe("Student-count band");
+      expect(c.staffFieldLabel).toBe("Staff (teachers)");
+      expect(c.bioFieldLabel).toBe("Anything else about the studio");
     }
   });
 });

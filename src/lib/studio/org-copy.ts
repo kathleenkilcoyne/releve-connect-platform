@@ -35,6 +35,26 @@ export interface OrgCopy {
   staffCountLabel: (count: number) => string;
   /** Footer "back" link on a notice/error screen. */
   backLink: { href: string; label: string };
+
+  // Admin review page (`/admin/studios/[id]`) field labels — a SEPARATE copy
+  // surface from the public-profile section titles above. These mirror the
+  // application's own question wording, not editorial headings, so they are
+  // deliberately NOT the same strings as cultureSectionTitle/uniqueSectionTitle/
+  // aboutSectionTitle. The Studio-side value of each is copied verbatim from
+  // what the admin page already showed before it was made org-aware (fix,
+  // 2026-09-02) — a Studio record must see byte-identical wording to before.
+  /** "What's special about this team?" | "What is special about teaching at your school?" */
+  cultureQuestionLabel: string;
+  /** "What makes this team unique?" | "What makes your studio unique?" */
+  uniqueQuestionLabel: string;
+  /** "Team tagline" | "Your studio in one line (tagline)" */
+  taglineLabel: string;
+  /** "Team size" | "Student-count band" */
+  scaleBandLabel: string;
+  /** "Coaching staff" | "Staff (teachers)" */
+  staffFieldLabel: string;
+  /** "More about the team" | "Anything else about the studio" */
+  bioFieldLabel: string;
 }
 
 export function orgCopy(orgType: string | null | undefined): OrgCopy {
@@ -61,5 +81,14 @@ export function orgCopy(orgType: string | null | undefined): OrgCopy {
     backLink: isTeam
       ? { href: "/", label: "← Back to Relevé" }
       : { href: "/studios", label: "← About Founding Studios" },
+
+    cultureQuestionLabel: isTeam
+      ? "What's special about this team?"
+      : "What is special about teaching at your school?",
+    uniqueQuestionLabel: isTeam ? "What makes this team unique?" : "What makes your studio unique?",
+    taglineLabel: isTeam ? "Team tagline" : "Your studio in one line (tagline)",
+    scaleBandLabel: isTeam ? "Team size" : "Student-count band",
+    staffFieldLabel: isTeam ? "Coaching staff" : "Staff (teachers)",
+    bioFieldLabel: isTeam ? "More about the team" : "Anything else about the studio",
   };
 }
