@@ -277,21 +277,23 @@ export default async function StudioReviewPage({
       <dl className="mt-8">
         <Field label="Owner email">{val(ownerEmail)}</Field>
         <Field label={copy.nameLabel}>{val(p.name)}</Field>
-        <Field label="Artistic Director">
+        <Field label={copy.directorTitle}>
           {p.artistic_director && p.artistic_director.length ? p.artistic_director.join(", ") : val(null)}
         </Field>
-        <Field label="What is special about teaching at your school?">{val(p.culture_note)}</Field>
-        <Field label="What makes your studio unique?">{val(p.unique_note)}</Field>
-        <Field label="Your studio in one line (tagline)">{val(p.mission)}</Field>
+        <Field label={copy.cultureQuestionLabel}>{val(p.culture_note)}</Field>
+        <Field label={copy.uniqueQuestionLabel}>{val(p.unique_note)}</Field>
+        <Field label={copy.taglineLabel}>{val(p.mission)}</Field>
 
         <Field label="Address">{address ? address : val(null)}</Field>
         <Field label="Year founded">{val(p.year_founded)}</Field>
 
-        <Field label="Student-count band">
+        <Field label={copy.scaleBandLabel}>
           {p.student_count_band ? STUDENT_BAND_LABEL[p.student_count_band] ?? p.student_count_band : val(null)}
         </Field>
-        <Field label="Staff (teachers)">{val(p.staff_count)}</Field>
-        <Field label="Studios / rooms">{val(p.room_count)}</Field>
+        <Field label={copy.staffFieldLabel}>{val(p.staff_count)}</Field>
+        {/* Room count is Studio-only — a Dance Team has no rooms of its own,
+            same rule already applied on the public profile page. */}
+        {!copy.isTeam && <Field label="Studios / rooms">{val(p.room_count)}</Field>}
 
         <Field label="Accessible by">
           {accessibleBy.length ? accessibleBy.join(" · ") : val(null)}
@@ -311,7 +313,7 @@ export default async function StudioReviewPage({
         <LinkField label="Facebook" raw={p.facebook} kind="facebook" />
         <LinkField label="Promotional video" raw={p.promo_video_url} kind="video" />
 
-        <Field label="Anything else about the studio">{val(p.bio)}</Field>
+        <Field label={copy.bioFieldLabel}>{val(p.bio)}</Field>
         <Field label="Submitted">{submitted ? submitted : val(null)}</Field>
       </dl>
 
