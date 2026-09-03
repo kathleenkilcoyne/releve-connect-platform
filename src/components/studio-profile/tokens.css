@@ -1,0 +1,32 @@
+/* Studio/Dance Team public profile — BLACK · CREAM · GOLD, applied only to
+ * this page.
+ *
+ * Same values already established in components/home/tokens.css and
+ * components/roster/tokens.css — not a new palette. Scoped to
+ * `.studio-profile-scope` on purpose, exactly like those two, so this page
+ * can carry the editorial brand treatment without touching any other page.
+ */
+
+.studio-profile-scope {
+  --rc-cream: #f5eee1; /* page ground */
+  --rc-cream-2: #efe6d5;
+  --rc-ink: #1e1a17; /* headings, primary text */
+  --rc-ink-soft: #3c3630; /* body copy */
+  --rc-muted: #6d6459; /* small-caps labels, captions */
+  --rc-line: #e3d9c3; /* hairline rules */
+  --rc-gold: #b6912f; /* eyebrows, links, accents */
+  --rc-gold-bright: #d9b85f;
+  --rc-black: #0e0b0a;
+
+  --font-rc-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+    "Times New Roman", serif;
+
+  background: var(--rc-cream);
+  color: var(--rc-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-profile-scope * {
+    transition-duration: 0.001ms !important;
+  }
+}

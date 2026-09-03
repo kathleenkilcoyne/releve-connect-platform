@@ -8,6 +8,14 @@
 // value — blank fields are omitted entirely (not shown as "—"). We never render
 // the owner email, status, submission/lifecycle timestamps, map coordinates, or
 // any other internal field.
+//
+// Editorial visual treatment (2026-09-02): BLACK · CREAM · GOLD, the same
+// values already established in components/home/tokens.css and
+// components/roster/tokens.css — see studio-profile/tokens.css. This is a
+// presentation-only pass: the query, ProfileRow shape, and every field read
+// here are unchanged: same data, same org-aware copy from org-copy.ts, just
+// regrouped and restyled into one editorial column instead of a stack of
+// database-record-style sections.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { orgCopy } from "@/lib/studio/org-copy";
 import { memberLabelOf } from "@/lib/studio/team-types";
 import { STUDENT_COUNT_LABELS, type StudentCountBand } from "@/lib/studio/profile";
+import "@/components/studio-profile/tokens.css";
 
 export const dynamic = "force-dynamic";
 
@@ -131,24 +140,17 @@ function toUrl(kind: "website" | "instagram" | "tiktok" | "facebook" | "video", 
   }
 }
 
+/** An eyebrow-labelled block with a hairline rule above it — the one reusable
+ *  section shape left after Team Culture / At a Glance / Connect got their
+ *  own dedicated (but still plain, boxless) treatments. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-8">
-      <h2 className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-500">{title}</h2>
-      <div className="mt-2 text-neutral-700">{children}</div>
+    <section className="mt-10 border-t border-[color:var(--rc-line)] pt-8">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--rc-gold)]">
+        {title}
+      </h2>
+      <div className="mt-3 text-[color:var(--rc-ink-soft)]">{children}</div>
     </section>
-  );
-}
-
-function TagRow({ items }: { items: string[] }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((it) => (
-        <span key={it} className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700">
-          {it}
-        </span>
-      ))}
-    </div>
   );
 }
 
@@ -193,138 +195,222 @@ export default async function PublicStudioProfile({
     .filter((line) => line && String(line).trim())
     .join("\n");
 
-  // Room count is Studio-only (a Dance Team has no rooms of its own — mirrors
-  // the same rule already applied in the editor's "Studios / rooms" field).
-  const scale = [
-    scaleLabel(p.student_count_band, copy.isTeam, p.member_label),
-    p.staff_count != null ? copy.staffCountLabel(p.staff_count) : null,
-    !copy.isTeam && p.room_count != null ? `${p.room_count} studios` : null,
-  ].filter(Boolean) as string[];
-
   const accessibleBy = [
     p.accessible_by_train ? "Train" : null,
     p.accessible_by_bus ? "Bus" : null,
     p.car_required ? "Car / parking" : null,
   ].filter(Boolean) as string[];
 
-  const socials: { label: string; kind: "website" | "instagram" | "tiktok" | "facebook"; raw: string | null }[] = [
-    { label: "Website", kind: "website", raw: p.website },
-    { label: "Instagram", kind: "instagram", raw: p.instagram },
-    { label: "TikTok", kind: "tiktok", raw: p.tiktok },
-    { label: "Facebook", kind: "facebook", raw: p.facebook },
-  ].filter((s) => has(s.raw)) as typeof socials;
+  // "At a Glance" — Styles / Focus / Certifications / Team size / Coaching
+  // staff / Founded, consolidated into one fact list. Room count stays
+  // Studio-only (a Dance Team has no rooms of its own — mirrors the same
+  // rule already applied in the editor's "Studios / rooms" field). Every
+  // value here is exactly what the old, separate Sections used to show —
+  // only the grouping and styling changed.
+  const teamSizeLabel = scaleLabel(p.student_count_band, copy.isTeam, p.member_label);
+  const roomsLabel = !copy.isTeam && p.room_count != null ? `${p.room_count} studios` : null;
+
+  // Public display only — the bare generic "Other" carries no descriptive
+  // detail to show a visitor. The stored `employer_styles` row is untouched;
+  // this just skips it when building THIS page's text.
+  const displayStyles = styles.filter((s) => s.trim().toLowerCase() !== "other");
+
+  const glance: { label: string; value: string }[] = [
+    displayStyles.length > 0 ? { label: "Styles", value: displayStyles.join(" · ") } : null,
+    concentrations.length > 0
+      ? { label: copy.isTeam ? "Team focus" : "Concentration", value: concentrations.join(" · ") }
+      : null,
+    certs.length > 0 ? { label: "Certifications", value: certs.join(" · ") } : null,
+    teamSizeLabel ? { label: copy.isTeam ? "Team size" : "Student count", value: teamSizeLabel } : null,
+    // Plain count instead of copy.staffCountLabel's "N coaches/staff" —
+    // cleaner as a glance fact; the underlying staff_count is unchanged.
+    p.staff_count != null
+      ? { label: copy.isTeam ? "Coaching Staff" : "Teaching Staff", value: String(p.staff_count) }
+      : null,
+    roomsLabel ? { label: "Studios", value: roomsLabel } : null,
+    p.year_founded != null ? { label: "Founded", value: String(p.year_founded) } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
 
   const gallery = (p.gallery_urls ?? []).filter(Boolean);
 
+  // Connect — Video + Website + Instagram + TikTok + Facebook, unified into
+  // one set of links (was two separate "Video" / "Find us online" sections).
+  const connectLinks = [
+    has(p.promo_video_url) ? { label: "Watch video", href: toUrl("video", p.promo_video_url!) } : null,
+    has(p.website) ? { label: "Website", href: toUrl("website", p.website!) } : null,
+    has(p.instagram) ? { label: "Instagram", href: toUrl("instagram", p.instagram!) } : null,
+    has(p.tiktok) ? { label: "TikTok", href: toUrl("tiktok", p.tiktok!) } : null,
+    has(p.facebook) ? { label: "Facebook", href: toUrl("facebook", p.facebook!) } : null,
+  ].filter(Boolean) as { label: string; href: string }[];
+
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <Link href="/studios" className="text-sm text-neutral-500 underline">
-        ← Back to directory
-      </Link>
+    <main className="studio-profile-scope">
+      <div className="mx-auto max-w-3xl px-6 py-16 sm:px-8">
+        <Link
+          href="/studios"
+          className="text-[11px] font-medium uppercase tracking-[0.15em] text-[color:var(--rc-muted)] hover:text-[color:var(--rc-gold)]"
+        >
+          ← Back to directory
+        </Link>
 
-      {has(p.hero_url) && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={p.hero_url!}
-          alt=""
-          className="mt-4 aspect-[21/9] w-full rounded-2xl object-cover sm:aspect-[3/1]"
-        />
-      )}
+        {has(p.hero_url) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={p.hero_url!}
+            alt=""
+            className="mt-5 aspect-[4/3] w-full rounded-2xl object-cover sm:aspect-[2/1]"
+          />
+        )}
 
-      <h1 className="mt-4 text-4xl font-semibold leading-tight text-neutral-900">{p.name}</h1>
-      {location && <p className="mt-1 text-neutral-600">{location}</p>}
-      {has(p.mission) && (
-        <p className="mt-4 text-lg italic leading-relaxed text-neutral-700">{p.mission}</p>
-      )}
+        {/* ── Identity: name, location, mission — the opening hierarchy ── */}
+        <div className="mt-8">
+          <h1 className="font-[family-name:var(--font-rc-serif)] text-[40px] leading-[1.1] tracking-[-0.01em] text-[color:var(--rc-ink)] sm:text-[44px]">
+            {p.name}
+          </h1>
+          {location && (
+            <p className="mt-2 text-[13px] font-medium uppercase tracking-[0.14em] text-[color:var(--rc-muted)]">
+              {location}
+            </p>
+          )}
+          {has(p.mission) && (
+            <p className="mt-6 max-w-[52ch] border-t border-[color:var(--rc-line)] pt-5 font-[family-name:var(--font-rc-serif)] text-[19px] italic leading-[1.6] text-[color:var(--rc-ink-soft)]">
+              {p.mission}
+            </p>
+          )}
+        </div>
 
-      {directors.length > 0 && (
-        <Section title={copy.directorTitle}>{directors.join(", ")}</Section>
-      )}
-
-      {has(p.culture_note) && (
-        <Section title={copy.cultureSectionTitle}>
-          <p className="whitespace-pre-line leading-relaxed">{p.culture_note}</p>
-        </Section>
-      )}
-
-      {has(p.unique_note) && (
-        <Section title={copy.uniqueSectionTitle}>
-          <p className="whitespace-pre-line leading-relaxed">{p.unique_note}</p>
-        </Section>
-      )}
-
-      {styles.length > 0 && (
-        <Section title="Styles offered">
-          <TagRow items={styles} />
-        </Section>
-      )}
-      {concentrations.length > 0 && (
-        <Section title={copy.isTeam ? "Team focus" : "Concentration"}>
-          <TagRow items={concentrations} />
-        </Section>
-      )}
-      {certs.length > 0 && (
-        <Section title="Certifications">
-          <TagRow items={certs} />
-        </Section>
-      )}
-
-      {scale.length > 0 && <Section title={copy.staffScaleTitle}>{scale.join(" · ")}</Section>}
-      {p.year_founded != null && <Section title="Founded">{p.year_founded}</Section>}
-      {accessibleBy.length > 0 && <Section title="Accessible by">{accessibleBy.join(" · ")}</Section>}
-
-      {address && (
-        <Section title="Location">
-          <p className="whitespace-pre-line">{address}</p>
-        </Section>
-      )}
-
-      {has(p.bio) && (
-        <Section title={copy.aboutSectionTitle}>
-          <p className="whitespace-pre-line leading-relaxed">{p.bio}</p>
-        </Section>
-      )}
-
-      {has(p.promo_video_url) && (
-        <Section title="Video">
-          <a
-            href={toUrl("video", p.promo_video_url!)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-sky-700 underline"
-          >
-            Watch our video →
-          </a>
-        </Section>
-      )}
-
-      {socials.length > 0 && (
-        <Section title="Find us online">
-          <div className="flex flex-wrap gap-3">
-            {socials.map((s) => (
-              <a
-                key={s.label}
-                href={toUrl(s.kind, s.raw!)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
-              >
-                {s.label} ↗
-              </a>
-            ))}
+        {/* ── Coach / Director — kept prominent, right after identity, before About ── */}
+        {directors.length > 0 && (
+          <div className="mt-8 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-[color:var(--rc-line)] pt-6">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--rc-gold)]">
+              {copy.directorTitle}
+            </span>
+            <span className="font-[family-name:var(--font-rc-serif)] text-[19px] text-[color:var(--rc-ink)]">
+              {directors.join(", ")}
+            </span>
           </div>
-        </Section>
-      )}
+        )}
 
-      {gallery.length > 0 && (
-        <Section title="Photos">
-          <PhotoGallery urls={gallery} />
-        </Section>
-      )}
+        {/* ── About — moved up, right after identity/director ── */}
+        {has(p.bio) && (
+          <section
+            className={
+              directors.length > 0
+                ? "mt-8"
+                : "mt-8 border-t border-[color:var(--rc-line)] pt-6"
+            }
+          >
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--rc-gold)]">
+              {copy.aboutSectionTitle}
+            </h2>
+            <p className="mt-3 max-w-[60ch] whitespace-pre-line text-[17px] leading-[1.75] text-[color:var(--rc-ink-soft)]">
+              {p.bio}
+            </p>
+          </section>
+        )}
 
-      <Link href="/" className="mt-14 inline-block text-sm text-neutral-400 underline">
-        together we rise · relevé
-      </Link>
+        {/* ── Team/Studio Culture — culture_note + unique_note, one cohesive
+            section; both texts preserved verbatim under their existing
+            (org-aware) labels, just grouped instead of stacked separately ── */}
+        {(has(p.culture_note) || has(p.unique_note)) && (
+          <section className="mt-8 border-t border-[color:var(--rc-line)] pt-6">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--rc-gold)]">
+              {copy.isTeam ? "Team Culture" : "Studio Culture"}
+            </h2>
+            {/* The original questionnaire prompts (cultureSectionTitle /
+                uniqueSectionTitle) lead each answer in — same text as
+                before, just an inline italic lead-in now instead of an
+                uppercase form-style label, so it reads as editorial copy. */}
+            <div className="mt-4 max-w-[60ch] space-y-5">
+              {has(p.culture_note) && (
+                <p className="whitespace-pre-line text-[16px] leading-[1.75] text-[color:var(--rc-ink-soft)]">
+                  <span className="italic text-[color:var(--rc-muted)]">{copy.cultureSectionTitle}. </span>
+                  {p.culture_note}
+                </p>
+              )}
+              {has(p.unique_note) && (
+                <p className="whitespace-pre-line text-[16px] leading-[1.75] text-[color:var(--rc-ink-soft)]">
+                  <span className="italic text-[color:var(--rc-muted)]">{copy.uniqueSectionTitle}. </span>
+                  {p.unique_note}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ── At a Glance — Styles / Focus / Certifications / Team size /
+            Coaching staff / Founded, consolidated into one fact list ── */}
+        {glance.length > 0 && (
+          <section className="mt-8 border-t border-[color:var(--rc-line)] pt-6">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--rc-gold)]">
+              At a Glance
+            </h2>
+            <dl className="mt-3">
+              {glance.map((g) => (
+                <div
+                  key={g.label}
+                  className="flex flex-wrap items-baseline justify-between gap-x-6 border-b border-[color:var(--rc-line)] py-2.5 last:border-b-0"
+                >
+                  <dt className="text-[12px] font-medium uppercase tracking-[0.1em] text-[color:var(--rc-muted)]">
+                    {g.label}
+                  </dt>
+                  <dd className="text-[15px] text-[color:var(--rc-ink)]">{g.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {/* ── Location ── */}
+        {address && (
+          <Section title="Location">
+            <p className="whitespace-pre-line text-[15px] leading-[1.7]">{address}</p>
+            {accessibleBy.length > 0 && (
+              <p className="mt-2 text-[12px] font-medium uppercase tracking-[0.1em] text-[color:var(--rc-muted)]">
+                Accessible by {accessibleBy.join(" · ")}
+              </p>
+            )}
+          </Section>
+        )}
+
+        {/* ── Photos ── */}
+        {gallery.length > 0 && (
+          <Section title="Photos">
+            <PhotoGallery urls={gallery} />
+          </Section>
+        )}
+
+        {/* ── Connect — Video + Website + Instagram + TikTok + Facebook,
+            one consistent set of links (was two separate sections) ── */}
+        {connectLinks.length > 0 && (
+          <Section title="Connect">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {connectLinks.map((l) => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[14px] font-medium uppercase tracking-[0.08em] text-[color:var(--rc-ink-soft)] underline decoration-[color:var(--rc-gold)] decoration-1 underline-offset-4 hover:text-[color:var(--rc-gold)]"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* ── Footer endcap — small and restrained, not a heavy black band ── */}
+        <div className="mt-14 flex flex-col items-center gap-3 border-t border-[color:var(--rc-line)] pt-8 text-center">
+          <span aria-hidden="true" className="h-px w-10 bg-[color:var(--rc-gold)]" />
+          <Link
+            href="/"
+            className="font-[family-name:var(--font-rc-serif)] text-[13px] italic text-[color:var(--rc-muted)] hover:text-[color:var(--rc-gold)]"
+          >
+            together we rise · relevé
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }
