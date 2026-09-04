@@ -568,26 +568,51 @@ export async function sendStudioSubmittedAlert(input: {
 }
 
 /**
- * EMAILS.md #14 — "Your studio is live" (optional). Sent when Kathleen publishes
- * a studio (`approved` → `live`). Branches on `orgType` via the SAME `orgCopy()`
- * helper `sendStudioInvitation` above already uses (fix, 2026-09-01): this
- * template previously said "studio page" unconditionally, including to Dance
- * Teams — inconsistent with every other Dance-Team-reachable surface.
+ * EMAILS.md #14 — "Your studio/team is live". Sent when Kathleen publishes an
+ * org (`approved` → `live`). Branches on `orgType` via the SAME `orgCopy()`
+ * helper `sendStudioInvitation` above already uses.
+ *
+ * v2 (2026-09-04): v1 only linked to the public profile, leaving a newly
+ * published Dance Team owner (e.g. Madeline Donohue, Manhattan University) with
+ * no pointer to how to actually invite members or build a week — audited and
+ * approved separately from this file's other org-aware fixes. Adds a short
+ * "next steps" list, all pointing at the owner's own already-authenticated
+ * `/studio/schedule` (no deep-link anchors — deferred). Deliberately says
+ * "Open your team/studio dashboard," never "Manage your team/studio" (rejected
+ * wording — full member add/remove doesn't exist; this must not overpromise).
+ *
+ * The Dance Team side has a real self-serve step to point at: `/studio/schedule`
+ * already mints a Team Join Code there (`TeamJoinCode`, team-only). A Studio has
+ * no equivalent self-serve invite tool on that page today, so the Studio copy
+ * intentionally omits an "invite" line rather than promise a feature that isn't
+ * there — flagged for Kathleen to confirm, not assumed.
  */
 export async function sendStudioLive(input: {
   to: string;
   studioName: string;
   profileUrl: string;
   orgType?: string | null;
+  memberLabel?: string | null;
 }): Promise<void> {
-  const { noun } = orgCopy(input.orgType);
+  const copy = orgCopy(input.orgType);
+  const scheduleUrl = `${emailSiteUrl()}/studio/schedule`;
+
+  const nextSteps = copy.isTeam
+    ? [
+        `Invite your ${memberLabelOf(input.memberLabel).toLowerCase()}: ${scheduleUrl}`,
+        `Build This Week: ${scheduleUrl}`,
+        `Open your team dashboard: ${scheduleUrl}`,
+      ]
+    : [`Build This Week: ${scheduleUrl}`, `Open your studio dashboard: ${scheduleUrl}`];
+
   await sendEmail({
     to: input.to,
-    template: "studio-live.v1",
+    template: "studio-live.v2",
     subject: `${input.studioName} is live on Relevé`,
     text: body(
       `Congratulations — ${input.studioName} is now live on Relevé Connect.`,
-      `Your ${noun} page: ${input.profileUrl}`,
+      `Your ${copy.noun} page: ${input.profileUrl}`,
+      nextSteps.join("\n"),
       "You can keep your details current any time by signing in with this email address.",
     ),
   });
