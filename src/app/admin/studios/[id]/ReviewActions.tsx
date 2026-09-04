@@ -26,7 +26,7 @@ export default function ReviewActions({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function act(action: "approve" | "publish" | "unpublish") {
+  async function act(action: "approve" | "publish" | "unpublish" | "resend_live_email") {
     setBusy(true);
     setNotice(null);
     try {
@@ -38,6 +38,9 @@ export default function ReviewActions({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setNotice({ ok: false, text: data.error ?? `Could not ${action}.` });
+      } else if (action === "resend_live_email") {
+        // No status/page change to reflect — deliberately skip router.refresh().
+        setNotice({ ok: true, text: "Welcome email resent. Nothing else changed." });
       } else {
         setNotice({ ok: true, text: `${copy.Noun} is now "${data.status}".` });
         router.refresh();
@@ -79,11 +82,26 @@ export default function ReviewActions({
             {busy ? "Working…" : "Unpublish"}
           </button>
         )}
+        {status === "live" && (
+          <button
+            onClick={() => act("resend_live_email")}
+            disabled={busy}
+            className="rounded-lg border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-700 disabled:opacity-40"
+          >
+            {busy ? "Working…" : "Resend welcome email"}
+          </button>
+        )}
       </div>
       {status === "approved" && (
         <p className="mt-2 text-xs text-neutral-500">
           Approved. Publishing is a separate, deliberate step — it&apos;s the only thing that makes
           the {copy.noun} public.
+        </p>
+      )}
+      {status === "live" && (
+        <p className="mt-2 text-xs text-neutral-500">
+          Resend re-sends the current welcome-email copy to the owner. It does not change the{" "}
+          {copy.noun}&apos;s status, page, or slug — the {copy.noun} stays exactly as published.
         </p>
       )}
       {notice && (

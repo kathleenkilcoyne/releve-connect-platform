@@ -11,6 +11,13 @@
 //                              email. For fixing a bad invite (e.g. a blank
 //                              org name) or recording a complimentary pilot
 //                              without disturbing the org's own invite/token.
+//            | "resend_live_email" → org must ALREADY be "live". Re-sends the
+//                              same studio-live email `publish` sends, via
+//                              `resendStudioLiveEmail()` — NO status/live_at/
+//                              slug/profile write of any kind (Kathleen,
+//                              2026-09-04: Manhattan University Dance Team is
+//                              already live and must not be unpublished/
+//                              republished just to pick up new email copy).
 //
 // `approve` and `publish` are two DISTINCT steps, both admin-only — nothing
 // auto-publishes (spec rule 9). The profile's `status` is the source of truth for
@@ -23,12 +30,13 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailSiteUrl } from "@/lib/email/send";
 import { sendStudioLive } from "@/lib/notifications";
+import { resendStudioLiveEmail } from "@/lib/studio/resend-live-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = {
-  action?: "approve" | "publish" | "unpublish" | "set_details";
+  action?: "approve" | "publish" | "unpublish" | "set_details" | "resend_live_email";
   name?: string;
   pilot_status?: "complimentary" | null;
   pilot_note?: string | null;
@@ -186,9 +194,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       return NextResponse.json({ ok: true });
     }
 
+    case "resend_live_email": {
+      const result = await resendStudioLiveEmail(db, prof);
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+      return NextResponse.json({ ok: true });
+    }
+
     default:
       return NextResponse.json(
-        { error: "action must be one of: approve, publish, unpublish, set_details." },
+        {
+          error:
+            "action must be one of: approve, publish, unpublish, set_details, resend_live_email.",
+        },
         { status: 400 },
       );
   }
