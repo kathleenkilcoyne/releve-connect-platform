@@ -28,10 +28,17 @@ export async function acknowledgeEvent(input: AckInput): Promise<AckResult> {
   const acknowledgedAt = new Date().toISOString();
 
   if (input.scope === "studio_wide") {
-    // One family-level row for the whole-studio occurrence.
+    // A guardian family: ONE family-level row (student_id null) for the whole-studio
+    // occurrence. A self-managed adult (dance team) has no family_account, so their
+    // row is keyed to their OWN student row instead — same "one row per
+    // acknowledger", deduped by the existing (session_id, student_id) unique index.
+    const selfStudentId = input.familyId === null ? input.studentIds[0] ?? null : null;
+    if (input.familyId === null && selfStudentId === null) {
+      return { ok: false, error: "Nothing to acknowledge." };
+    }
     const { error } = await supabase.from("event_acknowledgements").insert({
       session_id: input.sessionId,
-      student_id: null,
+      student_id: selfStudentId,
       family_id: input.familyId,
       acknowledged_by: user.id,
     });

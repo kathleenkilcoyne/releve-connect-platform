@@ -148,6 +148,8 @@ export default async function StudioSchedulePage() {
           teachers={teacherOptions}
           roster={roster}
           groups={groups}
+          isTeam={isTeam}
+          memberLabel={memberLabel}
         />
       </section>
 

@@ -127,3 +127,135 @@ describe("summarizeClassAcks — studio readout 'M of N'", () => {
     expect(out.get("cw")).toEqual({ acked: 1, total: 3 });
   });
 });
+
+/* ───────────────────  Self-managed members (dance team)  ─────────────────── */
+// A dance team's dancers are ADULTS: no guardian, no family_account
+// (students.family_id is null), their own account (transferred_to_user_id). They
+// have no family to acknowledge with, so a studio-wide ack is recorded against
+// their OWN student row — and the coach's denominator counts MEMBERS, not
+// families. These are the two halves of the broken "Got it" loop for a team.
+
+describe("markFamilyAcks — a self-managed member's studio-wide card", () => {
+  it("marks the card done from the member's OWN student row", () => {
+    const events = [
+      card("sessW", { sessionId: "sessW", scope: "studio_wide", studentIds: ["selfA"], familyId: null, acknowledgedAt: null }),
+    ];
+    markFamilyAcks(events, [
+      { session_id: "sessW", student_id: "selfA", family_id: null, acknowledged_at: "2026-09-05T12:00:00Z" },
+    ]);
+    expect(events[0].ack?.acknowledgedAt).toBe("2026-09-05T12:00:00Z");
+  });
+
+  it("leaves it grey when the member has not acknowledged", () => {
+    const events = [
+      card("sessW", { sessionId: "sessW", scope: "studio_wide", studentIds: ["selfA"], familyId: null, acknowledgedAt: null }),
+    ];
+    markFamilyAcks(events, [
+      { session_id: "sessW", student_id: "selfB", family_id: null, acknowledged_at: "2026-09-05T12:00:00Z" },
+    ]);
+    expect(events[0].ack?.acknowledgedAt).toBeNull();
+  });
+
+  it("is NOT satisfied by someone else's family-level row for the same session", () => {
+    // Belt and braces: RLS never shows a member another party's ack, but the
+    // stamper must not cross the lanes even if one leaked in.
+    const events = [
+      card("sessW", { sessionId: "sessW", scope: "studio_wide", studentIds: ["selfA"], familyId: null, acknowledgedAt: null }),
+    ];
+    markFamilyAcks(events, [
+      { session_id: "sessW", student_id: null, family_id: "famA", acknowledged_at: "2026-09-05T12:00:00Z" },
+    ]);
+    expect(events[0].ack?.acknowledgedAt).toBeNull();
+  });
+
+  it("does not change the guardian-family lane (studio-wide card with no student ids)", () => {
+    const events = [
+      card("sessW", { sessionId: "sessW", scope: "studio_wide", studentIds: [], familyId: "famA", acknowledgedAt: null }),
+    ];
+    markFamilyAcks(events, [
+      { session_id: "sessW", student_id: null, family_id: "famA", acknowledged_at: "2026-09-05T13:00:00Z" },
+    ]);
+    expect(events[0].ack?.acknowledgedAt).toBe("2026-09-05T13:00:00Z");
+  });
+});
+
+describe("summarizeClassAcks — studio-wide denominator with self-managed members", () => {
+  it("a DANCE TEAM: counts members, not families (3 of 5) — was 0 of 0", () => {
+    const members = ["m1", "m2", "m3", "m4", "m5"];
+    const rows: AckRow[] = ["m1", "m2", "m3"].map((m) => ({
+      session_id: "sw",
+      student_id: m,
+      family_id: null,
+      acknowledged_at: "t",
+    }));
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw"], enrolledStudentIds: [] }],
+      rows,
+      /* totalFamilies */ 0,
+      /* selfMemberStudentIds */ members,
+    );
+    expect(out.get("cw")).toEqual({ acked: 3, total: 5 });
+  });
+
+  it("counts a member exactly once across two occurrences of the same event", () => {
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw1", "sw2"], enrolledStudentIds: [] }],
+      [
+        { session_id: "sw1", student_id: "m1", family_id: null, acknowledged_at: "t" },
+        { session_id: "sw2", student_id: "m1", family_id: null, acknowledged_at: "t" },
+      ],
+      0,
+      ["m1", "m2"],
+    );
+    expect(out.get("cw")).toEqual({ acked: 1, total: 2 });
+  });
+
+  it("ignores an ack from someone who is not on the roster", () => {
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw"], enrolledStudentIds: [] }],
+      [{ session_id: "sw", student_id: "ghost", family_id: null, acknowledged_at: "t" }],
+      0,
+      ["m1", "m2"],
+    );
+    expect(out.get("cw")).toEqual({ acked: 0, total: 2 });
+  });
+
+  it("a MIXED org: families and members are one denominator, counted once each", () => {
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw"], enrolledStudentIds: [] }],
+      [
+        { session_id: "sw", student_id: null, family_id: "famA", acknowledged_at: "t" },
+        { session_id: "sw", student_id: "m1", family_id: null, acknowledged_at: "t" },
+      ],
+      /* totalFamilies */ 2,
+      /* selfMemberStudentIds */ ["m1"],
+    );
+    expect(out.get("cw")).toEqual({ acked: 2, total: 3 });
+  });
+
+  it("a family dancer's TARGETED row still never counts toward a studio-wide tally", () => {
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw"], enrolledStudentIds: [] }],
+      [{ session_id: "sw", student_id: "stuA", family_id: "famA", acknowledged_at: "t" }],
+      3,
+      ["m1"],
+    );
+    expect(out.get("cw")).toEqual({ acked: 0, total: 4 });
+  });
+
+  it("a studio with no self-managed members is unchanged (10 of 15)", () => {
+    const rows: AckRow[] = Array.from({ length: 10 }, (_, i) => ({
+      session_id: "sw",
+      student_id: null,
+      family_id: `fam${i}`,
+      acknowledged_at: "t",
+    }));
+    const out = summarizeClassAcks(
+      [{ classId: "cw", studioWide: true, sessionIds: ["sw"], enrolledStudentIds: [] }],
+      rows,
+      15,
+      [],
+    );
+    expect(out.get("cw")).toEqual({ acked: 10, total: 15 });
+  });
+});

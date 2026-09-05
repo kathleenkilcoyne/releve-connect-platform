@@ -81,6 +81,21 @@ export function countFamilies(roster: AffiliatedStudent[]): number {
   ).size;
 }
 
+/**
+ * The SELF-MANAGED members on the roster — the adults (dance team) who have no
+ * family account (`family_id` null) and therefore are never counted by
+ * countFamilies. They are reachable in their own right: they hold their own
+ * account (students.transferred_to_user_id) and acknowledge as themselves, so a
+ * studio-wide readout counts one per member. Returns their student ids, which is
+ * exactly the key their acknowledgements are stored under.
+ *
+ * countFamilies + this is a partition of the roster's "acknowledgers": every
+ * dancer has either a family account or none, never both.
+ */
+export function selfManagedMemberIds(roster: AffiliatedStudent[]): string[] {
+  return roster.filter((s) => !s.family_id).map((s) => s.student_id);
+}
+
 /* ────────────────────────────  DB wrappers  ──────────────────────────────── */
 
 /**

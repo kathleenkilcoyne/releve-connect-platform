@@ -49,7 +49,7 @@ export function FamilyWeekView({
   onWeekChange?: (next: number) => void;
 }) {
   const { events, childNames, studioNames, selfManaged, memberLabel, brand, access, communications } = data;
-  const studioLabel = studioNames.join(" · ") || "your studio";
+  const studioLabel = studioNames.join(" · ") || (selfManaged ? "your team" : "your studio");
   // A self member leads with their TEAM name; the sub-line names their role using
   // the team's own singularized member_label ("Self-managed team member" /
   // "Self-managed dancer").

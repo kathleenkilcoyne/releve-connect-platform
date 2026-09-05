@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { loadAffiliatedStudents, countFamilies } from "./roster";
+import { loadAffiliatedStudents, countFamilies, selfManagedMemberIds } from "./roster";
 import { summarizeClassAcks, type AckRow } from "@/lib/this-week/acknowledgements";
 
 // Shared loader for a studio's schedule area (admin assist + studio self-serve).
@@ -31,7 +31,9 @@ export type ScheduleRow = {
   target_student_ids: string[];
   /** "Got it" readout: how many of the intended recipients have acknowledged, and
    *  the total. Targeted events count DANCERS (enrolled); studio-wide events count
-   *  FAMILIES. Both default to 0 when no one has acknowledged. */
+   *  ACKNOWLEDGERS — one per family account plus one per self-managed member (a
+   *  dance team's adults have no family account). Both default to 0 when no one has
+   *  acknowledged. */
   ack_acked: number;
   ack_total: number;
 };
@@ -192,9 +194,9 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
   }
 
   // "Got it" readout per entry: match the family acks against each class's
-  // sessions. Targeted classes count enrolled DANCERS; studio-wide count the
-  // studio's FAMILIES. Fail-soft — if the ack table/read isn't there yet, every
-  // tally is 0-of-N rather than a broken page.
+  // sessions. Targeted classes count enrolled DANCERS; studio-wide count the org's
+  // ACKNOWLEDGERS (family accounts + self-managed members). Fail-soft — if the ack
+  // table/read isn't there yet, every tally is 0-of-N rather than a broken page.
   const ackByClass = new Map<string, { acked: number; total: number }>();
   if (classIds.length) {
     const { data: sessRows } = await db
@@ -220,7 +222,12 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
       else ackRows = (aRows ?? []) as AckRow[];
     }
 
+    // Studio-wide denominator: family accounts PLUS self-managed members. For a
+    // studio the second list is empty (unchanged); for a dance team the first is 0
+    // and the denominator is the affiliated members — which is why a team's readout
+    // read "0 of 0" before.
     const totalFamilies = countFamilies(affiliated);
+    const selfMembers = selfManagedMemberIds(affiliated);
     const summary = summarizeClassAcks(
       classes.map((c) => ({
         classId: c.class_id,
@@ -230,6 +237,7 @@ export async function loadStudioScheduleData(db: SupabaseClient, employerId: str
       })),
       ackRows,
       totalFamilies,
+      selfMembers,
     );
     for (const [k, v] of summary) ackByClass.set(k, v);
   }
