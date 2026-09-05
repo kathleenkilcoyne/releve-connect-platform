@@ -327,7 +327,7 @@ async function buildFamilyWeek(
   }
 
   const studioNames = [...orgNames];
-  const primaryStudio = studioNames[0] ?? "your studio";
+  const primaryStudio = studioNames[0] ?? (selfManaged ? "your team" : "your studio");
 
   // Merged communications across all members, de-duped by id.
   const commsById = new Map<string, Communication>();

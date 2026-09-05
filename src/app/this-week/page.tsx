@@ -18,6 +18,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveStudioForUser } from "@/lib/studio/access";
 import { buildLiveWeek } from "@/lib/this-week/live";
 import { messageForDay } from "@/lib/this-week/daily-message";
 import { getCurrentTrack } from "@/lib/this-week/music";
@@ -31,6 +32,29 @@ export const metadata = {
 
 // The week depends on who is asking and on today's date, so it can't be static.
 export const dynamic = "force-dynamic";
+
+/**
+ * The org this signed-in user administers (owner or staff admin), if any.
+ *
+ * Used ONLY on the empty-payload path below, to decide that a real
+ * organisation must never be shown the fabricated sample week. Costs one
+ * lookup, and only when the viewer has neither a professional nor a family
+ * week, so the normal render path is unaffected.
+ */
+async function resolveOrgHome(
+  userId: string,
+): Promise<{ name: string; isTeam: boolean } | null> {
+  const employerId = await resolveStudioForUser(userId);
+  if (!employerId) return null;
+  const { data } = await createAdminClient()
+    .from("employer_profiles")
+    .select("name, org_type")
+    .eq("employer_id", employerId)
+    .maybeSingle();
+  const row = data as { name: string | null; org_type: string | null } | null;
+  const isTeam = row?.org_type === "dance_team";
+  return { name: row?.name?.trim() || (isTeam ? "Your team" : "Your studio"), isTeam };
+}
 
 /** Clamp the week offset so a hand-edited URL can't walk the expander forever. */
 function parseWeekOffset(raw: string | string[] | undefined): number {
@@ -79,11 +103,32 @@ export default async function ThisWeekPage({
     weekOffset,
   );
 
-  // Signed in but nothing scheduled and no children: show the sample rather than
-  // an empty page, per the demo-mode decision. `isEmpty` is scoped to the week
-  // being viewed, so paging into a quiet week correctly falls back too.
+  // Signed in, but this viewer has neither a professional week nor a family /
+  // self week.
+  //
+  // A LIVE ORGANISATION must never land on the sample week here. A studio
+  // owner or Team Director who is signed in and simply hasn't built anything
+  // out yet must see a real (empty) state, not Kathleen's fabricated sample
+  // week — showing invented people under their own login is misleading, not
+  // a demo. They get a real empty state pointing at their dashboard instead.
+  //
+  // Everyone else who is signed in with nothing yet keeps the sample: that is
+  // the case demo mode was written for, and it stays clearly labelled.
   if (payload.isEmpty && !payload.professional && !payload.family) {
-    return <ThisWeekScreen mode="demo" weekOffset={weekOffset} greeting={greeting} />;
+    const orgHome = await resolveOrgHome(user.id);
+    if (!orgHome) {
+      return <ThisWeekScreen mode="demo" weekOffset={weekOffset} greeting={greeting} />;
+    }
+    return (
+      <ThisWeekScreen
+        mode="live"
+        weekOffset={weekOffset}
+        payload={payload}
+        greeting={greeting}
+        initialView={initialView}
+        orgHome={orgHome}
+      />
+    );
   }
 
   return (

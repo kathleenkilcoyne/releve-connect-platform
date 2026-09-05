@@ -22,7 +22,13 @@ import {
   summarizeSchedule,
   type WeekdayToken,
 } from "@/lib/studio/schedule";
-import { EVENT_TYPES, EVENT_TYPE_BY_SLUG, familyLabelFor } from "@/lib/studio/event-types";
+import {
+  EVENT_TYPES,
+  EVENT_TYPE_BY_SLUG,
+  familyLabelFor,
+  studioLabelFor,
+  hintFor,
+} from "@/lib/studio/event-types";
 import type { ScheduleRow, TeacherOption, RosterEntry, GroupEntry } from "@/lib/studio/schedule-data";
 
 export type { ScheduleRow, TeacherOption } from "@/lib/studio/schedule-data";
@@ -118,13 +124,23 @@ export default function ScheduleEditor({
   teachers,
   roster,
   groups,
+  isTeam = false,
+  memberLabel = "dancers",
 }: {
   endpointBase: string;
   classes: ScheduleRow[];
   teachers: TeacherOption[];
   roster: RosterEntry[];
   groups: GroupEntry[];
+  /** Dance Team vs studio — org-aware wording throughout (event-type labels,
+   *  the ack readout's acknowledger unit, and every "families" string). */
+  isTeam?: boolean;
+  /** The team's own name for its members (e.g. "Dancers"), already
+   *  lower-cased/defaulted by the caller. Ignored when !isTeam. */
+  memberLabel?: string;
 }) {
+  const membersLower = memberLabel.toLowerCase();
+  const orgNoun = isTeam ? "team" : "studio";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("type");
@@ -160,7 +176,7 @@ export default function ScheduleEditor({
     setForm((f) => ({
       ...f,
       eventType: slug,
-      title: f.titleTouched && f.title ? f.title : familyLabelFor(slug, 0),
+      title: f.titleTouched && f.title ? f.title : familyLabelFor(slug, 0, isTeam),
       wholeStudio: d?.target === "studio_wide" ? true : d?.target === "choice" ? true : false,
     }));
     setPhase("form");
@@ -270,7 +286,12 @@ export default function ScheduleEditor({
   }
 
   async function remove(row: ScheduleRow) {
-    if (!window.confirm(`Remove "${row.title}"? It will disappear from This Week for the families it was assigned to.`)) return;
+    if (
+      !window.confirm(
+        `Remove "${row.title}"? It will disappear from This Week for the ${isTeam ? membersLower : "families"} it was assigned to.`,
+      )
+    )
+      return;
     setBusy(true);
     setNotice(null);
     try {
@@ -291,7 +312,7 @@ export default function ScheduleEditor({
   /** Who an entry is for, in words: its groups + individually-added dancers, and
    *  how many families it actually reaches (the resolved, de-duped enrollments). */
   function audienceOf(row: ScheduleRow): string {
-    if (row.studio_wide) return "Whole studio";
+    if (row.studio_wide) return `Whole ${orgNoun}`;
     const parts: string[] = [];
     for (const gid of row.target_group_ids) {
       const g = groupById.get(gid);
@@ -309,11 +330,12 @@ export default function ScheduleEditor({
   }
 
   /** The "Got it" readout for an entry: "M of N acknowledged", green when all in,
-   *  amber while some are outstanding. Studio-wide counts families; targeted
-   *  counts dancers. */
+   *  amber while some are outstanding. Studio-wide counts acknowledgers — families
+   *  for a studio, members for a team (its own member label); targeted counts
+   *  dancers either way. */
   function ackReadout(row: ScheduleRow) {
-    const noun = row.studio_wide ? "family" : "dancer";
-    const nounPl = row.studio_wide ? "families" : "dancers";
+    const noun = row.studio_wide ? (isTeam ? membersLower.replace(/s$/, "") : "family") : "dancer";
+    const nounPl = row.studio_wide ? (isTeam ? membersLower : "families") : "dancers";
     const { ack_acked: acked, ack_total: total } = row;
     if (total === 0) {
       return <span className="text-neutral-400">Got it: no recipients yet</span>;
@@ -349,7 +371,10 @@ export default function ScheduleEditor({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
-                      {EVENT_TYPE_BY_SLUG[row.event_type ?? ""]?.studioLabel ?? row.kind}
+                      {(() => {
+                        const d = EVENT_TYPE_BY_SLUG[row.event_type ?? ""];
+                        return d ? studioLabelFor(d, isTeam) : row.kind;
+                      })()}
                     </span>
                     <span className="font-medium text-neutral-900">{row.title}</span>
                   </div>
@@ -400,8 +425,8 @@ export default function ScheduleEditor({
         <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
           <h3 className="text-base font-semibold text-neutral-900">What are you scheduling?</h3>
           <p className="mt-1 text-sm text-neutral-600">
-            Pick a type. We&apos;ll ask who it&apos;s for and put the right label on each
-            family&apos;s week.
+            Pick a type. We&apos;ll ask who it&apos;s for and put the right label on each{" "}
+            {isTeam ? membersLower.replace(/s$/, "") : "family"}&apos;s week.
           </p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {EVENT_TYPES.map((t) => (
@@ -410,8 +435,10 @@ export default function ScheduleEditor({
                 onClick={() => pickType(t.slug)}
                 className="rounded-xl border border-neutral-300 bg-white px-4 py-3 text-left hover:border-neutral-900"
               >
-                <span className="block text-sm font-medium text-neutral-900">{t.studioLabel}</span>
-                <span className="mt-0.5 block text-xs text-neutral-500">{t.hint}</span>
+                <span className="block text-sm font-medium text-neutral-900">
+                  {studioLabelFor(t, isTeam)}
+                </span>
+                <span className="mt-0.5 block text-xs text-neutral-500">{hintFor(t, isTeam)}</span>
               </button>
             ))}
           </div>
@@ -426,7 +453,7 @@ export default function ScheduleEditor({
         <form onSubmit={submit} className="mt-4 space-y-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
           <div className="flex items-center justify-between">
             <span className="rounded-full bg-neutral-900 px-2.5 py-0.5 text-xs font-medium text-white">
-              {def.studioLabel}
+              {studioLabelFor(def, isTeam)}
             </span>
             {!editingId && (
               <button
@@ -441,13 +468,13 @@ export default function ScheduleEditor({
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">
-              What families will see (title)
+              What {isTeam ? membersLower : "families"} will see (title)
             </span>
             <input
               className={inputCls}
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
-              placeholder={def.familyLabel}
+              placeholder={isTeam && def.teamFamilyLabel ? def.teamFamilyLabel : def.familyLabel}
               required
             />
           </label>
@@ -455,8 +482,11 @@ export default function ScheduleEditor({
           {/* ── Who is it for? (type-driven) ── */}
           {def.target === "studio_wide" ? (
             <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-700">
-              <span className="font-medium text-neutral-900">Everyone at your studio</span> ({roster.length}{" "}
-              {roster.length === 1 ? "dancer" : "dancers"}) will see this. No need to pick dancers.
+              <span className="font-medium text-neutral-900">
+                Everyone {isTeam ? "on your team" : "at your studio"}
+              </span>{" "}
+              ({roster.length} {roster.length === 1 ? "dancer" : "dancers"}) will see this. No need to
+              pick dancers.
             </div>
           ) : (
             <div>
@@ -468,7 +498,7 @@ export default function ScheduleEditor({
                       checked={form.wholeStudio}
                       onChange={() => setForm({ ...form, wholeStudio: true })}
                     />
-                    Whole studio
+                    Whole {orgNoun}
                   </label>
                   <label className="inline-flex items-center gap-2">
                     <input
@@ -476,7 +506,7 @@ export default function ScheduleEditor({
                       checked={!form.wholeStudio}
                       onChange={() => setForm({ ...form, wholeStudio: false })}
                     />
-                    Just these families
+                    Just these {isTeam ? membersLower : "families"}
                   </label>
                 </div>
               )}
@@ -530,7 +560,7 @@ export default function ScheduleEditor({
                   </div>
                   {roster.length === 0 ? (
                     <p className="mt-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-500">
-                      No dancers on your roster yet — share your family join code first.
+                      No dancers on your roster yet — share your {orgNoun} join code first.
                     </p>
                   ) : (
                     <>
