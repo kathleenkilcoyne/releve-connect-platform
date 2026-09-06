@@ -11,6 +11,8 @@ import type { StudioRow } from "./page";
 import { TEAM_TYPES, TEAM_TYPE_OPTION_LABELS, type TeamType } from "@/lib/studio/team-types";
 import { orgCopy } from "@/lib/studio/org-copy";
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 const STATUS_LABEL: Record<string, string> = {
   invited: "Invited",
   in_progress: "In progress",
@@ -121,21 +123,49 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
     }
   }
 
-  async function resend(emailAddr: string) {
+  // Redirect/(re)send THIS org's invitation to a specific email — targets the
+  // org by employer_id (attach mode), so it can never create a duplicate org
+  // and is refused server-side if the org already has an owner. Used both to
+  // plain-resend (unchanged email) and to correct a wrong/placeholder email an
+  // unclaimed org was invited under (e.g. pointing Manhattan's existing,
+  // already-populated invite at the actual coach once her email is known).
+  const [inviteTargetId, setInviteTargetId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+
+  function startInvite(s: StudioRow) {
+    setInviteTargetId(s.employer_id);
+    setInviteEmail(s.email);
+    setNotice(null);
+  }
+
+  async function sendToExistingOrg(employerId: string) {
+    const targetEmail = inviteEmail.trim().toLowerCase();
+    if (!EMAIL_RE.test(targetEmail)) {
+      setNotice({ ok: false, text: "Please enter a valid email address." });
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
       const res = await fetch("/api/admin/studio-invites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailAddr }),
+        body: JSON.stringify({ email: targetEmail, employer_id: employerId }),
       });
       const data = await res.json().catch(() => ({}));
-      setNotice(
-        res.ok
-          ? { ok: true, text: `Invitation re-sent to ${emailAddr}.` }
-          : { ok: false, text: data.error ?? "Could not resend." },
-      );
+      if (!res.ok) {
+        setNotice({ ok: false, text: data.error ?? "Could not send the invitation." });
+      } else {
+        setNotice({
+          ok: true,
+          text:
+            (data.resent ? "Invitation sent to " : "Invitation created and sent to ") +
+            targetEmail +
+            (data.email_sent === false ? " (email vendor not configured — link logged server-side)." : "."),
+        });
+        setInviteTargetId(null);
+        router.refresh();
+      }
     } catch {
       setNotice({ ok: false, text: "Something went wrong. Please try again." });
     } finally {
@@ -311,18 +341,58 @@ export default function StudiosConsole({ studios }: { studios: StudioRow[] }) {
                         >
                           {editingId === s.employer_id ? "Cancel" : "Edit details"}
                         </button>
-                        <button
-                          onClick={() => resend(s.email)}
-                          disabled={busy}
-                          className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-600 disabled:opacity-40"
-                        >
-                          Resend invite
-                        </button>
+                        {/* Only offered while unclaimed — once owner_user_id is
+                            set, the invite can no longer reassign this org
+                            (the API refuses it too; this just avoids offering
+                            a control that would only ever error). */}
+                        {!s.owner_user_id && (
+                          <button
+                            onClick={() =>
+                              inviteTargetId === s.employer_id ? setInviteTargetId(null) : startInvite(s)
+                            }
+                            disabled={busy}
+                            className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs font-medium text-neutral-600 disabled:opacity-40"
+                          >
+                            {inviteTargetId === s.employer_id ? "Cancel" : "Send / redirect invite"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
+              {studios.map((s) =>
+                inviteTargetId === s.employer_id ? (
+                  <tr key={`${s.employer_id}-invite`} className="border-b border-neutral-100 bg-neutral-50">
+                    <td colSpan={6} className="px-3 py-4">
+                      <p className="mb-2 text-xs text-neutral-500">
+                        Sends the same secure <code>/studio/setup</code> link this org has always used —
+                        it attaches to <span className="font-medium">this</span> {orgCopy(s.org_type).noun}{" "}
+                        (already created, never a new one). If an invite already exists here under a
+                        different email, this replaces it and invalidates the old link.
+                      </p>
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="flex flex-col text-xs font-medium text-neutral-600">
+                          {orgCopy(s.org_type).owner}&apos;s email
+                          <input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={(ev) => setInviteEmail(ev.target.value)}
+                            className="mt-1 min-w-[16rem] rounded-lg border border-neutral-300 px-3 py-2 text-sm font-normal focus:border-neutral-500 focus:outline-none"
+                          />
+                        </label>
+                        <button
+                          onClick={() => sendToExistingOrg(s.employer_id)}
+                          disabled={busy || !inviteEmail.trim()}
+                          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+                        >
+                          {busy ? "Working…" : "Send invitation"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null,
+              )}
               {studios.map((s) =>
                 editingId === s.employer_id ? (
                   <tr key={`${s.employer_id}-edit`} className="border-b border-neutral-100 bg-neutral-50">

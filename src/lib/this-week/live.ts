@@ -255,9 +255,16 @@ async function buildFamilyWeek(
   const studioWide = await fetchFamilyStudioWide(supabase, admin, employerIds, week);
 
   // The "Got it" loop is offered to guardian families (who have a family_account
-  // and act as guardians). A self-managed adult (college team) has no guardian /
-  // family_account and is out of this slice — pass no ack context, so no button.
-  const ackFamily = !selfManaged ? { familyId } : undefined;
+  // and act as guardians) AND to a self-managed adult (dance team). The adult has
+  // no guardian / family_account, so they acknowledge AS THEMSELVES: the ack is
+  // keyed to their own student row rather than to a family. Without this, a coach
+  // could never get an acknowledgement count from adult members.
+  const selfStudentId = selfManaged ? members[0]?.student_id ?? null : null;
+  const ackFamily = !selfManaged
+    ? { familyId }
+    : selfStudentId
+      ? { familyId: null, selfStudentId }
+      : undefined;
   const events = mergeFamilyWeek(childStreams, studioWide, DEFAULT_TIMEZONE, ackFamily);
   // A self member's whole week is their own — the per-child "who" label is noise.
   if (selfManaged) for (const e of events) delete e.who;
@@ -327,7 +334,7 @@ async function buildFamilyWeek(
   }
 
   const studioNames = [...orgNames];
-  const primaryStudio = studioNames[0] ?? "your studio";
+  const primaryStudio = studioNames[0] ?? (selfManaged ? "your team" : "your studio");
 
   // Merged communications across all members, de-duped by id.
   const commsById = new Map<string, Communication>();

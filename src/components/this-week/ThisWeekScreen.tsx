@@ -33,6 +33,7 @@ export function ThisWeekScreen({
   payload,
   greeting,
   initialView,
+  orgHome,
 }: {
   mode: "live" | "demo";
   weekOffset: number;
@@ -41,6 +42,13 @@ export function ThisWeekScreen({
   greeting?: { message: string; track: GreetingTrack | null };
   /** Force the opening surface (set by the family-join redirect). */
   initialView?: ViewKey;
+  /**
+   * Set ONLY for a signed-in studio owner / Team Director whose week is
+   * empty (no professional week, no family week). A live org must never be
+   * shown the sample week, so this renders a real empty state instead — see
+   * the comment in `app/this-week/page.tsx`.
+   */
+  orgHome?: { name: string; isTeam: boolean } | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -180,15 +188,41 @@ export function ThisWeekScreen({
         <div className="mt-8">
           <ChildWeek bundle={demoStudentBundle} weekOffset={weekOffset} onWeekChange={goToWeek} />
         </div>
+      ) : orgHome ? (
+        /* A real, live org with nothing scheduled yet — honest, not fabricated. */
+        <div className="mt-8 space-y-6">
+          <header>
+            <h1 className="rc-serif text-4xl font-semibold text-[var(--rc-ink)]">This Week</h1>
+            <p className="rc-serif mt-1 text-lg italic text-[var(--rc-muted)]">{orgHome.name}</p>
+          </header>
+          <div className="rounded-xl border border-[var(--rc-hairline)] bg-[var(--rc-ivory)] px-5 py-6 text-sm">
+            <p className="font-medium text-[var(--rc-ink)]">Nothing scheduled yet.</p>
+            <p className="mt-2 text-[var(--rc-muted)]">
+              {orgHome.isTeam
+                ? "This Week fills in as you add rehearsals, games, competitions and deadlines — and as your dancers join."
+                : "This Week fills in as you add classes, rehearsals and events — and as your families join."}
+            </p>
+            <p className="mt-4">
+              <a
+                href="/studio/schedule"
+                className="font-medium text-[var(--rc-ink)] underline underline-offset-2"
+              >
+                {orgHome.isTeam ? "Go to your team dashboard" : "Go to your studio dashboard"}
+              </a>
+            </p>
+          </div>
+        </div>
       ) : null}
 
       <footer className="mt-12 border-t border-[var(--rc-hairline)] pt-4 text-xs text-[var(--rc-muted)]">
         {mode === "live"
-          ? `Your week, read live from your ${orgNoun(
-              liveFamily?.brand?.orgType,
-              liveFamily?.selfManaged ?? false,
-              true,
-            )} schedule.`
+          ? `Your week, read live from your ${
+              orgHome
+                ? orgHome.isTeam
+                  ? "team"
+                  : "studio"
+                : orgNoun(liveFamily?.brand?.orgType, liveFamily?.selfManaged ?? false, true)
+            } schedule.`
           : "Sample data · getThisWeek · getCommunications · hasFamilyAccess."}
       </footer>
     </main>

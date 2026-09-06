@@ -34,6 +34,13 @@ export interface EventTypeDef {
   groupsAllowed?: boolean;
   /** Maps onto the existing studio_classes.kind so This Week colours it sensibly. */
   kind: CompCollegeKind;
+  /** Dance Team overrides for studioLabel/familyLabel/hint. Only the types that
+   *  actually need different wording for a team define these (today: just
+   *  full_studio_event → "Full Team Event"); every other type reads the same
+   *  for a studio and a team. */
+  teamStudioLabel?: string;
+  teamFamilyLabel?: string;
+  teamHint?: string;
 }
 
 export const EVENT_TYPES: EventTypeDef[] = [
@@ -82,6 +89,12 @@ export const EVENT_TYPES: EventTypeDef[] = [
     hint: "Everyone at your studio sees this — no need to pick dancers.",
     target: "studio_wide",
     kind: "performance",
+    // Dance Team override (org_type-aware, see teamStudioLabelFor / teamHintFor
+    // / teamFamilyLabelFor below): "Full Team Event" / "Everyone on your team
+    // sees this" — founder-specified wording, CLAUDE.md / 2026-09-05 diagnostic.
+    teamStudioLabel: "Full Team Event",
+    teamFamilyLabel: "Full Team Event",
+    teamHint: "Everyone on your team sees this — no need to pick dancers.",
   },
   {
     slug: "parent_meeting",
@@ -126,7 +139,7 @@ export const EVENT_TYPE_BY_SLUG: Record<string, EventTypeDef> = Object.fromEntri
 );
 
 /** The family-facing label for a saved event — Duet/Trio refines by dancer count. */
-export function familyLabelFor(eventType: string | null, dancerCount = 0): string {
+export function familyLabelFor(eventType: string | null, dancerCount = 0, isTeam = false): string {
   const def = eventType ? EVENT_TYPE_BY_SLUG[eventType] : undefined;
   if (!def) return "Event";
   if (def.slug === "duet_trio") {
@@ -134,7 +147,17 @@ export function familyLabelFor(eventType: string | null, dancerCount = 0): strin
     if (dancerCount === 3) return "Trio Rehearsal";
     return "Group Rehearsal";
   }
-  return def.familyLabel;
+  return (isTeam && def.teamFamilyLabel) || def.familyLabel;
+}
+
+/** The "What are you scheduling?" menu label, org-aware. */
+export function studioLabelFor(def: EventTypeDef, isTeam = false): string {
+  return (isTeam && def.teamStudioLabel) || def.studioLabel;
+}
+
+/** The one-line helper under a type in the menu, org-aware. */
+export function hintFor(def: EventTypeDef, isTeam = false): string {
+  return (isTeam && def.teamHint) || def.hint;
 }
 
 /** Best-effort event_type for a legacy row that only has a kind. */

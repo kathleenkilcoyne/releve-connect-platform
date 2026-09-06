@@ -100,10 +100,13 @@ export interface EventAck {
   /** 'targeted' = per-dancer (enrolled); 'studio_wide' = family-level. */
   scope: "targeted" | "studio_wide";
   /** Targeted: the enrolled dancer(s) this card covers (usually one; more only
-   *  when siblings share the same targeted class). Empty for studio-wide. */
+   *  when siblings share the same targeted class). Studio-wide: empty for a
+   *  guardian family (the ack is family-level), and the member's OWN student id
+   *  for a self-managed adult (dance team), who has no family to ack with. */
   studentIds: string[];
   /** The acknowledging family (studio-wide + the studio readout). Null for a
-   *  self-managed adult — the button is not offered in that case. */
+   *  self-managed adult (dance team) — they acknowledge as their own student row
+   *  instead (see studentIds). */
   familyId: string | null;
   /** ISO instant when acknowledged, or null if not yet. */
   acknowledgedAt: string | null;

@@ -22,7 +22,9 @@ export interface AckRow {
  * family can see. A TARGETED card is acknowledged when any of its dancers has a
  * row for that occurrence (one tap writes a row per enrolled dancer, so any row
  * present ⇒ done). A STUDIO-WIDE card is acknowledged by its family-level row
- * (student_id null) for that occurrence. Idempotent; mutates in place and returns
+ * (student_id null) for that occurrence — or, for a SELF-MANAGED adult (dance
+ * team) who has no family_account, by the row against their own student id, which
+ * the card carries in `studentIds`. Idempotent; mutates in place and returns
  * the same array for convenience.
  */
 export function markFamilyAcks(events: CalendarEvent[], rows: AckRow[]): CalendarEvent[] {
@@ -36,7 +38,13 @@ export function markFamilyAcks(events: CalendarEvent[], rows: AckRow[]): Calenda
 
   for (const e of events) {
     if (!e.ack) continue;
-    if (e.ack.scope === "studio_wide") {
+    // Studio-wide with NO student ids = the guardian-family lane: the ack is the
+    // family-level row (student_id null). Everything else matches per student —
+    // targeted cards, and a SELF-MANAGED member's studio-wide card, which carries
+    // their own student id because they have no family_account to ack with. A
+    // guardian family's studio-wide card never carries student ids, so that lane is
+    // untouched.
+    if (e.ack.scope === "studio_wide" && e.ack.studentIds.length === 0) {
       e.ack.acknowledgedAt = studioWide.get(e.ack.sessionId) ?? null;
     } else {
       let at: string | null = null;
@@ -71,13 +79,19 @@ export interface AckTally {
 /**
  * Per-class "M of N acknowledged". For a TARGETED class, N = enrolled dancers and
  * M = distinct enrolled dancers who acknowledged any of its occurrences. For a
- * STUDIO-WIDE class, N = the studio's families and M = distinct families who
- * acknowledged any of its occurrences. Pure — the caller supplies the numbers.
+ * STUDIO-WIDE class, N = the org's ACKNOWLEDGERS — one per family account plus one
+ * per self-managed member (a dance team's adults have no family account) — and M =
+ * how many of those acknowledged any of its occurrences. Pure — the caller supplies
+ * the numbers.
+ *
+ * `selfMemberStudentIds` defaults to empty, so a studio with no self-managed
+ * members gets exactly the previous numbers.
  */
 export function summarizeClassAcks(
   classes: ClassAckInput[],
   rows: AckRow[],
   totalFamilies: number,
+  selfMemberStudentIds: string[] = [],
 ): Map<string, AckTally> {
   const bySession = new Map<string, AckRow[]>();
   for (const r of rows) {
@@ -86,16 +100,27 @@ export function summarizeClassAcks(
     bySession.set(r.session_id, list);
   }
 
+  const selfMembers = new Set(selfMemberStudentIds);
+
   const out = new Map<string, AckTally>();
   for (const c of classes) {
     if (c.studioWide) {
-      const families = new Set<string>();
+      // One "acknowledger" per family account (student_id null) and one per
+      // self-managed member (their own student row). Namespaced so a family id and
+      // a student id can never collide in the same set.
+      const acknowledgers = new Set<string>();
       for (const sid of c.sessionIds) {
         for (const r of bySession.get(sid) ?? []) {
-          if (r.student_id === null && r.family_id) families.add(r.family_id);
+          if (r.student_id === null && r.family_id) acknowledgers.add(`fam:${r.family_id}`);
+          else if (r.student_id && selfMembers.has(r.student_id)) {
+            acknowledgers.add(`self:${r.student_id}`);
+          }
         }
       }
-      out.set(c.classId, { acked: families.size, total: totalFamilies });
+      out.set(c.classId, {
+        acked: acknowledgers.size,
+        total: totalFamilies + selfMembers.size,
+      });
     } else {
       const enrolled = new Set(c.enrolledStudentIds);
       const acked = new Set<string>();

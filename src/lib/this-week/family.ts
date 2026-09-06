@@ -38,9 +38,11 @@ export function mergeFamilyWeek(
   studioWide: SessionWithClass[],
   timeZone: string,
   /** When present, each family card gets `ack` context so the "Got it" button can
-   *  render. Omitted (tests, self-managed adults) = no ack, no button. The family
-   *  id is the acknowledging family for studio-wide (and studio-readout) acks. */
-  ackFamily?: { familyId: string | null },
+   *  render. Omitted (tests) = no ack, no button. `familyId` is the acknowledging
+   *  family for studio-wide (and studio-readout) acks; `selfStudentId` is set
+   *  INSTEAD for a self-managed adult (dance team), who has no family_account and
+   *  acknowledges as their own student row. */
+  ackFamily?: { familyId: string | null; selfStudentId?: string | null },
 ): CalendarEvent[] {
   interface Agg {
     item: SessionWithClass;
@@ -79,7 +81,13 @@ export function mergeFamilyWeek(
       event.ack = {
         sessionId: agg.item.session.session_id,
         scope: agg.studioWide ? "studio_wide" : "targeted",
-        studentIds: agg.studioWide ? [] : agg.childIds,
+        // Studio-wide: empty for a guardian family (the ack is family-level); the
+        // self member's own id when there is no family account to ack with.
+        studentIds: agg.studioWide
+          ? ackFamily.selfStudentId
+            ? [ackFamily.selfStudentId]
+            : []
+          : agg.childIds,
         familyId: ackFamily.familyId,
         acknowledgedAt: null, // filled in by the caller from the ack rows
       };

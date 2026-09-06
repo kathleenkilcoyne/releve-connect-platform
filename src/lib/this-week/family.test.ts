@@ -194,3 +194,48 @@ describe("audience-change isolation — safeguard #3 at the delivered week", () 
     expect(noah.some((e) => e.id === "duet_1")).toBe(false);
   });
 });
+
+/* ─────────────────────────  "Got it" ack context  ────────────────────────── */
+// mergeFamilyWeek stamps the identity a "Got it" tap will record. A guardian
+// family acks studio-wide AS THE FAMILY (no student ids); a self-managed adult
+// (dance team) has no family_account and acks as their own student row.
+
+describe("mergeFamilyWeek — ack context", () => {
+  const wide = sess("wide_1", "Team Meeting", "2026-07-30T22:00:00.000Z", { studioWide: true });
+
+  it("gives a guardian family a family-level studio-wide ack (no student ids)", () => {
+    const merged = mergeFamilyWeek(
+      [{ childId: "ryan", childName: "Ryan", sessions: [sess("ryan_1", "Jazz 2", "2026-07-27T22:00:00.000Z")] }],
+      [wide],
+      NY,
+      { familyId: "famA" },
+    );
+    const wideCard = merged.find((e) => e.id === "wide_1");
+    expect(wideCard?.ack).toMatchObject({ scope: "studio_wide", familyId: "famA", studentIds: [] });
+    const targeted = merged.find((e) => e.id === "ryan_1");
+    expect(targeted?.ack).toMatchObject({ scope: "targeted", familyId: "famA", studentIds: ["ryan"] });
+  });
+
+  it("gives a self-managed member a studio-wide ack keyed to their own student row", () => {
+    const merged = mergeFamilyWeek(
+      [{ childId: "selfA", childName: "Avery", sessions: [sess("reh_1", "Rehearsal", "2026-07-27T22:00:00.000Z")] }],
+      [wide],
+      NY,
+      { familyId: null, selfStudentId: "selfA" },
+    );
+    const wideCard = merged.find((e) => e.id === "wide_1");
+    expect(wideCard?.ack).toMatchObject({
+      scope: "studio_wide",
+      familyId: null,
+      studentIds: ["selfA"],
+    });
+    // ...and their targeted card is unchanged: their own id, no family.
+    const targeted = merged.find((e) => e.id === "reh_1");
+    expect(targeted?.ack).toMatchObject({ scope: "targeted", familyId: null, studentIds: ["selfA"] });
+  });
+
+  it("still attaches no ack context at all when none is passed", () => {
+    const merged = mergeFamilyWeek([], [wide], NY);
+    expect(merged.find((e) => e.id === "wide_1")?.ack).toBeUndefined();
+  });
+});

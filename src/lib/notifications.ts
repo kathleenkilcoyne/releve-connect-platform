@@ -581,6 +581,15 @@ export async function sendStudioSubmittedAlert(input: {
  * "Open your team/studio dashboard," never "Manage your team/studio" (rejected
  * wording — full member add/remove doesn't exist; this must not overpromise).
  *
+ * v2.1 (2026-09-05 diagnostic): the Dance Team steps were unordered ("Invite…" /
+ * "Build This Week" / "Open your dashboard" — dashboard last, though it's where
+ * the other two actually happen) and never named the Team Join Code tool by
+ * name. Founder-specified sequence: open the dashboard → generate the Team Join
+ * Code → share the code/link with your dancers → build This Week. All four
+ * steps point at the same `/studio/schedule` URL (there is no deep link to the
+ * join-code panel or the schedule builder yet) — only the first line carries
+ * it, the rest name the in-page action.
+ *
  * The Dance Team side has a real self-serve step to point at: `/studio/schedule`
  * already mints a Team Join Code there (`TeamJoinCode`, team-only). A Studio has
  * no equivalent self-serve invite tool on that page today, so the Studio copy
@@ -599,9 +608,10 @@ export async function sendStudioLive(input: {
 
   const nextSteps = copy.isTeam
     ? [
-        `Invite your ${memberLabelOf(input.memberLabel).toLowerCase()}: ${scheduleUrl}`,
-        `Build This Week: ${scheduleUrl}`,
-        `Open your team dashboard: ${scheduleUrl}`,
+        `1. Open your team dashboard: ${scheduleUrl}`,
+        `2. Generate your Team Join Code`,
+        `3. Share the code or link with your ${memberLabelOf(input.memberLabel).toLowerCase()}`,
+        `4. Build This Week`,
       ]
     : [`Build This Week: ${scheduleUrl}`, `Open your studio dashboard: ${scheduleUrl}`];
 

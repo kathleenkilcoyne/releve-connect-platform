@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe("sendStudioLive — studio-live.v2 next-steps list", () => {
-  it("Dance Team: invites members by their own label, links to /studio/schedule three times, never 'manage'", async () => {
+  it("Dance Team: walks the coach through dashboard → Team Join Code → share → build This Week, in order, never 'manage'", async () => {
     await sendStudioLive({
       to: "madeline@example.edu",
       studioName: "Manhattan University Dance Team",
@@ -35,9 +35,15 @@ describe("sendStudioLive — studio-live.v2 next-steps list", () => {
     expect(msg.text).toContain(
       "Your team page: https://releveconnect.com/studios/manhattan-university-dance-team",
     );
-    expect(msg.text).toContain("Invite your dancers: https://releveconnect.com/studio/schedule");
-    expect(msg.text).toContain("Build This Week: https://releveconnect.com/studio/schedule");
-    expect(msg.text).toContain("Open your team dashboard: https://releveconnect.com/studio/schedule");
+    expect(msg.text).toContain("1. Open your team dashboard: https://releveconnect.com/studio/schedule");
+    expect(msg.text).toContain("2. Generate your Team Join Code");
+    expect(msg.text).toContain("3. Share the code or link with your dancers");
+    expect(msg.text).toContain("4. Build This Week");
+    // The four steps stay in that order.
+    const steps = ["1. Open your team dashboard", "2. Generate your Team Join Code", "3. Share the code", "4. Build This Week"];
+    const positions = steps.map((s) => msg.text.indexOf(s));
+    expect(positions.every((p: number) => p >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(msg.text).not.toMatch(/manage your team/i);
   });
 
@@ -51,7 +57,7 @@ describe("sendStudioLive — studio-live.v2 next-steps list", () => {
     });
 
     const [msg] = sendEmail.mock.calls[0];
-    expect(msg.text).toContain("Invite your team members: https://releveconnect.com/studio/schedule");
+    expect(msg.text).toContain("Share the code or link with your team members");
   });
 
   it("Studio: builds This Week and opens the dashboard, with no invite line and no 'manage' wording", async () => {

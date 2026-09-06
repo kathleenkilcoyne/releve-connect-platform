@@ -361,6 +361,8 @@ export default async function StudioReviewPage({
           teachers={teacherOptions}
           roster={scheduleRoster}
           groups={scheduleGroups}
+          isTeam={copy.isTeam}
+          memberLabel={memberLabelOf(p.member_label)}
         />
       </div>
 
