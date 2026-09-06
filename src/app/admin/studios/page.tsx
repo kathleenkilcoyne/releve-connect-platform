@@ -28,6 +28,10 @@ export type StudioRow = {
   created_at: string;
   pilot_status: string | null;
   pilot_note: string | null;
+  /** Null until someone has claimed this org's invite. Read-only here — used
+   *  only to decide whether "redirect the invite to a different email" is
+   *  offered (an already-claimed org's owner is never reassigned this way). */
+  owner_user_id: string | null;
 };
 
 export default async function AdminStudiosPage() {
@@ -59,13 +63,14 @@ export default async function AdminStudiosPage() {
       submitted_at: string | null;
       pilot_status: string | null;
       pilot_note: string | null;
+      owner_user_id: string | null;
     }
   >();
   if (employerIds.length) {
     const { data: profData } = await db
       .from("employer_profiles")
       .select(
-        "employer_id, name, org_type, status, city, state_province, public_slug, submitted_at, pilot_status, pilot_note",
+        "employer_id, name, org_type, status, city, state_province, public_slug, submitted_at, pilot_status, pilot_note, owner_user_id",
       )
       .in("employer_id", employerIds);
     for (const p of (profData ?? []) as Array<{
@@ -79,6 +84,7 @@ export default async function AdminStudiosPage() {
       submitted_at: string | null;
       pilot_status: string | null;
       pilot_note: string | null;
+      owner_user_id: string | null;
     }>) {
       profileByEmployer.set(p.employer_id, p);
     }
@@ -100,6 +106,7 @@ export default async function AdminStudiosPage() {
       created_at: i.created_at,
       pilot_status: p?.pilot_status ?? null,
       pilot_note: p?.pilot_note ?? null,
+      owner_user_id: p?.owner_user_id ?? null,
     };
   });
 
