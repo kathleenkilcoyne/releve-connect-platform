@@ -78,3 +78,44 @@ describe("sendStudioLive — studio-live.v2 next-steps list", () => {
     expect(msg.text).not.toMatch(/manage your studio/i);
   });
 });
+
+describe("sendStudioLive — returns sendEmail's SendResult (2026-09-06 diagnostic)", () => {
+  const input = {
+    to: "madeline@example.edu",
+    studioName: "Example Dance Team",
+    profileUrl: "https://releveconnect.com/studios/example-dance-team",
+    orgType: "dance_team",
+  };
+
+  it("returns the exact success result sendEmail produced, including its message id", async () => {
+    sendEmail.mockResolvedValueOnce({ sent: true, id: "resend-msg-123" });
+
+    const result = await sendStudioLive(input);
+
+    expect(result).toEqual({ sent: true, id: "resend-msg-123" });
+  });
+
+  it("returns the exact failure result sendEmail produced — not_configured", async () => {
+    sendEmail.mockResolvedValueOnce({ sent: false, reason: "not_configured" });
+
+    const result = await sendStudioLive(input);
+
+    expect(result).toEqual({ sent: false, reason: "not_configured" });
+  });
+
+  it("returns the exact failure result sendEmail produced — vendor rejection", async () => {
+    sendEmail.mockResolvedValueOnce({ sent: false, reason: "rejected", detail: "HTTP 401" });
+
+    const result = await sendStudioLive(input);
+
+    expect(result).toEqual({ sent: false, reason: "rejected", detail: "HTTP 401" });
+  });
+
+  it("returns the exact failure result sendEmail produced — network/send error", async () => {
+    sendEmail.mockResolvedValueOnce({ sent: false, reason: "error", detail: "fetch failed" });
+
+    const result = await sendStudioLive(input);
+
+    expect(result).toEqual({ sent: false, reason: "error", detail: "fetch failed" });
+  });
+});

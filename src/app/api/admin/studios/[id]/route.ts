@@ -143,6 +143,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
 
       // Optional "you're live" note to the studio owner — links to the profile.
+      // Publishing itself has already fully succeeded by this point (the status
+      // transition above committed) — a failed welcome email must never undo or
+      // block that. But it must not be silently swallowed either: the caller
+      // gets `welcome_email_sent` to know whether to expect the owner got it, and
+      // a failure is logged with the same detail `sendEmail()` already captured.
+      let welcomeEmailSent: boolean | null = null;
       if (prof.owner_user_id) {
         const { data: ownerRow } = await db
           .from("users")
@@ -151,16 +157,24 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           .maybeSingle();
         const ownerEmail = (ownerRow as { email?: string } | null)?.email;
         if (ownerEmail) {
-          await sendStudioLive({
+          const emailResult = await sendStudioLive({
             to: ownerEmail,
             studioName: prof.name || "Your studio",
             profileUrl: slug ? `${emailSiteUrl()}/studios/${slug}` : `${emailSiteUrl()}/studios`,
             orgType: prof.org_type,
             memberLabel: prof.member_label,
           });
+          welcomeEmailSent = emailResult.sent;
+          if (!emailResult.sent) {
+            console.error(
+              `[admin publish] welcome email to ${ownerEmail} was not confirmed sent (${emailResult.reason}${
+                emailResult.detail ? `: ${emailResult.detail}` : ""
+              }).`,
+            );
+          }
         }
       }
-      return NextResponse.json({ ok: true, status: "live", slug });
+      return NextResponse.json({ ok: true, status: "live", slug, welcome_email_sent: welcomeEmailSent });
     }
 
     case "unpublish": {
@@ -197,7 +211,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     case "resend_live_email": {
       const result = await resendStudioLiveEmail(db, prof);
       if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, message_id: result.messageId });
     }
 
     default:
