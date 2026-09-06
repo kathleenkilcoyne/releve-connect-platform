@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// This file only tests the new `resend_live_email` action — approve/publish/
-// unpublish/set_details are pre-existing, untested code paths and out of
+// This file tests the `resend_live_email` action in full, plus (2026-09-06
+// diagnostic) the one new behavior added to `publish`: surfacing the welcome
+// email's send result instead of discarding it. Everything else about
+// approve/publish/unpublish/set_details is pre-existing, untested, and out of
 // scope for this change.
 
 const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/admin-auth", () => ({ requireAdmin }));
 
 const { sendStudioLive } = vi.hoisted(() => ({
-  sendStudioLive: vi.fn().mockResolvedValue(undefined),
+  sendStudioLive: vi.fn().mockResolvedValue({ sent: true, id: "test-message-id" }),
 }));
 vi.mock("@/lib/notifications", () => ({ sendStudioLive }));
 
@@ -129,7 +131,7 @@ describe("PATCH /api/admin/studios/[id] — resend_live_email behavior (admin au
     const data = await res.json();
 
     expect(res.status).toBe(200);
-    expect(data).toEqual({ ok: true });
+    expect(data).toEqual({ ok: true, message_id: "test-message-id" });
     expect(sendStudioLive).toHaveBeenCalledTimes(1);
     expect(sendStudioLive).toHaveBeenCalledWith({
       to: "madeline@manhattan.edu",
@@ -149,5 +151,109 @@ describe("PATCH /api/admin/studios/[id] — resend_live_email behavior (admin au
     expect(res.status).toBe(400);
     expect(sendStudioLive).not.toHaveBeenCalled();
     expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  // ── 2026-09-06 diagnostic: the route must NOT report success when the vendor
+  // didn't confirm the send. This is the exact incident this fix closes — the
+  // admin UI said "resent" while Resend's own log showed nothing for it.
+  it("never returns 200/ok:true when the email vendor is not configured", async () => {
+    sendStudioLive.mockResolvedValueOnce({ sent: false, reason: "not_configured" });
+
+    const res = await PATCH(patchRequest("resend_live_email"), ctx);
+    const data = await res.json();
+
+    expect(res.status).not.toBe(200);
+    expect(data.ok).not.toBe(true);
+    expect(data.error).toMatch(/not_configured/);
+  });
+
+  it("never returns 200/ok:true when the email vendor rejects the send", async () => {
+    sendStudioLive.mockResolvedValueOnce({ sent: false, reason: "rejected", detail: "HTTP 401" });
+
+    const res = await PATCH(patchRequest("resend_live_email"), ctx);
+    const data = await res.json();
+
+    expect(res.status).not.toBe(200);
+    expect(data.ok).not.toBe(true);
+    expect(data.error).toMatch(/rejected/);
+  });
+
+  it("never returns 200/ok:true on a network/send error", async () => {
+    sendStudioLive.mockResolvedValueOnce({ sent: false, reason: "error", detail: "fetch failed" });
+
+    const res = await PATCH(patchRequest("resend_live_email"), ctx);
+    const data = await res.json();
+
+    expect(res.status).not.toBe(200);
+    expect(data.ok).not.toBe(true);
+    expect(data.error).toMatch(/error/);
+  });
+});
+
+describe("PATCH /api/admin/studios/[id] — publish surfaces the welcome-email result", () => {
+  // A dedicated, minimal admin-client double for just this action: the profile
+  // is already approved (so `transition` succeeds) and already has a
+  // public_slug (so the slug-minting branch is never exercised — out of scope
+  // here). Covers exactly the tables `publish` actually touches.
+  function publishDb() {
+    return {
+      from(table: string) {
+        if (table === "employer_profiles") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: { ...MANHATTAN_ROW, status: "approved" },
+                  error: null,
+                }),
+              }),
+            }),
+            update: () => ({ eq: async () => ({ error: null }) }),
+          };
+        }
+        if (table === "founding_studio_invites") {
+          return { update: () => ({ eq: async () => ({ error: null }) }) };
+        }
+        if (table === "users") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: { email: "madeline@manhattan.edu" }, error: null }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`publish must not touch table "${table}" in this test`);
+      },
+    };
+  }
+
+  beforeEach(() => {
+    requireAdmin.mockResolvedValue({ ok: true, userId: "admin-1" });
+  });
+
+  it("publish still succeeds, and reports welcome_email_sent: true, on a normal successful send", async () => {
+    createAdminClient.mockReturnValueOnce(publishDb() as unknown as ReturnType<typeof createAdminClient>);
+
+    const res = await PATCH(patchRequest("publish"), ctx);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toMatchObject({ ok: true, status: "live", welcome_email_sent: true });
+  });
+
+  it("publish still succeeds (the transition is never rolled back), but reports welcome_email_sent: false when the vendor doesn't confirm — never silently discarded", async () => {
+    sendStudioLive.mockResolvedValueOnce({ sent: false, reason: "not_configured" });
+    createAdminClient.mockReturnValueOnce(publishDb() as unknown as ReturnType<typeof createAdminClient>);
+
+    const res = await PATCH(patchRequest("publish"), ctx);
+    const data = await res.json();
+
+    // The org IS live — a failed welcome email must never undo a real publish.
+    expect(res.status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.status).toBe("live");
+    // But the failure is surfaced, not swallowed into an indistinguishable "ok".
+    expect(data.welcome_email_sent).toBe(false);
   });
 });

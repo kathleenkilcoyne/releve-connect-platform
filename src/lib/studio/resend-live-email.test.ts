@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sendStudioLive } = vi.hoisted(() => ({
-  sendStudioLive: vi.fn().mockResolvedValue(undefined),
+  sendStudioLive: vi.fn().mockResolvedValue({ sent: true, id: "test-message-id" }),
 }));
 vi.mock("@/lib/notifications", () => ({ sendStudioLive }));
 
@@ -89,7 +89,7 @@ describe("resendStudioLiveEmail — no mutation, live-only, admin-gated by its c
 
     const result = await resendStudioLiveEmail(db, LIVE_PROFILE);
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, messageId: "test-message-id" });
     expect(sendStudioLive).toHaveBeenCalledTimes(1);
     expect(sendStudioLive).toHaveBeenCalledWith({
       to: "madeline@manhattan.edu",
@@ -108,5 +108,53 @@ describe("resendStudioLiveEmail — no mutation, live-only, admin-gated by its c
     expect(sendStudioLive).toHaveBeenCalledWith(
       expect.objectContaining({ profileUrl: "https://releveconnect.com/studios" }),
     );
+  });
+
+  // ── 2026-09-06 diagnostic: the vendor result must actually be checked ──────
+  // Before this fix, every one of these three would have returned `{ ok: true }`
+  // — the same as the genuine success case above — because the SendResult was
+  // discarded rather than inspected. This is the regression these tests guard.
+
+  it("reports failure (never ok:true) when the email vendor is not configured", async () => {
+    sendStudioLive.mockResolvedValueOnce({ sent: false, reason: "not_configured" });
+    const db = readOnlyDb("madeline@manhattan.edu");
+
+    const result = await resendStudioLiveEmail(db, LIVE_PROFILE);
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ ok: false, status: 502 });
+    expect((result as { error: string }).error).toMatch(/not_configured/);
+  });
+
+  it("reports failure (never ok:true) when the email vendor rejects the send", async () => {
+    sendStudioLive.mockResolvedValueOnce({
+      sent: false,
+      reason: "rejected",
+      detail: "HTTP 401",
+    });
+    const db = readOnlyDb("madeline@manhattan.edu");
+
+    const result = await resendStudioLiveEmail(db, LIVE_PROFILE);
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ ok: false, status: 502 });
+    expect((result as { error: string }).error).toMatch(/rejected/);
+    expect((result as { error: string }).error).toMatch(/HTTP 401/);
+  });
+
+  it("reports failure (never ok:true) on a network/send error", async () => {
+    sendStudioLive.mockResolvedValueOnce({
+      sent: false,
+      reason: "error",
+      detail: "fetch failed",
+    });
+    const db = readOnlyDb("madeline@manhattan.edu");
+
+    const result = await resendStudioLiveEmail(db, LIVE_PROFILE);
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ ok: false, status: 502 });
+    expect((result as { error: string }).error).toMatch(/error/);
+    expect((result as { error: string }).error).toMatch(/fetch failed/);
   });
 });

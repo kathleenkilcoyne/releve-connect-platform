@@ -14,6 +14,14 @@
 // Authorization is NOT this function's job — the caller (the admin route)
 // must gate on `requireAdmin` before ever loading a profile to pass in here.
 // This function assumes that has already happened.
+//
+// v2 (2026-09-06 diagnostic): checks `sendStudioLive()`'s result instead of
+// discarding it. Before this, the ONLY way this action could report failure
+// was the profile-shape checks below (already live? has an owner? owner has
+// an email?) — once those passed, this always returned `{ ok: true }` no
+// matter what actually happened when Resend was called. The Manhattan resend
+// on 2026-09-06 was exactly this: the admin UI said "resent," and it took a
+// manual check of the Resend dashboard to learn the send was never confirmed.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendStudioLive } from "@/lib/notifications";
@@ -28,7 +36,9 @@ export type ResendLiveEmailProfile = {
   member_label: string | null;
 };
 
-export type ResendLiveEmailResult = { ok: true } | { ok: false; status: number; error: string };
+export type ResendLiveEmailResult =
+  | { ok: true; messageId: string | null }
+  | { ok: false; status: number; error: string };
 
 export async function resendStudioLiveEmail(
   db: SupabaseClient,
@@ -58,7 +68,7 @@ export async function resendStudioLiveEmail(
     return { ok: false, status: 422, error: "This org's owner has no email on file." };
   }
 
-  await sendStudioLive({
+  const result = await sendStudioLive({
     to: ownerEmail,
     studioName: prof.name || "Your studio",
     profileUrl: prof.public_slug
@@ -68,5 +78,15 @@ export async function resendStudioLiveEmail(
     memberLabel: prof.member_label,
   });
 
-  return { ok: true };
+  if (!result.sent) {
+    return {
+      ok: false,
+      status: 502,
+      error: `Email vendor did not confirm delivery (${result.reason}${
+        result.detail ? `: ${result.detail}` : ""
+      }).`,
+    };
+  }
+
+  return { ok: true, messageId: result.id };
 }

@@ -595,6 +595,14 @@ export async function sendStudioSubmittedAlert(input: {
  * no equivalent self-serve invite tool on that page today, so the Studio copy
  * intentionally omits an "invite" line rather than promise a feature that isn't
  * there — flagged for Kathleen to confirm, not assumed.
+ *
+ * v2.2 (2026-09-06 diagnostic): returns the underlying `SendResult` instead of
+ * `void`. The Manhattan resend on 2026-09-06 exposed the gap this closes: a
+ * discarded result here made every caller (the publish action, the admin
+ * resend action) structurally incapable of ever reporting an email failure —
+ * "the function didn't throw" was being read as "the email was sent," which
+ * are not the same claim. `sendEmail()` already never throws and always
+ * returns a `SendResult`; this just stops throwing that value away.
  */
 export async function sendStudioLive(input: {
   to: string;
@@ -602,7 +610,7 @@ export async function sendStudioLive(input: {
   profileUrl: string;
   orgType?: string | null;
   memberLabel?: string | null;
-}): Promise<void> {
+}): Promise<SendResult> {
   const copy = orgCopy(input.orgType);
   const scheduleUrl = `${emailSiteUrl()}/studio/schedule`;
 
@@ -615,7 +623,7 @@ export async function sendStudioLive(input: {
       ]
     : [`Build This Week: ${scheduleUrl}`, `Open your studio dashboard: ${scheduleUrl}`];
 
-  await sendEmail({
+  return sendEmail({
     to: input.to,
     template: "studio-live.v2",
     subject: `${input.studioName} is live on Relevé`,
