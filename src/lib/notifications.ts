@@ -657,6 +657,7 @@ const TEAM_LEVEL_LABELS: Record<string, string> = {
   high_school: "High school",
   college: "College",
   professional: "Professional",
+  competition: "Competition Team",
   independent: "Independent",
 };
 

@@ -11,7 +11,7 @@ vi.mock("./email/send", async (importOriginal) => {
   return { ...actual, sendEmail };
 });
 
-import { sendStudioLive } from "./notifications";
+import { sendStudioLive, sendTeamInterestAlert } from "./notifications";
 
 beforeEach(() => {
   sendEmail.mockClear();
@@ -117,5 +117,26 @@ describe("sendStudioLive — returns sendEmail's SendResult (2026-09-06 diagnost
     const result = await sendStudioLive(input);
 
     expect(result).toEqual({ sent: false, reason: "error", detail: "fetch failed" });
+  });
+});
+
+describe("sendTeamInterestAlert — 'Competition Team' label (2026-09-07)", () => {
+  it("resolves the new 'competition' team_level to the label 'Competition Team' in the alert body", async () => {
+    process.env.ADMIN_ALERT_EMAIL = "admin@example.com";
+
+    await sendTeamInterestAlert({
+      teamName: "Ridgeline High School Dance Team",
+      schoolOrg: null,
+      teamLevel: "competition",
+      coachName: "Jordan Rivera",
+      email: "jordan@example.com",
+      cityState: null,
+      useCase: null,
+      message: null,
+    });
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [msg] = sendEmail.mock.calls[0];
+    expect(msg.text).toContain("Level: Competition Team");
   });
 });

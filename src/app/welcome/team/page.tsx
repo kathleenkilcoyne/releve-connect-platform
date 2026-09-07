@@ -28,6 +28,7 @@ const TEAM_LEVELS = [
   { value: "high_school", label: "High school" },
   { value: "college", label: "College" },
   { value: "professional", label: "Professional" },
+  { value: "competition", label: "Competition Team" },
   { value: "independent", label: "Independent" },
 ];
 

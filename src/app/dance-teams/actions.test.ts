@@ -97,6 +97,19 @@ describe("submitDanceTeamInterest — the public, no-login doorway (2026-09-07)"
     expect(sendTeamInterestAlert).not.toHaveBeenCalled();
   });
 
+  // 2026-09-07: "Competition Team" added as a sixth team_level option, stored
+  // value 'competition' (matching the widened DB check constraint exactly).
+  it("accepts 'competition' as a valid team type and stores it verbatim", async () => {
+    await expect(
+      submitDanceTeamInterest(fd({ ...VALID, team_level: "competition" })),
+    ).rejects.toThrow("NEXT_REDIRECT:/dance-teams?sent=1#interest");
+
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ team_level: "competition" }));
+    expect(sendTeamInterestAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ teamLevel: "competition" }),
+    );
+  });
+
   it("rejects a team_level outside the DB check constraint rather than writing an invalid row", async () => {
     await expect(
       submitDanceTeamInterest(fd({ ...VALID, team_level: "not-a-real-level" })),

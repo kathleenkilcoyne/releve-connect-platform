@@ -19,7 +19,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendTeamInterestAlert } from "@/lib/notifications";
 
 /** Allowed team types (must match the DB check constraint on team_level). */
-const TEAM_TYPES = ["middle_school", "high_school", "college", "professional", "independent"];
+const TEAM_TYPES = ["middle_school", "high_school", "college", "professional", "competition", "independent"];
 
 function clean(v: FormDataEntryValue | null): string {
   return String(v ?? "").trim();
