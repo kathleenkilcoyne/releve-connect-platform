@@ -25,10 +25,17 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { noMembershipMessage } from "@/lib/subscribe/messages";
 
 export const dynamic = "force-dynamic";
 
-export default async function SubscribePage() {
+export default async function SubscribePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const from = typeof params.from === "string" ? params.from : null;
   const supabase = await createClient();
   const {
     data: { user },
@@ -148,11 +155,7 @@ export default async function SubscribePage() {
   // Everyone else — guide by application state.
   const message =
     appState === null
-      ? {
-          h: "Membership is by acceptance",
-          p: "Relevé is a vetted community of professionals. Apply to join — every application is reviewed with care.",
-          cta: { href: "/welcome", label: "Apply now" },
-        }
+      ? noMembershipMessage(from)
       : appState === "declined"
         ? {
             h: "Application not accepted",

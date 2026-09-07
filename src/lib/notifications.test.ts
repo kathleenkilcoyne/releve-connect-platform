@@ -11,7 +11,7 @@ vi.mock("./email/send", async (importOriginal) => {
   return { ...actual, sendEmail };
 });
 
-import { sendStudioLive } from "./notifications";
+import { sendStudioLive, sendFoundingProfessionalInvitation } from "./notifications";
 
 beforeEach(() => {
   sendEmail.mockClear();
@@ -117,5 +117,48 @@ describe("sendStudioLive — returns sendEmail's SendResult (2026-09-06 diagnost
     const result = await sendStudioLive(input);
 
     expect(result).toEqual({ sent: false, reason: "error", detail: "fetch failed" });
+  });
+});
+
+describe("sendFoundingProfessionalInvitation — the automated invite (2026-09-07)", () => {
+  it("sends a plain transactional invitation carrying the exact link it was given", async () => {
+    await sendFoundingProfessionalInvitation({
+      to: "founder@example.com",
+      inviteLink: "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
+    });
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [msg] = sendEmail.mock.calls[0];
+    expect(msg.to).toBe("founder@example.com");
+    expect(msg.template).toBe("founding-professional-invitation.v1");
+    expect(msg.subject).toBe("You're invited to Relevé Connect as a Founding Professional");
+    expect(msg.text).toContain(
+      "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
+    );
+    expect(msg.text).toContain("founder@example.com");
+  });
+
+  it("never claims to be a personal note from any one admin", async () => {
+    await sendFoundingProfessionalInvitation({
+      to: "founder@example.com",
+      inviteLink: "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
+    });
+
+    const [msg] = sendEmail.mock.calls[0];
+    // Deliberately plain/transactional — no first-person signature line beyond
+    // the shared brand signature every email already carries.
+    expect(msg.text).not.toMatch(/with love and respect/i);
+    expect(msg.text).not.toMatch(/,\s*Kathleen\s*$/im);
+  });
+
+  it("returns the exact SendResult sendEmail produced, unmodified", async () => {
+    sendEmail.mockResolvedValueOnce({ sent: false, reason: "rejected", detail: "HTTP 403" });
+
+    const result = await sendFoundingProfessionalInvitation({
+      to: "founder@example.com",
+      inviteLink: "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
+    });
+
+    expect(result).toEqual({ sent: false, reason: "rejected", detail: "HTTP 403" });
   });
 });

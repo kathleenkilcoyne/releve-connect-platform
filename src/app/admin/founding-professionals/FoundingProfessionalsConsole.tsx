@@ -1,9 +1,10 @@
 "use client";
 
 // Admin console for the Founding Professional cohort. Grant (by email + billing
-// flavor), copy an invite link, change the billing flavor later, or revoke a
-// mistake. Everything routes through the gated /api/admin/founding-professionals
-// endpoints; this component just drives them and refreshes the server data.
+// flavor), send/resend the invitation, change the billing flavor later, or
+// revoke a mistake. Everything routes through the gated
+// /api/admin/founding-professionals endpoints; this component just drives them
+// and refreshes the server data.
 //
 // THE INVITE LINK IS NOT A CREDENTIAL. It only deep-links the invited person into
 // the normal sign-in flow (with their email pre-filled and the profile builder as
@@ -11,6 +12,12 @@
 // is materialized ONLY when someone authenticates with the invited email and the
 // grant is matched by that verified address. Sharing or leaking the link grants
 // no access.
+//
+// Every fact below is rendered as its OWN field — grant, sent, claimed, auth
+// account, profile — never collapsed into one status word. The 2026-09-07 audit
+// found that conflating these is exactly what made "was this person's
+// invitation sent/working/claimed" unanswerable without a manual investigation
+// each time.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -22,7 +29,9 @@ function kindLabel(k: Kind): string {
   return k === "permanent" ? "Permanent complimentary" : "12-month complimentary";
 }
 
-/** Build the (credential-free) invite link for an invited email. */
+/** Build the (credential-free) invite link for an invited email — client-side
+ *  fallback for the copy button. The canonical, code-generated version used by
+ *  the actual send lives server-side in foundingProfessionalInviteLink(). */
 function inviteLink(email: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const next = encodeURIComponent("/profile/edit");
@@ -34,15 +43,37 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export default function FoundingProfessionalsConsole({ grants }: { grants: GrantRow[] }) {
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export default function FoundingProfessionalsConsole({
+  grants,
+  autosendEnabled,
+}: {
+  grants: GrantRow[];
+  autosendEnabled: boolean;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [kind, setKind] = useState<Kind>("permanent");
   const [note, setNote] = useState("");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  // The email we just granted — surface its invite link prominently to copy.
-  const [justGranted, setJustGranted] = useState<string | null>(null);
+  // The email we just granted, and what actually happened when we tried to
+  // reach them — surfaced explicitly rather than assumed.
+  const [justGranted, setJustGranted] = useState<{
+    email: string;
+    autosendEnabled: boolean;
+    invitationSent: boolean | null;
+  } | null>(null);
 
   function grant(e: React.FormEvent) {
     e.preventDefault();
@@ -60,7 +91,11 @@ export default function FoundingProfessionalsConsole({ grants }: { grants: Grant
         setError(data.error ?? "Could not grant Founding Professional.");
         return;
       }
-      setJustGranted(trimmed);
+      setJustGranted({
+        email: trimmed,
+        autosendEnabled: Boolean(data.autosend_enabled),
+        invitationSent: data.invitation_sent ?? null,
+      });
       setEmail("");
       setNote("");
       router.refresh();
@@ -69,6 +104,13 @@ export default function FoundingProfessionalsConsole({ grants }: { grants: Grant
 
   return (
     <div className="mt-10 space-y-10">
+      {!autosendEnabled && (
+        <div className="rounded-xl border border-neutral-300 bg-neutral-100 p-4 text-sm text-neutral-700">
+          Automated sending is currently <span className="font-medium">off</span>. Grants still work
+          exactly as before — copy each invite link and send it yourself.
+        </div>
+      )}
+
       {/* ---- Grant a new Founding Professional ---- */}
       <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
         <h2 className="text-lg font-semibold text-neutral-900">Confer Founding Professional status</h2>
@@ -133,13 +175,21 @@ export default function FoundingProfessionalsConsole({ grants }: { grants: Grant
         {justGranted && (
           <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4">
             <p className="text-sm font-medium text-amber-900">
-              ✦ {justGranted} is now a Founding Professional.
+              ✦ {justGranted.email} is now a Founding Professional.
             </p>
-            <p className="mt-1 text-xs text-amber-800">
-              Send them this invite link. It just takes them to sign-in with their email pre-filled —
-              their status is confirmed when they sign in with this address, not by the link itself.
-            </p>
-            <CopyLink email={justGranted} big />
+            {justGranted.autosendEnabled ? (
+              <p className="mt-1 text-xs text-amber-800">
+                {justGranted.invitationSent
+                  ? "Invitation email sent — confirmed by the email vendor."
+                  : "The invitation email was NOT confirmed sent. Use “Resend invitation” below, or copy the link and send it yourself."}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-amber-800">
+                Automated sending is off. Copy this link and send it yourself — their status is
+                confirmed when they sign in with this address, not by the link itself.
+              </p>
+            )}
+            <CopyLink email={justGranted.email} big />
           </div>
         )}
       </section>
@@ -159,7 +209,7 @@ export default function FoundingProfessionalsConsole({ grants }: { grants: Grant
         ) : (
           <ul className="mt-4 space-y-4">
             {grants.map((g) => (
-              <GrantCard key={g.id} grant={g} />
+              <GrantCard key={g.id} grant={g} autosendEnabled={autosendEnabled} />
             ))}
           </ul>
         )}
@@ -168,7 +218,16 @@ export default function FoundingProfessionalsConsole({ grants }: { grants: Grant
   );
 }
 
-function GrantCard({ grant: g }: { grant: GrantRow }) {
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">{label}</dt>
+      <dd className="mt-0.5 text-neutral-800">{value}</dd>
+    </div>
+  );
+}
+
+function GrantCard({ grant: g, autosendEnabled }: { grant: GrantRow; autosendEnabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -194,10 +253,11 @@ function GrantCard({ grant: g }: { grant: GrantRow }) {
     });
   }
 
-  // Status line: revoked > claimed (billing) > invited.
-  let status: React.ReactNode;
+  // Grant status — revoked > claimed > awaiting. Distinct from every other
+  // field below (email sent, auth account, profile) on purpose.
+  let grantStatus: React.ReactNode;
   if (revoked) {
-    status = <span className="text-neutral-500">Revoked {fmtDate(g.revoked_at)}</span>;
+    grantStatus = <span className="text-neutral-500">Revoked {fmtDate(g.revoked_at)}</span>;
   } else if (claimed) {
     const active = g.membership_status === "active";
     const until = g.membership_source === "complimentary_term" && g.renewal_date
@@ -205,15 +265,48 @@ function GrantCard({ grant: g }: { grant: GrantRow }) {
       : g.membership_source === "complimentary_permanent"
         ? " · no expiry"
         : "";
-    status = (
+    grantStatus = (
       <span className={active ? "text-green-700" : "text-neutral-500"}>
         {active ? "Active" : g.membership_status ?? "—"}
         {until}
       </span>
     );
   } else {
-    status = <span className="text-amber-700">Invited · awaiting first sign-in</span>;
+    grantStatus = <span className="text-amber-700">Granted · awaiting claim</span>;
   }
+
+  const emailSent: React.ReactNode = g.last_invitation_sent_at ? (
+    <span className={g.last_invitation_status === "sent" ? "text-green-700" : "text-red-600"}>
+      {g.last_invitation_status === "sent" ? "Delivered" : (g.last_invitation_status ?? "Failed")}
+      {" · "}
+      {fmtDateTime(g.last_invitation_sent_at)}
+      {g.last_invitation_message_id ? ` · ${g.last_invitation_message_id}` : ""}
+    </span>
+  ) : (
+    <span className="text-neutral-500">{autosendEnabled ? "Not sent yet" : "Autosend off — link copied manually"}</span>
+  );
+
+  const authAccount: React.ReactNode = g.auth_account_exists ? (
+    <span className="text-neutral-800">
+      Yes · first {fmtDateTime(g.auth_created_at)}
+      {g.last_sign_in_at ? ` · last ${fmtDateTime(g.last_sign_in_at)}` : ""}
+    </span>
+  ) : (
+    <span className="text-neutral-500">No account yet</span>
+  );
+
+  const profileState: React.ReactNode =
+    g.profile_status === "published" ? (
+      <span className="text-green-700">
+        Published{g.profile_public_slug ? ` · /${g.profile_public_slug}` : ""} — public
+      </span>
+    ) : g.profile_status === "draft" ? (
+      <span className="text-amber-700">Draft — not public</span>
+    ) : (
+      <span className="text-neutral-500">No profile yet</span>
+    );
+
+  const canResend = !revoked && !claimed;
 
   return (
     <li className={`rounded-xl border border-neutral-200 p-4 ${pending ? "opacity-50" : ""}`}>
@@ -224,13 +317,31 @@ function GrantCard({ grant: g }: { grant: GrantRow }) {
             Founding Professional · {kindLabel(g.entitlement_kind)} · granted {fmtDate(g.granted_at)}
             {g.note ? ` · “${g.note}”` : ""}
           </p>
-          <p className="mt-1 text-sm">{status}</p>
         </div>
       </div>
+
+      <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+        <Field label="Grant" value={grantStatus} />
+        <Field label="Invitation email" value={emailSent} />
+        <Field label="Claimed" value={claimed ? fmtDate(g.claimed_at) : "Not yet"} />
+        <Field label="Auth account" value={authAccount} />
+        <Field label="Profile" value={profileState} />
+      </dl>
 
       {!revoked && (
         <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
           <CopyLink email={g.email} />
+          {canResend && (
+            <button
+              type="button"
+              disabled={pending || !autosendEnabled}
+              title={autosendEnabled ? undefined : "Automated sending is off — use “Copy invite link” instead."}
+              onClick={() => patch({ action: "resend_invitation" })}
+              className="text-neutral-700 underline disabled:opacity-40"
+            >
+              Resend invitation
+            </button>
+          )}
           {/* Change billing flavor — identity is untouched. */}
           {g.entitlement_kind === "permanent" ? (
             <button

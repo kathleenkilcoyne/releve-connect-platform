@@ -751,3 +751,34 @@ export async function sendPartnerInterestAlert(input: {
     ),
   });
 }
+
+/**
+ * EMAILS.md #17 — "Founding Professional invitation". Fires when an admin
+ * grants (or resends) Founding Professional status in
+ * `/admin/founding-professionals`, gated on `FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED`.
+ *
+ * Deliberately plain and transactional — not written as a personal note from
+ * any one admin. A founder invited this way may also get a personal follow-up
+ * separately; this email's only job is to deliver a correct, working link
+ * reliably, every time, with no hand-composition involved.
+ */
+export async function sendFoundingProfessionalInvitation(input: {
+  to: string;
+  inviteLink: string;
+}): Promise<SendResult> {
+  return sendEmail({
+    to: input.to,
+    template: "founding-professional-invitation.v1",
+    subject: "You're invited to Relevé Connect as a Founding Professional",
+    text: body(
+      "You've been personally selected as one of Relevé Connect's Founding Professionals — " +
+        "complimentary access, no application, no payment.",
+      `Sign in here with this email address (${input.to}) to build your profile:`,
+      input.inviteLink,
+      "It will email you an 8-digit sign-in code. Enter it, and you'll go straight into your " +
+        "profile builder. You can save as you go and publish whenever you're ready.",
+      "Once published, your profile will carry the Founding Professional mark and Verified " +
+        "Member badge.",
+    ),
+  });
+}
