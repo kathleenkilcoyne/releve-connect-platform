@@ -13,7 +13,11 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPage } from "@/lib/admin-page-auth";
-import { FOUNDER_COMP_SOURCES } from "@/lib/founding/founding-professional";
+import {
+  FOUNDER_COMP_SOURCES,
+  authAccountStates,
+  latestInvitationSends,
+} from "@/lib/founding/founding-professional";
 import FoundingProfessionalsConsole from "./FoundingProfessionalsConsole";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +31,21 @@ export type GrantRow = {
   claimed_at: string | null;
   revoked_at: string | null;
   user_id: string | null;
-  // Enriched (not stored on the grant):
+  // Enriched (not stored on the grant) — each surfaced as its own field so
+  // "granted," "sent," "claimed," "has an account," and "published" are never
+  // collapsed into one ambiguous status (2026-09-07 audit finding: conflating
+  // these is exactly what made prior invitation-status questions unanswerable).
   membership_status: string | null; // the live billing state, if claimed
   membership_source: string | null;
   renewal_date: string | null;
+  auth_account_exists: boolean;
+  auth_created_at: string | null;
+  last_sign_in_at: string | null;
+  profile_status: string | null; // 'draft' | 'published' | null (no profile row yet)
+  profile_public_slug: string | null;
+  last_invitation_sent_at: string | null;
+  last_invitation_status: "sent" | "failed" | "not_configured" | null;
+  last_invitation_message_id: string | null;
 };
 
 export default async function FoundingProfessionalsPage() {
@@ -74,13 +89,55 @@ export default async function FoundingProfessionalsPage() {
     }
   }
 
+  // Auth-account existence + sign-in history — DISTINCT from public.users/the
+  // grant's own user_id. An invited founder can have a real Supabase Auth
+  // account with no public.users row and no profile for a long stretch; this
+  // must never be inferred from claimed_at (see the 2026-09-07 audit).
+  const authByEmail = await authAccountStates(
+    db,
+    grants.map((g) => g.email),
+  );
+
+  // Profile status/publication, keyed by user_id (only claimed grants have one).
+  const profileByUser = new Map<string, { profile_status: string | null; public_slug: string | null }>();
+  if (userIds.length > 0) {
+    const { data: profileData } = await db
+      .from("talent_profiles")
+      .select("user_id, profile_status, public_slug")
+      .in("user_id", userIds);
+    for (const p of (profileData ?? []) as Array<{
+      user_id: string;
+      profile_status: string | null;
+      public_slug: string | null;
+    }>) {
+      profileByUser.set(p.user_id, { profile_status: p.profile_status, public_slug: p.public_slug });
+    }
+  }
+
+  // Latest invitation-send attempt per grant (informational audit trail only).
+  const sendByGrant = await latestInvitationSends(
+    db,
+    grants.map((g) => g.id),
+  );
+
   const rows: GrantRow[] = grants.map((g) => {
     const m = g.user_id ? membershipByUser.get(g.user_id) : undefined;
+    const auth = authByEmail.get(g.email);
+    const profile = g.user_id ? profileByUser.get(g.user_id) : undefined;
+    const lastSend = sendByGrant.get(g.id);
     return {
       ...g,
       membership_status: m?.status ?? null,
       membership_source: m?.source ?? null,
       renewal_date: m?.renewal_date ?? null,
+      auth_account_exists: Boolean(auth?.exists),
+      auth_created_at: auth?.createdAt ?? null,
+      last_sign_in_at: auth?.lastSignInAt ?? null,
+      profile_status: profile?.profile_status ?? null,
+      profile_public_slug: profile?.public_slug ?? null,
+      last_invitation_sent_at: lastSend?.sentAt ?? null,
+      last_invitation_status: lastSend?.status ?? null,
+      last_invitation_message_id: lastSend?.providerMessageId ?? null,
     };
   });
 
@@ -114,7 +171,10 @@ export default async function FoundingProfessionalsPage() {
         </Link>
       </nav>
 
-      <FoundingProfessionalsConsole grants={rows} />
+      <FoundingProfessionalsConsole
+        grants={rows}
+        autosendEnabled={process.env.FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED === "true"}
+      />
     </main>
   );
 }

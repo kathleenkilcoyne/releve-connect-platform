@@ -6,6 +6,42 @@ now (or a future engineer) can understand *why* the project is the way it is.
 
 ---
 
+## 2026-09-07 — Founding Professional invitations become system-sent, not admin-composed (autosend OFF by default)
+
+**Root cause (production audit, same day):** every Founding Professional invitation to
+date was a manually composed email, sent by Kathleen from her own inbox, with the link
+hand-typed each time. One of those hand-typed links (Marc Holland, 2026-08-17) pointed at
+the public `/apply` page instead of the sign-in flow — a real, confirmed incident, only
+caught the next day. There was also no system record that a manual send had happened at
+all — "was this person invited" was only answerable by searching a personal Sent folder.
+
+**Decided:** add EMAILS.md #17, `founding-professional-invitation.v1` — a plain,
+transactional (not personally-voiced) email, sent by `POST /api/admin/founding-professionals`
+and a new `resend_invitation` PATCH action, both using ONE canonical,
+code-generated link (`foundingProfessionalInviteLink()`) — never hand-typed again. Every
+attempt (sent/failed) is logged to a new, purely additive, append-only
+`founding_professional_invitation_sends` table (service-role only, same posture as
+`profile_trust_events` — informational, never read to decide grant/claim state).
+
+**Gated behind `FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED`, default OFF.** Ships fully dormant:
+the admin console still falls back to "copy the link yourself" exactly as before until the
+flag is explicitly turned on. No existing grant, claim, membership, or profile is touched —
+this only changes how the invitation *email* gets sent, never how a grant is claimed.
+
+**Also fixed (same audit):** `/subscribe`'s "Membership is by acceptance — Apply now" message
+was shown identically to a genuine stranger and to someone whose invitation link's email
+didn't match any grant — reading as "you need to pay" when the real issue is likely a
+mismatched email. `noMembershipMessage()` now reads the existing (previously unused)
+`?from=profile` / `?from=review` redirect tag to show an invitation-aware message instead,
+for that one case only. No new query param, no new routing, no DB query added.
+
+**Explicitly NOT touched:** Studio/Dance Team invitations (`founding_studio_invites`,
+a structurally separate system), `private_invitations`, the public `/apply` flow, Stripe,
+and every existing claimed grant/published profile (Geoffrey Doig-Marx, Todd Shanks) —
+verified byte-for-byte unaffected.
+
+---
+
 ## 2026-07-24 — Stable V1: three clean paths (Professionals · Studios · Families)
 
 **Decided (Kathleen, `V1-THREE-PATHS-FROM-KATHLEEN.md`):** One platform, three experiences —

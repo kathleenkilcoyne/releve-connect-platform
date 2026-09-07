@@ -7,16 +7,33 @@
 //   body: { email, entitlement_kind: 'permanent' | 'comp_12mo', note? }
 //     → creates the conferral/audit row; if the person already has an account,
 //       also materializes the complimentary membership + stamps their identity.
+//
+// Autosend (2026-09-07): when FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED === "true",
+// a real invitation email is sent via the code-generated link (never
+// hand-composed) and the attempt is logged to
+// founding_professional_invitation_sends. When the flag is off (the default),
+// NO send is attempted and NOTHING is logged — the admin console falls back to
+// the existing "copy link" flow. This lets the whole feature ship dormant.
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { grantFoundingProfessional, isEntitlementKind } from "@/lib/founding/founding-professional";
+import {
+  grantFoundingProfessional,
+  isEntitlementKind,
+  foundingProfessionalInviteLink,
+  recordInvitationSendAttempt,
+} from "@/lib/founding/founding-professional";
+import { sendFoundingProfessionalInvitation } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = { email?: string; entitlement_kind?: string; note?: string };
+
+function autosendEnabled(): boolean {
+  return process.env.FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED === "true";
+}
 
 export async function POST(req: Request) {
   const gate = await requireAdmin(req);
@@ -45,5 +62,27 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 409 });
-  return NextResponse.json({ ok: true, grantId: result.grantId, materialized: result.materialized });
+
+  let invitationSent: boolean | null = null; // null = autosend disabled, no attempt made
+  if (autosendEnabled()) {
+    const sendResult = await sendFoundingProfessionalInvitation({
+      to: email,
+      inviteLink: foundingProfessionalInviteLink(email),
+    });
+    await recordInvitationSendAttempt(db, {
+      grantId: result.grantId,
+      sentBy: gate.userId,
+      recipientEmail: email,
+      result: sendResult,
+    });
+    invitationSent = sendResult.sent;
+  }
+
+  return NextResponse.json({
+    ok: true,
+    grantId: result.grantId,
+    materialized: result.materialized,
+    autosend_enabled: autosendEnabled(),
+    invitation_sent: invitationSent,
+  });
 }

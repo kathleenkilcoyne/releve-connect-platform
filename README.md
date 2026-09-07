@@ -89,6 +89,7 @@ at once — each is only required when its feature is built.
 | `MAILERLITE_LICENSING_GROUP_ID` | Homepage "tell me when licensing opens" signups join this group *in addition to* The Climb (optional) | MailerLite |
 | ~~`ADMIN_TOKEN`~~ | **Retired 2026-07-22** — admin writes now require a signed-in admin. Safe to delete. | — |
 | `NEXT_PUBLIC_SITE_URL` | The site's own address | Local default provided |
+| `FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED` | Set to exactly `"true"` to let `/admin/founding-professionals` actually send the Founding Professional invitation email itself, instead of only generating a copyable link. **Defaults OFF (unset = off)** — added 2026-09-07, deliberately dormant until explicitly approved. | Your choice |
 
 ### Admin console (pre-launch)
 
