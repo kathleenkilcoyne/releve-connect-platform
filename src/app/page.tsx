@@ -72,6 +72,7 @@ export default function Home() {
 
         <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-6">
           <HeaderLink href="/studios">Studios</HeaderLink>
+          <HeaderLink href="/dance-teams">Dance Teams</HeaderLink>
           <HeaderLink href="/climb">The Climb</HeaderLink>
           <HeaderLink href="/roster">The Roster</HeaderLink>
           <HeaderLink href="/login">Sign in</HeaderLink>
@@ -180,6 +181,22 @@ export default function Home() {
               cta="Join Through Your Studio"
             />
           </div>
+
+          {/* Dance Team is a distinct audience from the three paths above (not
+              a fourth path, and not folded into "Studios" — a coach shouldn't
+              have to guess which door is theirs), added 2026-09-07 alongside
+              the new public /dance-teams page. Deliberately placed BELOW the
+              three-path grid, not inside it, so the existing paths/copy above
+              stay exactly as written. */}
+          <p className="mt-8 text-center text-[0.92rem] text-[var(--rc-ink-soft)]">
+            Bringing a dance team instead?{" "}
+            <Link
+              href="/dance-teams"
+              className="text-[var(--rc-gold)] underline underline-offset-4 hover:text-[#9c7c26]"
+            >
+              See the Dance Teams page →
+            </Link>
+          </p>
         </div>
       </section>
 
@@ -462,6 +479,7 @@ export default function Home() {
         <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
           <FooterLink href="/apply">Apply</FooterLink>
           <FooterLink href="/studios">Studios</FooterLink>
+          <FooterLink href="/dance-teams">Dance Teams</FooterLink>
           <FooterLink href="/climb">The Climb</FooterLink>
           <FooterLink href="/roster">The Roster</FooterLink>
           <FooterLink href="/login">Sign in</FooterLink>
