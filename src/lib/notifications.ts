@@ -757,10 +757,13 @@ export async function sendPartnerInterestAlert(input: {
  * grants (or resends) Founding Professional status in
  * `/admin/founding-professionals`, gated on `FOUNDING_PROFESSIONAL_AUTOSEND_ENABLED`.
  *
- * Deliberately plain and transactional — not written as a personal note from
- * any one admin. A founder invited this way may also get a personal follow-up
- * separately; this email's only job is to deliver a correct, working link
- * reliably, every time, with no hand-composition involved.
+ * Warm and personal in voice (Kathleen's exact wording, 2026-09-07) — but
+ * signed only "Relevé Connect," never a specific admin's name, so the SAME
+ * template reads correctly no matter who clicks "grant." The shared `body()`
+ * signature block below is what actually closes the email; the copy here
+ * deliberately does NOT repeat its own sign-off, so there is exactly one
+ * "Relevé Connect / together we rise" line, matching every other template
+ * instead of drifting into a one-off duplicate.
  */
 export async function sendFoundingProfessionalInvitation(input: {
   to: string;
@@ -771,14 +774,16 @@ export async function sendFoundingProfessionalInvitation(input: {
     template: "founding-professional-invitation.v1",
     subject: "You're invited to Relevé Connect as a Founding Professional",
     text: body(
-      "You've been personally selected as one of Relevé Connect's Founding Professionals — " +
-        "complimentary access, no application, no payment.",
-      `Sign in here with this email address (${input.to}) to build your profile:`,
+      "You're invited to join Relevé Connect as one of our Founding Professionals.",
+      "I'm bringing together a small group of respected people across the dance industry to " +
+        "establish the first professional profiles on Relevé, and I'd love yours to be among them.",
+      "Your membership is complimentary. There is no application or payment required.",
+      "Build your Relevé profile here:",
       input.inviteLink,
-      "It will email you an 8-digit sign-in code. Enter it, and you'll go straight into your " +
-        "profile builder. You can save as you go and publish whenever you're ready.",
-      "Once published, your profile will carry the Founding Professional mark and Verified " +
-        "Member badge.",
+      "Sign in using this email address. Relevé will send you an 8-digit code, which will take " +
+        "you directly into your profile builder. You can save as you go and publish when you're ready.",
+      "Once published, your profile will carry the Founding Professional designation and " +
+        "Verified Member badge.",
     ),
   });
 }

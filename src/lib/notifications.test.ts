@@ -120,8 +120,8 @@ describe("sendStudioLive — returns sendEmail's SendResult (2026-09-06 diagnost
   });
 });
 
-describe("sendFoundingProfessionalInvitation — the automated invite (2026-09-07)", () => {
-  it("sends a plain transactional invitation carrying the exact link it was given", async () => {
+describe("sendFoundingProfessionalInvitation — warm, personal copy (2026-09-07 revision)", () => {
+  it("sends Kathleen's exact wording, carrying the exact link it was given", async () => {
     await sendFoundingProfessionalInvitation({
       to: "founder@example.com",
       inviteLink: "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
@@ -133,22 +133,39 @@ describe("sendFoundingProfessionalInvitation — the automated invite (2026-09-0
     expect(msg.template).toBe("founding-professional-invitation.v1");
     expect(msg.subject).toBe("You're invited to Relevé Connect as a Founding Professional");
     expect(msg.text).toContain(
+      "You're invited to join Relevé Connect as one of our Founding Professionals.",
+    );
+    expect(msg.text).toContain(
+      "I'm bringing together a small group of respected people across the dance industry",
+    );
+    expect(msg.text).toContain("Your membership is complimentary. There is no application or payment required.");
+    expect(msg.text).toContain("Build your Relevé profile here:");
+    expect(msg.text).toContain(
       "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
     );
-    expect(msg.text).toContain("founder@example.com");
+    expect(msg.text).toContain("Sign in using this email address.");
+    expect(msg.text).toContain(
+      "Once published, your profile will carry the Founding Professional designation and Verified Member badge.",
+    );
   });
 
-  it("never claims to be a personal note from any one admin", async () => {
+  it("is warmer/first-person now, by design, but still signed only 'Relevé Connect' — never a named admin", async () => {
     await sendFoundingProfessionalInvitation({
       to: "founder@example.com",
       inviteLink: "https://releveconnect.com/login?next=%2Fprofile%2Fedit&email=founder%40example.com",
     });
 
     const [msg] = sendEmail.mock.calls[0];
-    // Deliberately plain/transactional — no first-person signature line beyond
-    // the shared brand signature every email already carries.
+    expect(msg.text).toMatch(/\bI['’]m\b/); // deliberately personal voice now
     expect(msg.text).not.toMatch(/with love and respect/i);
     expect(msg.text).not.toMatch(/,\s*Kathleen\s*$/im);
+    // Exactly one sign-off — the copy must not repeat its own closing line on
+    // top of the shared body() signature (that would read as a duplicate).
+    // "Relevé Connect" itself appears twice by design (once mid-copy, once in
+    // the signature); "together we rise" is signature-only, so it's the
+    // reliable signal that there's exactly one close, not two.
+    const signOffCount = (msg.text.match(/together we rise/gi) ?? []).length;
+    expect(signOffCount).toBe(1);
   });
 
   it("returns the exact SendResult sendEmail produced, unmodified", async () => {
