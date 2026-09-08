@@ -15,7 +15,6 @@
 //   · already submitted    → show its status; do NOT render an editable form
 //   · nothing yet          → a fresh form, as before
 
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ApplyForm from "./ApplyForm";
@@ -127,23 +126,41 @@ export default async function ApplyPage({
     submitted_at: string | null;
   } | null;
 
-  // ── Gateway enforcement (2026-08-06) ──
-  // /apply is the PROFESSIONAL door only. The post-sign-in resolver can't
-  // guarantee this on its own — it honors ?next=/apply before any role logic, and
-  // the homepage/nav "Apply" links carry exactly that — so the real gate lives
-  // HERE, on the page itself, catching every entry route. A person who hasn't
-  // chosen the professional path (no application yet AND onboarding_intent isn't
-  // 'professional') is sent to the "How are you joining Relevé?" gateway to
-  // choose. This is what keeps studios, dance teams, and industry partners out of
-  // the Roster application and its professional-only fields.
+  // ── Gateway enforcement (2026-08-06, revised 2026-09-08) ──
+  // /apply is the PROFESSIONAL door — and, since the public-entry fix, its own
+  // front door too. A signed-in visitor with no application yet and no
+  // recorded onboarding_intent used to be bounced to the "How are you joining
+  // Relevé?" gateway before ever seeing the form — including someone who had
+  // just verified their email right here on /apply moments earlier, which
+  // read as a broken redirect rather than a deliberate fork.
+  //
+  // Landing on /apply IS the professional choice, so record it here — the
+  // same write /welcome's chooseIntent action makes for "Dance Professional"
+  // — instead of sending them off to choose something they already chose.
+  // This does NOT touch /welcome itself: a genuinely undecided cold sign-in
+  // (no application, arriving with no `next`) still lands there first, from
+  // resolveSignedInDestination's own default — studios, dance teams, and
+  // industry partners are unaffected, since none of their flows pass through
+  // /apply at all.
   if (!existing) {
     const { data: urow } = await supabase
       .from("users")
-      .select("onboarding_intent")
+      .select("account_type, onboarding_intent")
       .eq("user_id", user.id)
       .maybeSingle();
-    if ((urow as { onboarding_intent?: string } | null)?.onboarding_intent !== "professional") {
-      redirect("/welcome");
+    const row = urow as { account_type?: string; onboarding_intent?: string } | null;
+    if (row?.onboarding_intent !== "professional") {
+      await supabase.from("users").upsert(
+        {
+          user_id: user.id,
+          email: user.email ?? "",
+          // Never downgrade an existing account_type (e.g. admin) — same rule
+          // chooseIntent follows; only set it on first creation.
+          account_type: row?.account_type ?? "talent",
+          onboarding_intent: "professional",
+        },
+        { onConflict: "user_id" },
+      );
     }
   }
 
