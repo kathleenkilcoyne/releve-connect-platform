@@ -1,7 +1,11 @@
 // The application intake — the vetting gate's front door (build spec §4).
-// Signed-in only, so the application ties to the person under RLS. Loads the
-// controlled-vocabulary pick-lists and any saved draft, then hands off to the
-// interactive form.
+// A TRUE PUBLIC entry point (2026-09-08): a signed-out visitor sees the intro
+// and verifies their email right here (ApplyAuthGate.tsx), instead of being
+// redirected to the generic /login page before seeing anything about
+// applying. The actual application still ties to the person under RLS, so
+// nothing is saved or submitted until that verification completes. Once
+// signed in, loads the controlled-vocabulary pick-lists and any saved draft,
+// then hands off to the interactive form.
 //
 // ── Re-entry (the bug this fixes) ──
 // Previously this page ALWAYS rendered an empty form. A returning applicant saw
@@ -15,10 +19,34 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ApplyForm from "./ApplyForm";
+import ApplyAuthGate from "./ApplyAuthGate";
 
 export const dynamic = "force-dynamic";
 
 type Option = { slug: string; label: string };
+
+/** The pitch, shown once — to a brand-new signed-out visitor before they
+ *  verify their email, and again to a freshly-verified one before the form. */
+function ApplyIntro() {
+  return (
+    <div className="mt-5 space-y-3 text-neutral-600">
+      <p>
+        You&apos;ll notice this application asks a lot. That&apos;s on purpose.{" "}
+        <span className="font-medium text-neutral-900">
+          Every application is personally reviewed.
+        </span>{" "}
+        It is lengthy because we are thorough — so that one day we can stand behind your name and
+        say, <em>this is one of ours.</em>
+      </p>
+      <p>
+        <span className="font-medium text-neutral-900">Your progress saves as you go</span>, so
+        you can step away and come back whenever you need to. Answer honestly — there are no wrong
+        answers here, only your true ones.
+      </p>
+      <p className="font-medium text-neutral-900">You belong here. You matter here.</p>
+    </div>
+  );
+}
 
 /** Applicant-facing copy for an application that is no longer editable. */
 const STATUS_COPY: Record<string, { title: string; body: string }> = {
@@ -55,11 +83,30 @@ export default async function ApplyPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Preserve the resume token through sign-in, so a link from the email lands
-  // back here rather than dumping them on a blank form.
+  // ── True public entry point (2026-09-08) ──
+  // A signed-out visitor used to be redirected straight to the generic /login
+  // page before seeing anything about applying. Now /apply always renders
+  // something application-branded: this intro, plus the same passwordless
+  // 8-digit-code verification /login uses, framed as the first step of
+  // applying instead of an unexplained detour. See ApplyAuthGate.tsx.
   if (!user) {
-    const next = resume ? `/apply?resume=${encodeURIComponent(resume)}` : "/apply";
-    redirect(`/login?next=${encodeURIComponent(next)}`);
+    return (
+      <main className="mx-auto max-w-2xl px-6 py-12">
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+          Relevé · Apply to the Roster
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Apply to Relevé</h1>
+        <p className="mt-2 text-lg italic text-neutral-500">This is your stage. Take your time.</p>
+
+        <ApplyIntro />
+
+        <ApplyAuthGate resume={resume} />
+
+        <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
+          ← Back to Relevé
+        </Link>
+      </main>
+    );
   }
 
   // My most recent application, whatever state it's in. RLS scopes this to me.
@@ -164,22 +211,7 @@ export default async function ApplyPage({
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Apply to Relevé</h1>
       <p className="mt-2 text-lg italic text-neutral-500">This is your stage. Take your time.</p>
 
-      <div className="mt-5 space-y-3 text-neutral-600">
-        <p>
-          You&apos;ll notice this application asks a lot. That&apos;s on purpose.{" "}
-          <span className="font-medium text-neutral-900">
-            Every application is personally reviewed.
-          </span>{" "}
-          It is lengthy because we are thorough — so that one day we can stand behind your name and
-          say, <em>this is one of ours.</em>
-        </p>
-        <p>
-          <span className="font-medium text-neutral-900">Your progress saves as you go</span>, so
-          you can step away and come back whenever you need to. Answer honestly — there are no wrong
-          answers here, only your true ones.
-        </p>
-        <p className="font-medium text-neutral-900">You belong here. You matter here.</p>
-      </div>
+      <ApplyIntro />
 
       {existing?.draft_saved_at && (
         <p className="mt-5 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
