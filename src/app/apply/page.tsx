@@ -1,7 +1,11 @@
 // The application intake — the vetting gate's front door (build spec §4).
-// Signed-in only, so the application ties to the person under RLS. Loads the
-// controlled-vocabulary pick-lists and any saved draft, then hands off to the
-// interactive form.
+// A TRUE PUBLIC entry point (2026-09-08): a signed-out visitor sees the intro
+// and verifies their email right here (ApplyAuthGate.tsx), instead of being
+// redirected to the generic /login page before seeing anything about
+// applying. The actual application still ties to the person under RLS, so
+// nothing is saved or submitted until that verification completes. Once
+// signed in, loads the controlled-vocabulary pick-lists and any saved draft,
+// then hands off to the interactive form.
 //
 // ── Re-entry (the bug this fixes) ──
 // Previously this page ALWAYS rendered an empty form. A returning applicant saw
@@ -11,14 +15,37 @@
 //   · already submitted    → show its status; do NOT render an editable form
 //   · nothing yet          → a fresh form, as before
 
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ApplyForm from "./ApplyForm";
+import ApplyAuthGate from "./ApplyAuthGate";
 
 export const dynamic = "force-dynamic";
 
 type Option = { slug: string; label: string };
+
+/** The pitch, shown once — to a brand-new signed-out visitor before they
+ *  verify their email, and again to a freshly-verified one before the form. */
+function ApplyIntro() {
+  return (
+    <div className="mt-5 space-y-3 text-neutral-600">
+      <p>
+        You&apos;ll notice this application asks a lot. That&apos;s on purpose.{" "}
+        <span className="font-medium text-neutral-900">
+          Every application is personally reviewed.
+        </span>{" "}
+        It is lengthy because we are thorough — so that one day we can stand behind your name and
+        say, <em>this is one of ours.</em>
+      </p>
+      <p>
+        <span className="font-medium text-neutral-900">Your progress saves as you go</span>, so
+        you can step away and come back whenever you need to. Answer honestly — there are no wrong
+        answers here, only your true ones.
+      </p>
+      <p className="font-medium text-neutral-900">You belong here. You matter here.</p>
+    </div>
+  );
+}
 
 /** Applicant-facing copy for an application that is no longer editable. */
 const STATUS_COPY: Record<string, { title: string; body: string }> = {
@@ -55,11 +82,30 @@ export default async function ApplyPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Preserve the resume token through sign-in, so a link from the email lands
-  // back here rather than dumping them on a blank form.
+  // ── True public entry point (2026-09-08) ──
+  // A signed-out visitor used to be redirected straight to the generic /login
+  // page before seeing anything about applying. Now /apply always renders
+  // something application-branded: this intro, plus the same passwordless
+  // 8-digit-code verification /login uses, framed as the first step of
+  // applying instead of an unexplained detour. See ApplyAuthGate.tsx.
   if (!user) {
-    const next = resume ? `/apply?resume=${encodeURIComponent(resume)}` : "/apply";
-    redirect(`/login?next=${encodeURIComponent(next)}`);
+    return (
+      <main className="mx-auto max-w-2xl px-6 py-12">
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+          Relevé · Apply to the Roster
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Apply to Relevé</h1>
+        <p className="mt-2 text-lg italic text-neutral-500">This is your stage. Take your time.</p>
+
+        <ApplyIntro />
+
+        <ApplyAuthGate resume={resume} />
+
+        <Link href="/" className="mt-10 inline-block text-sm text-neutral-500 underline">
+          ← Back to Relevé
+        </Link>
+      </main>
+    );
   }
 
   // My most recent application, whatever state it's in. RLS scopes this to me.
@@ -80,23 +126,41 @@ export default async function ApplyPage({
     submitted_at: string | null;
   } | null;
 
-  // ── Gateway enforcement (2026-08-06) ──
-  // /apply is the PROFESSIONAL door only. The post-sign-in resolver can't
-  // guarantee this on its own — it honors ?next=/apply before any role logic, and
-  // the homepage/nav "Apply" links carry exactly that — so the real gate lives
-  // HERE, on the page itself, catching every entry route. A person who hasn't
-  // chosen the professional path (no application yet AND onboarding_intent isn't
-  // 'professional') is sent to the "How are you joining Relevé?" gateway to
-  // choose. This is what keeps studios, dance teams, and industry partners out of
-  // the Roster application and its professional-only fields.
+  // ── Gateway enforcement (2026-08-06, revised 2026-09-08) ──
+  // /apply is the PROFESSIONAL door — and, since the public-entry fix, its own
+  // front door too. A signed-in visitor with no application yet and no
+  // recorded onboarding_intent used to be bounced to the "How are you joining
+  // Relevé?" gateway before ever seeing the form — including someone who had
+  // just verified their email right here on /apply moments earlier, which
+  // read as a broken redirect rather than a deliberate fork.
+  //
+  // Landing on /apply IS the professional choice, so record it here — the
+  // same write /welcome's chooseIntent action makes for "Dance Professional"
+  // — instead of sending them off to choose something they already chose.
+  // This does NOT touch /welcome itself: a genuinely undecided cold sign-in
+  // (no application, arriving with no `next`) still lands there first, from
+  // resolveSignedInDestination's own default — studios, dance teams, and
+  // industry partners are unaffected, since none of their flows pass through
+  // /apply at all.
   if (!existing) {
     const { data: urow } = await supabase
       .from("users")
-      .select("onboarding_intent")
+      .select("account_type, onboarding_intent")
       .eq("user_id", user.id)
       .maybeSingle();
-    if ((urow as { onboarding_intent?: string } | null)?.onboarding_intent !== "professional") {
-      redirect("/welcome");
+    const row = urow as { account_type?: string; onboarding_intent?: string } | null;
+    if (row?.onboarding_intent !== "professional") {
+      await supabase.from("users").upsert(
+        {
+          user_id: user.id,
+          email: user.email ?? "",
+          // Never downgrade an existing account_type (e.g. admin) — same rule
+          // chooseIntent follows; only set it on first creation.
+          account_type: row?.account_type ?? "talent",
+          onboarding_intent: "professional",
+        },
+        { onConflict: "user_id" },
+      );
     }
   }
 
@@ -164,22 +228,7 @@ export default async function ApplyPage({
       <h1 className="mt-2 text-3xl font-semibold text-neutral-900">Apply to Relevé</h1>
       <p className="mt-2 text-lg italic text-neutral-500">This is your stage. Take your time.</p>
 
-      <div className="mt-5 space-y-3 text-neutral-600">
-        <p>
-          You&apos;ll notice this application asks a lot. That&apos;s on purpose.{" "}
-          <span className="font-medium text-neutral-900">
-            Every application is personally reviewed.
-          </span>{" "}
-          It is lengthy because we are thorough — so that one day we can stand behind your name and
-          say, <em>this is one of ours.</em>
-        </p>
-        <p>
-          <span className="font-medium text-neutral-900">Your progress saves as you go</span>, so
-          you can step away and come back whenever you need to. Answer honestly — there are no wrong
-          answers here, only your true ones.
-        </p>
-        <p className="font-medium text-neutral-900">You belong here. You matter here.</p>
-      </div>
+      <ApplyIntro />
 
       {existing?.draft_saved_at && (
         <p className="mt-5 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">

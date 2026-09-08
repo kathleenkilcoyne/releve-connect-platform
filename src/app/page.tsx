@@ -156,13 +156,13 @@ export default function Home() {
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             {/* Professionals — the primary path. Filled/gold, listed first.
-                Routes to the /welcome gateway ("How are you joining Relevé?"),
-                which sends a Dance Professional on to /apply. Any direct /apply
-                hit is still caught by the gate on that page. */}
+                Goes straight to /apply (2026-09-08) — it's a true public entry
+                point now (see ApplyAuthGate.tsx), so a Dance Professional
+                doesn't need the /welcome "how are you joining" fork first. */}
             <PathCard
               eyebrow="Professionals"
               subline="Vetted teachers, choreographers, and performers. Build your credentialed profile."
-              href="/welcome"
+              href="/apply"
               cta="Apply to the Professional Roster"
               primary
             />
