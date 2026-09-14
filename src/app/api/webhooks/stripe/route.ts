@@ -10,6 +10,13 @@
 //                                        Stripe says the artist can be paid (Flow A).
 //   • payment_intent.payment_failed   → mark the purchase failed.
 //   • charge.refunded                 → mark refunded and revoke access.
+//   • invoice.payment_failed          → on a RENEWAL only, start the 14-day
+//                                        grace period (lib/membership/grace.ts).
+//                                        Membership stays active throughout.
+//   • invoice.paid                    → clear any grace period on that
+//                                        membership. NOT YET in the live
+//                                        webhook's subscribed events — see the
+//                                        note on handleInvoicePaid below.
 //
 // Signature is verified with STRIPE_WEBHOOK_SIGNING_SECRET over the RAW body.
 // Every branch is idempotent — Stripe may deliver an event more than once.
@@ -21,14 +28,12 @@ import {
   bookingLinks,
   sendBuyerExperienceConfirmation,
   addBuyerToClimb,
-  sendApplicationReceived,
-  sendAdminNewApplicationAlert,
   sendMembershipActive,
   sendRenewalReminder,
-  APPLICATION_FEE_NOTE,
 } from "@/lib/notifications";
 import { siteUrl } from "@/lib/stripe/config";
 import { getTier, dollars } from "@/lib/membership/tiers";
+import { applyInvoicePaymentFailed, applyInvoicePaid } from "@/lib/membership/grace";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -88,6 +93,9 @@ export async function POST(req: Request) {
       case "invoice.payment_failed":
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
         break;
+      case "invoice.paid":
+        await handleInvoicePaid(event.data.object as Stripe.Invoice);
+        break;
       case "invoice.upcoming":
         await handleInvoiceUpcoming(event.data.object as Stripe.Invoice);
         break;
@@ -117,12 +125,8 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
   // a truly paid session.
   if (session.payment_status !== "paid") return;
 
-  // Route by what was bought. The $30 application fee is a separate flow from the
-  // $499 Signature Experience; both arrive as checkout.session.completed.
-  if (session.metadata?.kind === "application_fee") {
-    await handleApplicationFeePaid(session);
-    return;
-  }
+  // Route by what was bought — the $499 Signature Experience and a membership
+  // subscription both arrive as checkout.session.completed.
   if (session.metadata?.kind === "membership") {
     await handleMembershipCheckout(stripe, session);
     return;
@@ -196,81 +200,6 @@ async function handleCheckoutCompleted(stripe: Stripe, session: Stripe.Checkout.
   }
 }
 
-// ---------------------------------------------------------------------------
-// checkout.session.completed — the $30 application fee (kind: 'application_fee')
-// ---------------------------------------------------------------------------
-async function handleApplicationFeePaid(session: Stripe.Checkout.Session) {
-  const db = createAdminClient();
-  const feeId =
-    (session.metadata?.application_fee_payment_id as string | undefined) ??
-    (session.client_reference_id ?? undefined);
-
-  const query = db.from("application_fee_payments").select("*").limit(1);
-  const { data: found } = feeId
-    ? await query.eq("id", feeId)
-    : await query.eq("stripe_checkout_session_id", session.id);
-  const fee = found?.[0];
-
-  if (!fee) {
-    console.error("[stripe webhook] no application_fee_payment for session", session.id);
-    return;
-  }
-  if (fee.status === "paid") return; // idempotent: already handled
-
-  const paymentIntentId =
-    typeof session.payment_intent === "string"
-      ? session.payment_intent
-      : session.payment_intent?.id ?? null;
-
-  // 1) Mark the fee paid.
-  await db
-    .from("application_fee_payments")
-    .update({
-      status: "paid",
-      stripe_payment_intent_id: paymentIntentId,
-      paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", fee.id);
-
-  // 2) Move the application into review (only from a pre-review state).
-  const { data: appData } = await db
-    .from("applications")
-    .select("application_id, email, first_name, roles, state")
-    .eq("application_id", fee.application_id)
-    .single();
-  if (appData && ["draft", "submitted"].includes(appData.state as string)) {
-    await db
-      .from("applications")
-      .update({
-        state: "in-review",
-        submitted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("application_id", fee.application_id);
-  }
-
-  // 3) The two automatic emails (EMAILS.md #1 + #2).
-  //
-  // DORMANT during the free founding period: with no fee, this handler never
-  // runs, and the same two emails are sent from submitApplication instead. Kept
-  // wired (with the approved fee wording) so switching payment back on is a
-  // one-line change in the form rather than a rebuild of this branch.
-  if (appData) {
-    await sendApplicationReceived({
-      to: appData.email as string,
-      firstName: (appData.first_name as string | null) ?? null,
-      feeNote: APPLICATION_FEE_NOTE,
-    });
-    await sendAdminNewApplicationAlert({
-      applicantEmail: appData.email as string,
-      applicantName: (appData.first_name as string | null) ?? null,
-      roles: (appData.roles as string[] | null) ?? [],
-      reviewUrl: `${siteUrl()}/admin/applications`,
-    });
-  }
-}
-
 // Stripe moved `current_period_end` (now on the subscription item) and
 // `invoice.subscription` (now under invoice.parent) in recent API versions.
 // The account's pinned version may be either, so read both shapes defensively.
@@ -296,7 +225,6 @@ function invoiceSubId(invoice: Stripe.Invoice): string | null {
 async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout.Session) {
   const db = createAdminClient();
   const membershipId = session.metadata?.membership_id as string | undefined;
-  const creditFeeId = (session.metadata?.credit_fee_id as string | undefined) || null;
   const subId =
     typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
   const customerId =
@@ -330,18 +258,12 @@ async function handleMembershipCheckout(stripe: Stripe, session: Stripe.Checkout
       stripe_subscription_id: subId,
       stripe_customer_id: customerId,
       renewal_date: renewalIso,
+      // Defensive: a resubscribe reuses the same row (upserted by tier in the
+      // checkout route), so clear any leftover grace_until from a prior lapse.
+      grace_until: null,
       updated_at: now,
     })
     .eq("membership_id", membership.membership_id);
-
-  // Credit the $30 application fee (accepted AND now subscribed).
-  if (creditFeeId) {
-    await db
-      .from("application_fee_payments")
-      .update({ status: "credited", resolved_at: now, updated_at: now })
-      .eq("id", creditFeeId)
-      .eq("status", "paid");
-  }
 
   // Email #7 — membership active (with the auto-renew disclosure + manage link).
   const email = session.customer_details?.email ?? session.customer_email ?? null;
@@ -361,19 +283,36 @@ async function handleSubscriptionCanceled(sub: Stripe.Subscription) {
   const db = createAdminClient();
   await db
     .from("memberships")
-    .update({ membership_status: "canceled", updated_at: new Date().toISOString() })
+    // Cancellation (including at the end of the paid term, per cancel-at-period-
+    // end — Stripe fires this event only once the period has actually ended) is
+    // terminal: it removes access outright, and clears any stale grace_until so
+    // a canceled row never carries a leftover future timestamp.
+    .update({ membership_status: "canceled", grace_until: null, updated_at: new Date().toISOString() })
     .eq("stripe_subscription_id", sub.id);
 }
 
-// invoice.payment_failed → membership lapsed ---------------------------------
+// invoice.payment_failed → start the 14-day grace period, RENEWALS ONLY ------
+// membership_status stays "active" throughout — see lib/membership/grace.ts
+// for the full decision logic (renewal-only, starts-once, never-for-a-
+// never-activated membership) and lib/membership/access.ts for how the
+// 14-day window is actually enforced (read-time, no scheduled job).
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const subId = invoiceSubId(invoice);
   if (!subId) return;
-  const db = createAdminClient();
-  await db
-    .from("memberships")
-    .update({ membership_status: "lapsed", updated_at: new Date().toISOString() })
-    .eq("stripe_subscription_id", subId);
+  await applyInvoicePaymentFailed(createAdminClient(), {
+    stripeSubscriptionId: subId,
+    billingReason: invoice.billing_reason,
+  });
+}
+
+// invoice.paid → clear any grace period on the owning membership ------------
+// ⚠️ Not yet in the live Stripe webhook's subscribed events — this code is
+// ready, but Kathleen needs to add "invoice.paid" to the endpoint's event list
+// in the Stripe Dashboard before a real renewal payment will ever trigger it.
+async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const subId = invoiceSubId(invoice);
+  if (!subId) return;
+  await applyInvoicePaid(createAdminClient(), { stripeSubscriptionId: subId });
 }
 
 // invoice.upcoming → renewal reminder (~2 weeks out; lead time set in Stripe) -
@@ -505,17 +444,4 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_payment_intent_id", paymentIntentId);
-
-  // Also cover the $30 application fee (refunded when an applicant is NOT
-  // accepted). Only touch a fee that was actually paid, and don't overwrite a
-  // 'credited' one. Idempotent.
-  await db
-    .from("application_fee_payments")
-    .update({
-      status: "refunded",
-      resolved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("stripe_payment_intent_id", paymentIntentId)
-    .eq("status", "paid");
 }

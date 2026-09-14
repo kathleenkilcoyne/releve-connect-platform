@@ -5,9 +5,6 @@
 // Rules:
 //   • Vetted tiers (Professional / Professional·Full) require an APPROVED
 //     application. Non-vetted tiers (Live Pass, studios) don't.
-//   • If the applicant PAID the $30 fee, it's CREDITED here — a one-time $30-off
-//     coupon on the first invoice — and the fee row is marked 'credited' by the
-//     webhook once payment succeeds. (Founding-25 waived → no credit, nothing paid.)
 //   • Billing is annual and auto-renews; the UI discloses that and offers
 //     one-click cancel via the billing portal (/api/membership/portal).
 
@@ -20,24 +17,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** A stable one-time "$30 application-fee credit" coupon (create-once, reused). */
-async function appFeeCreditCouponId(stripe: ReturnType<typeof getStripe>): Promise<string> {
-  const id = "releve_app_fee_credit_30";
-  try {
-    const c = await stripe.coupons.retrieve(id);
-    return c.id;
-  } catch {
-    const c = await stripe.coupons.create({
-      id,
-      amount_off: 3000,
-      currency: "usd",
-      duration: "once",
-      name: "Application fee credit",
-    });
-    return c.id;
-  }
-}
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -67,7 +46,6 @@ export async function POST(req: Request) {
   const db = createAdminClient();
 
   // ---- Gate: vetted tiers require an APPROVED application -------------------
-  let creditFeeId: string | null = null;
   if (tier.applicationRequired) {
     const { data: appRow } = await db
       .from("applications")
@@ -81,14 +59,6 @@ export async function POST(req: Request) {
         { status: 403 },
       );
     }
-    // If they paid the $30, it gets credited on the first invoice.
-    const { data: feeRow } = await db
-      .from("application_fee_payments")
-      .select("id, status")
-      .eq("application_id", (appRow as { application_id: string }).application_id)
-      .eq("status", "paid")
-      .maybeSingle();
-    if (feeRow) creditFeeId = (feeRow as { id: string }).id;
   }
 
   // ---- Reuse (or create) this member's Stripe customer ---------------------
@@ -153,7 +123,6 @@ export async function POST(req: Request) {
     mode: "subscription",
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    ...(creditFeeId ? { discounts: [{ coupon: await appFeeCreditCouponId(stripe) }] } : {}),
     client_reference_id: user.id,
     success_url: `${base}/subscribe/welcome?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/subscribe?canceled=1`,
@@ -162,7 +131,6 @@ export async function POST(req: Request) {
       membership_id: membershipId,
       user_id: user.id,
       tier: tier.slug,
-      credit_fee_id: creditFeeId ?? "",
     },
   });
 

@@ -292,8 +292,8 @@ export default function ApplyForm({
         return;
       }
       // FREE FOUNDING PERIOD: no application fee, so a saved application goes
-      // straight to the thank-you page. (When the fee returns, POST to
-      // /api/applications/<id>/fee-checkout here and redirect to `url`.)
+      // straight to the thank-you page. (The $30-at-apply fee-checkout route was
+      // removed 2026-09-13 — rebuild it here if that fee ever returns.)
       window.location.href = "/apply/submitted";
     } catch (err) {
       setError((err as Error).message);

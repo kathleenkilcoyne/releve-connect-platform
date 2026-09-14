@@ -13,7 +13,7 @@
 //                                       approved public applicant. Requires state=approved.
 //            | "honorifics"           → set editorial honorifics[] (no state change)
 //            | "request_info"         → state=more-info (+ optional `note`)
-//            | "decline"              → state=declined  AND refund the $30 in full
+//            | "decline"              → state=declined
 //
 // Emails #4/#5/#6 are MANUAL — they fire here (as seams), never automatically.
 //
@@ -34,7 +34,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStripe } from "@/lib/stripe/server";
 import {
   fireMailerLiteTag,
   sendApplicationApproved,
@@ -197,32 +196,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
     // ---------------------------------------------------------------------
     case "decline": {
-      // "Refunded if NOT accepted": refund the paid $30 in full, if there is one.
-      let refunded = false;
-      const { data: feeRows } = await db
-        .from("application_fee_payments")
-        .select("id, stripe_payment_intent_id, status")
-        .eq("application_id", id)
-        .eq("status", "paid")
-        .limit(1);
-      const fee = feeRows?.[0] as
-        | { id: string; stripe_payment_intent_id: string | null; status: string }
-        | undefined;
-
-      if (fee?.stripe_payment_intent_id) {
-        try {
-          await getStripe().refunds.create({ payment_intent: fee.stripe_payment_intent_id });
-          await db
-            .from("application_fee_payments")
-            .update({ status: "refunded", resolved_at: now, updated_at: now })
-            .eq("id", fee.id);
-          refunded = true;
-        } catch (err) {
-          // Don't block the decline on a refund hiccup — surface it, leave the fee
-          // as 'paid' so it can be retried, and still record the decline.
-          console.error("[admin decline] refund failed for application", id, err);
-        }
-      }
+      // No $30 fee exists to refund (dormant — see HANDOFF-FIRST-PAID-MEMBERSHIP.md
+      // §4). `refunded` stays false; the email's refund line only ever appears if
+      // a future caller passes true.
+      const refunded = false;
 
       const { error } = await db
         .from("applications")
