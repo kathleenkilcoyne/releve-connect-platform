@@ -12,9 +12,8 @@ export default function SubscribeWelcomePage() {
         <p className="text-2xl">🎉</p>
         <h1 className="mt-3 text-2xl font-semibold text-green-900">Welcome to Relevé.</h1>
         <p className="mt-3 text-green-800">
-          Your membership is being activated (a moment for the payment to confirm). Your $30
-          application fee has been credited to this first year. Your membership renews annually, and
-          you can cancel anytime in one click from the membership page.
+          Your membership is being activated (a moment for the payment to confirm). Your membership
+          renews annually, and you can cancel anytime in one click from the membership page.
         </p>
         <Link
           href="/profile/edit"

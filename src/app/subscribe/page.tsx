@@ -1,30 +1,32 @@
 // Membership page — the end of the spine (approved → member).
 //
-// FREE FOUNDING PERIOD (launch, 2026-07-20): when granted, membership is
-// COMPLIMENTARY. There is no paid checkout here right now, so this page shows
-// state, not a price list:
-//   · already a member          → complimentary founding membership + build profile
-//   · approved, no membership   → welcome to the Roster; complimentary access comes separately
+// FIRST PAID MEMBERSHIP (restored 2026-09-13, per HANDOFF-FIRST-PAID-MEMBERSHIP.md
+// §6.2): an approved applicant with no membership row now sees a real Stripe buy
+// button — Professional, $149/year, the only tier offered in v1. This page still
+// shows state, not a price list, for every other case:
+//   · already a member (paid OR complimentary) → build profile / manage
+//   · approved, no membership   → subscribe (Professional $149/year)
 //   · applied, under review     → reassure
 //   · not applied                → invite to apply
 //   · declined                   → gentle "not now"
 //
 // ── Approval no longer auto-grants membership (2026-08-23) ──
 // A public applicant's approval only sets Professional Roster status. A
-// complimentary membership is now a SEPARATE, explicit admin action
+// complimentary membership is a SEPARATE, explicit admin action
 // ("grant_complimentary" in /admin/applications) — so "approved, no membership
-// row yet" is the NORMAL state for a freshly-approved public applicant, not the
-// rare edge case it used to be. This page must not promise instant profile
-// access in that state — /profile/edit would just bounce them right back here.
+// row yet" is the NORMAL state for a freshly-approved public applicant. That
+// state now offers the paid path directly, rather than telling them to wait.
 //
-// The paid-tier chooser, the $30-credit copy, and the Stripe manage/cancel
-// button were removed for the free period. The prior paid version is in git
-// history; RESUME-HERE lists exactly what to restore when payment is switched on.
+// No $30 application-fee copy, no trial language, no Creator tier — v1 is
+// Professional-only (HANDOFF §6.2). Annual, auto-renewing, one-click cancel is
+// disclosed inline.
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTier, dollars } from "@/lib/membership/tiers";
+import SubscribeButtons from "./SubscribeButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -131,15 +133,28 @@ export default async function SubscribePage() {
 
   // Approved for the Professional Roster, but no membership row yet — the normal
   // state right after approval now that granting complimentary access is a
-  // separate admin step. Welcome them without promising profile access they
-  // don't have yet; there is no "Build your profile" link here on purpose.
+  // separate admin step. Offer the paid path directly (HANDOFF §6.2): Professional
+  // $149/year, the only tier sold in v1. A complimentary grant (if one comes) still
+  // lands them in the `member` branch above on their next visit — this branch never
+  // has to know which path they took.
   if (appState === "approved") {
+    const professional = getTier("professional")!;
     return shell(
       <>
         <h1 className="mt-2 text-3xl font-semibold text-neutral-900">You&apos;re in — welcome 🎉</h1>
         <p className="mt-3 text-neutral-600">
-          You&apos;ve been accepted to the Relevé Connect Professional Roster. We&apos;ll follow up by
-          email as soon as your membership is set up — that&apos;s what opens the profile builder.
+          You&apos;ve been accepted to the Relevé Connect Professional Roster. Subscribe to open your
+          profile builder.
+        </p>
+        <div className="mt-6">
+          <SubscribeButtons
+            mode="subscribe"
+            tier={professional.slug}
+            label={`Subscribe — ${dollars(professional.priceCents)}/year`}
+          />
+        </div>
+        <p className="mt-3 text-xs text-neutral-500">
+          Billed annually, auto-renews. Cancel anytime in one click from this page.
         </p>
       </>,
     );

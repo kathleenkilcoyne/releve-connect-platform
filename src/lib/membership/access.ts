@@ -16,18 +16,29 @@ export const PROFILE_TIER_SLUGS: TierSlug[] = (
   Object.keys(TIERS) as TierSlug[]
 ).filter((slug) => TIERS[slug].hasProfile);
 
-type MembershipRow = { tier: string; membership_status: string };
+type MembershipRow = { tier: string; membership_status: string; grace_until?: string | null };
+
+/**
+ * Is this row "active for access" right now? `active` alone counts; so does
+ * `active` with a `grace_until` that hasn't passed yet (the 14-day
+ * failed-renewal grace period — see lib/membership/grace.ts). A `grace_until`
+ * in the past means the window already lapsed — nothing flips the status
+ * automatically on day 14, so this comparison IS the enforcement.
+ */
+function isActiveForAccess(m: MembershipRow, now: Date): boolean {
+  if (m.membership_status !== "active") return false;
+  if (!m.grace_until) return true;
+  return now.getTime() < new Date(m.grace_until).getTime();
+}
 
 /**
  * Pure predicate: given a member's membership rows, do they hold an ACTIVE
  * membership on a profile-bearing tier? Extracted so it can be unit-tested
  * without a database (CLAUDE.md guardrail #6 — the gate must not silently break).
  */
-export function hasActiveProfileTierFromRows(rows: MembershipRow[]): boolean {
+export function hasActiveProfileTierFromRows(rows: MembershipRow[], now: Date = new Date()): boolean {
   const profileTiers = new Set<string>(PROFILE_TIER_SLUGS);
-  return rows.some(
-    (m) => m.membership_status === "active" && profileTiers.has(m.tier),
-  );
+  return rows.some((m) => isActiveForAccess(m, now) && profileTiers.has(m.tier));
 }
 
 /**
@@ -44,8 +55,8 @@ export function hasActiveProfileTierFromRows(rows: MembershipRow[]): boolean {
  * Professional, or a studio tier) still qualifies. Extracted for unit tests
  * (guardrail #6).
  */
-export function hasAnyActiveMembershipFromRows(rows: MembershipRow[]): boolean {
-  return rows.some((m) => m.membership_status === "active");
+export function hasAnyActiveMembershipFromRows(rows: MembershipRow[], now: Date = new Date()): boolean {
+  return rows.some((m) => isActiveForAccess(m, now));
 }
 
 /**
@@ -67,7 +78,7 @@ export async function hasActiveProfileTier(
 ): Promise<boolean> {
   const { data } = await db
     .from("memberships")
-    .select("tier, membership_status")
+    .select("tier, membership_status, grace_until")
     .eq("user_id", userId)
     .eq("membership_status", "active");
   return hasActiveProfileTierFromRows((data as MembershipRow[] | null) ?? []);
@@ -85,7 +96,7 @@ export async function hasAnyActiveMembership(
 ): Promise<boolean> {
   const { data } = await db
     .from("memberships")
-    .select("tier, membership_status")
+    .select("tier, membership_status, grace_until")
     .eq("user_id", userId)
     .eq("membership_status", "active");
   return hasAnyActiveMembershipFromRows((data as MembershipRow[] | null) ?? []);

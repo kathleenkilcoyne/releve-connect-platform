@@ -7,8 +7,9 @@
 //
 // This does NOT charge anyone. FREE FOUNDING PERIOD (2026-07-20): the $30
 // application fee is switched off, so submitting puts the application straight
-// into review and sends the two automatic emails from here. The fee-checkout
-// route still exists, unreferenced, for when payment is switched back on.
+// into review and sends the two automatic emails from here. The $30-at-apply
+// fee-checkout route was removed 2026-09-13 (dormant, retired per
+// HANDOFF-FIRST-PAID-MEMBERSHIP.md §4) — rebuild it if that fee ever returns.
 //
 // Auto-save + the 14-day resume link are a deliberate FAST-FOLLOW (see DECISIONS.md)
 // and are REQUIRED before the intake opens to real applicants — a long essay form
