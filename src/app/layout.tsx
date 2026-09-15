@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import AdminConsoleLink from "./AdminConsoleLink";
 import ProfessionalNav from "./ProfessionalNav";
@@ -46,6 +47,13 @@ export default function RootLayout({
         <ProfessionalNav />
         {children}
         <Analytics />
+        {/* HubSpot tracking code, portal 246998651 (id must stay "hs-script-loader" — HubSpot's
+            own validator and some HubSpot features key off this exact id). */}
+        <Script
+          id="hs-script-loader"
+          src="https://js-na2.hs-scripts.com/246998651.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
