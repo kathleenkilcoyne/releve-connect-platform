@@ -62,7 +62,7 @@ export default function TeamInviteByEmail({
   }
 
   return (
-    <section className="mt-10 border-t border-neutral-200 pt-6">
+    <section id="team-invite-email" className="mt-10 border-t border-neutral-200 pt-6">
       <h2 className="text-lg font-semibold text-neutral-900">Invite your {membersLower} by email</h2>
 
       {!hasCode ? (

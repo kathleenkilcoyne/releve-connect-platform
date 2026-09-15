@@ -12,6 +12,7 @@
 // weeks is now a real query the server has to run.
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AVA_VIEWER, KATHLEEN, getThisWeek } from "@/lib/this-week/data";
@@ -109,6 +110,23 @@ export function ThisWeekScreen({
         </span>
       </div>
 
+      {/* Persistent return path for a signed-in studio owner / Team Director —
+          rendered at the masthead level (not buried in the empty-state card
+          below) so it survives regardless of which content branch renders.
+          Only ever present when the server has resolved this viewer as an org
+          owner (see app/this-week/page.tsx); never shown to a family or a
+          professional viewer. */}
+      {orgHome && (
+        <div className="mt-3">
+          <Link
+            href="/studio/schedule"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rc-gold)] bg-[var(--rc-gold-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--rc-ink)]"
+          >
+            ← {orgHome.isTeam ? "Team Dashboard" : "Studio Dashboard"}
+          </Link>
+        </div>
+      )}
+
       {/* "You Matter Here" — the first thing on the page, before the week. */}
       {greeting && (
         <div className="mt-6">
@@ -203,12 +221,12 @@ export function ThisWeekScreen({
                 : "This Week fills in as you add classes, rehearsals and events — and as your families join."}
             </p>
             <p className="mt-4">
-              <a
+              <Link
                 href="/studio/schedule"
                 className="font-medium text-[var(--rc-ink)] underline underline-offset-2"
               >
                 {orgHome.isTeam ? "Go to your team dashboard" : "Go to your studio dashboard"}
-              </a>
+              </Link>
             </p>
           </div>
         </div>
