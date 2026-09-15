@@ -751,3 +751,40 @@ export async function sendPartnerInterestAlert(input: {
     ),
   });
 }
+
+// ===========================================================================
+// The Dance Teams umbrella — a Team Director's own self-serve member invite.
+// ===========================================================================
+
+/**
+ * EMAILS.md #17 — "Team join invite". ONE email per address, fired only when
+ * a Team Director clicks Send on their own /studio/schedule "Invite your
+ * {members} by email" box — an explicit action each time, never automatic or
+ * batched on a schedule.
+ *
+ * CRITICAL: joining a dance team by this link creates a self-managed ADULT
+ * account only. This must never state or imply the Relevé Roster or The
+ * Swing — mirrors the wording already in TeamJoinCode.tsx.
+ */
+export async function sendTeamInviteEmail(input: {
+  to: string;
+  coachName: string;
+  teamName: string;
+  memberLabel: string;
+  joinLink: string;
+}): Promise<SendResult> {
+  const members = memberLabelOf(input.memberLabel).toLowerCase();
+
+  return sendEmail({
+    to: input.to,
+    template: "team-join-invite.v1",
+    subject: `${input.coachName} invited you to join ${input.teamName} on Relevé`,
+    text: body(
+      `${input.coachName} invited you to join ${input.teamName} on Relevé.`,
+      `${input.teamName} uses Relevé to run its schedule — practices, events, and updates all in one place.`,
+      `Join here: ${input.joinLink}`,
+      `This creates your own self-managed Relevé account as one of ${input.teamName}'s ${members}. ` +
+        "It does not add you to the Relevé Roster or The Swing.",
+    ),
+  });
+}
