@@ -1,6 +1,24 @@
 # ▶️ RESUME HERE — Relevé Connect build
 
-> ## 📍 CURRENT STATE (2026-08-14) — read this first; it supersedes the dated blocks below
+> ## 📍 CURRENT STATE (2026-09-15) — read this first; supersedes the dated blocks below
+>
+> **Manhattan University Dance Team self-onboarding is DONE and MERGED to `main`.** Three PRs shipped and merged the same day, in order:
+> - **PR #18** (`b26d596`) — "Invite your dancers by email" box on `/studio/schedule`: a coach pastes addresses, Relevé sends the team join link to each, per-address success/failure reported back. No schema change, no per-invitation tracking (deliberate — see PR #19 below for why that mattered).
+> - **PR #19** (`cfe367d`) — fixed a real bug found by auditing PRODUCTION directly, not by guessing. The invite email's "coach name" read `users.display_name`, but `src/app/studio/edit/actions.ts` overwrites that field with the ORG's own name on every profile save. Madeline's `display_name` in prod is literally *"Manhattan University Dance Team"* — every invite would have read **"Manhattan University Dance Team invited you to join Manhattan University Dance Team on Relevé."** Now prefers `employer_profiles.artistic_director` (the "Coach / Team Director" field — a real person's name, already captured in the org editor for exactly this) and only falls back to `display_name` when it demonstrably isn't just the org's own name reflected back.
+> - **PR #20** (`16c12b6`) — first-run self-onboarding checklist on `/studio/schedule`, dance teams only: 5 steps (create a group · generate the join link · invite dancers · add an event · view This Week), each a scroll-to-existing-control link, each checkmark read live off data the page already loads — **zero new queries, zero new schema.** Collapses to a compact "you're set up" banner once all 5 are true. Also made the "Team Dashboard" return link on `/this-week` persistent (moved to the page masthead, out of the buried empty-state card) — without touching `this-week/page.tsx`'s resolution gate itself (a regression test there explicitly asserts `resolveStudioForUser` is never called once a viewer has a populated week; that guarantee is untouched).
+>
+> ### Manhattan's ACTUAL production state, read directly from the DB on 2026-09-15
+> `employer_profiles` row exists, `status='live'`, `org_type='dance_team'`, claimed by `madeline.donohue@manhattan.edu` (membership `dance_team_pilot`, active). But: **zero groups, zero schedule entries, zero roster members, and no team join code has ever been generated.** That blank-slate state is exactly what PR #20's checklist is for — she lands on `/studio/schedule` after sign-in (automatic — `resolveSignedInDestination` already sent org owners with no talent profile/family there, unchanged) and sees *"Welcome to Manhattan University Dance Team — 0 of 5 steps done,"* not a page that looks broken or unfinished.
+>
+> ### ⚠️ NOT yet verified — needs a real click-through
+> Every acceptance-test step was traced against the actual merged code and the actual production data (520/520 tests pass, clean build), but **nobody has actually clicked through the flow as Madeline** — that needs her real email OTP, which is unreachable from here, and production was never written to as a test (no fake groups/codes/events were created in her org). Also unconfirmed from here: whether `EMAIL_API_KEY` / `EMAIL_FROM_ADDRESS` are actually set in the Vercel production environment — if not, every invite email (and every other transactional email) silently no-ops and only logs, per `src/lib/email/send.ts`'s documented behavior.
+>
+> ### ▶️ NEXT
+> 1. **You or Madeline actually run the flow** — sign in, generate the join code, invite one real test address, confirm the email arrives.
+> 2. Confirm the Resend env vars are set in production if that hasn't been checked recently.
+> 3. Everything below about Professional Offerings / Founding Professional / earlier threads is SEPARATE and unrelated to this pilot — still exactly as the 2026-08-14 block describes.
+
+> ## 📍 CURRENT STATE (2026-08-14) — superseded by the block above, kept as history
 >
 > **Both features are now MERGED to `main` and DEPLOYED.** Professional Offerings (Slices 1–4) = `47329e9`; Founding Professional = `0db55cd`. Production runs this code today. The dated journal entries below still say "nothing merged, nothing deployed" — that was true *when each was written* (on their feature branches); it is no longer true. Do not act on those phrases.
 >
