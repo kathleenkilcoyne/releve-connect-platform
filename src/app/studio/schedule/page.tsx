@@ -19,6 +19,7 @@ import { loadStudioScheduleData } from "@/lib/studio/schedule-data";
 import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
 import StudioRoster from "./StudioRoster";
 import TeamJoinCode, { type TeamCode } from "./TeamJoinCode";
+import TeamInviteByEmail from "./TeamInviteByEmail";
 import { memberLabelOf } from "@/lib/studio/team-types";
 
 export const dynamic = "force-dynamic";
@@ -133,6 +134,9 @@ export default async function StudioSchedulePage() {
 
       {/* ── Team join code (dance teams only) ── */}
       {isTeam && <TeamJoinCode code={teamCode} memberLabel={memberLabel} />}
+
+      {/* ── Invite by email (dance teams only; needs an active team code) ── */}
+      {isTeam && <TeamInviteByEmail hasCode={!!teamCode} memberLabel={memberLabel} />}
 
       {/* ── Schedule ── */}
       <section className="mt-10 border-t border-neutral-200 pt-6">
