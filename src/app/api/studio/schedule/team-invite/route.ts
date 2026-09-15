@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { requireStudioAccess } from "@/lib/studio/access";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseInviteAddresses } from "@/lib/studio/team-invite";
+import { parseInviteAddresses, resolveCoachName } from "@/lib/studio/team-invite";
 import { memberLabelOf } from "@/lib/studio/team-types";
 import { sendTeamInviteEmail } from "@/lib/notifications";
 import { emailSiteUrl } from "@/lib/email/send";
@@ -49,11 +49,13 @@ export async function POST(req: Request) {
   // Only a dance team invites this way — studios use the family code instead.
   const { data: prof, error: profErr } = await db
     .from("employer_profiles")
-    .select("name, org_type, member_label")
+    .select("name, org_type, member_label, artistic_director")
     .eq("employer_id", gate.employerId)
     .maybeSingle();
   if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
-  const p = prof as { name: string | null; org_type: string; member_label: string | null } | null;
+  const p = prof as
+    | { name: string | null; org_type: string; member_label: string | null; artistic_director: string[] | null }
+    | null;
   if (!p) return NextResponse.json({ error: "Team not found." }, { status: 404 });
   if (p.org_type !== "dance_team") {
     return NextResponse.json({ error: "Email invitations are for dance teams." }, { status: 400 });
@@ -96,10 +98,13 @@ export async function POST(req: Request) {
     .select("display_name")
     .eq("user_id", gate.userId)
     .maybeSingle();
-  const coachName =
-    (userRow as { display_name: string | null } | null)?.display_name?.trim() || "Your coach";
 
   const teamName = p.name?.trim() || "Your team";
+  const coachName = resolveCoachName({
+    artisticDirector: p.artistic_director,
+    displayName: (userRow as { display_name: string | null } | null)?.display_name,
+    teamName,
+  });
   const memberLabel = memberLabelOf(p.member_label);
   const joinLink = `${emailSiteUrl()}/team-join?code=${encodeURIComponent(code)}`;
 

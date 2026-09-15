@@ -47,3 +47,31 @@ export function parseInviteAddresses(raw: string): ParsedAddresses {
 
   return { valid, invalid };
 }
+
+/**
+ * Who to credit as the sender in the invite email.
+ *
+ * Prefers the team's own "Coach / Team Director" field
+ * (`employer_profiles.artistic_director` — a real person's name, captured for
+ * exactly this purpose in the org profile editor) over the signed-in user's
+ * `users.display_name`. That field is NOT safe to use unguarded: saving an
+ * org's profile (src/app/studio/edit/actions.ts) sets the OWNER's
+ * `display_name` to the ORG's own name, so using it directly produced
+ * "Manhattan University Dance Team invited you to join Manhattan University
+ * Dance Team on Relevé" for every org owner who had ever saved their profile.
+ * `displayName` is used only as a second fallback, and only when it is
+ * demonstrably NOT just the team's own name reflected back.
+ */
+export function resolveCoachName(input: {
+  artisticDirector: string[] | null | undefined;
+  displayName: string | null | undefined;
+  teamName: string;
+}): string {
+  const director = (input.artisticDirector ?? []).map((d) => d.trim()).find(Boolean);
+  if (director) return director;
+
+  const display = input.displayName?.trim();
+  if (display && display !== input.teamName.trim()) return display;
+
+  return "Your coach";
+}
