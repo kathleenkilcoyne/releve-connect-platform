@@ -211,7 +211,7 @@ export default function StudioRoster({
       </div>
 
       {/* ── 2. Groups & classes ── */}
-      <div className="mt-6">
+      <div id="team-groups" className="mt-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-neutral-800">Groups &amp; classes</h3>
           {!creating && (

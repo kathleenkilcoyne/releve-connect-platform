@@ -87,7 +87,7 @@ export default function TeamJoinCode({
   }
 
   return (
-    <section className="mt-10 border-t border-neutral-200 pt-6">
+    <section id="team-join-code" className="mt-10 border-t border-neutral-200 pt-6">
       <h2 className="text-lg font-semibold text-neutral-900">Team join code</h2>
       <p className="mt-1 text-sm text-neutral-600">
         Share this with your <span className="font-medium">adult</span> {membersLower}. Each one

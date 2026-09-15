@@ -20,6 +20,7 @@ import ScheduleEditor from "@/app/admin/studios/[id]/ScheduleEditor";
 import StudioRoster from "./StudioRoster";
 import TeamJoinCode, { type TeamCode } from "./TeamJoinCode";
 import TeamInviteByEmail from "./TeamInviteByEmail";
+import DanceTeamSetupChecklist from "./DanceTeamSetupChecklist";
 import { memberLabelOf } from "@/lib/studio/team-types";
 
 export const dynamic = "force-dynamic";
@@ -129,6 +130,18 @@ export default async function StudioSchedulePage() {
         </Link>
       </nav>
 
+      {/* ── First-run setup checklist (dance teams only) ── */}
+      {isTeam && (
+        <DanceTeamSetupChecklist
+          orgName={orgName}
+          memberLabel={memberLabel}
+          hasGroup={groups.length > 0}
+          hasCode={!!teamCode}
+          hasJoinedDancer={roster.some((r) => r.connection === "connected")}
+          hasScheduleEntry={scheduleEntries.length > 0}
+        />
+      )}
+
       {/* ── Roster (dancers + groups) ── */}
       <StudioRoster groups={groups} roster={roster} isTeam={isTeam} memberLabel={memberLabel} />
 
@@ -139,12 +152,20 @@ export default async function StudioSchedulePage() {
       {isTeam && <TeamInviteByEmail hasCode={!!teamCode} memberLabel={memberLabel} />}
 
       {/* ── Schedule ── */}
-      <section className="mt-10 border-t border-neutral-200 pt-6">
+      <section id="team-schedule" className="mt-10 border-t border-neutral-200 pt-6">
         <h2 className="text-lg font-semibold text-neutral-900">Schedule</h2>
         <p className="mt-1 text-sm text-neutral-600">
           Add rehearsals, private lessons, competitions, meetings, and other important dates. Choose
           the dancers or groups involved, and the event appears in each{" "}
           {isTeam ? "dancer" : "family"}&apos;s <span className="italic">This Week</span>.
+          {scheduleEntries.length === 0 && (
+            <>
+              {" "}
+              {isTeam
+                ? "Add your first rehearsal or event below to get This Week started."
+                : "Add your first class or event below to get This Week started."}
+            </>
+          )}
         </p>
         <ScheduleEditor
           endpointBase="/api/studio/schedule/classes"
